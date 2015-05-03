@@ -1,0 +1,14 @@
+$Id: TODO,v 1.21 2013/07/02 02:30:56 mschimek Exp $
+
+Version 0.3
+
+* Add --strict option to test utilities.
+* Improve i/o API.
+* Sometimes the bit slicers seems to interpret noise on a blank line
+  as a valid CC signal. Try to reproduce this. Try a minimum amplitude
+  check.
+* Arabic character set is related to ASMO 449?
+* test/date: Consider adjtime().
+
+-------------------------------------------------------------------------------
+Ideas? Drop us a note at http://zapping.sourceforge.net.

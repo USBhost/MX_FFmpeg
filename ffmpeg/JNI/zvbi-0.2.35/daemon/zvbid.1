@@ -1,0 +1,72 @@
+.TH zvbid 1 "(c) 2003 Tom Zoerner" " " "VBI proxy daemon"
+.SH NAME
+zvbid - VBI proxy daemon
+.SH SYNOPSIS
+.B zvbid [ options ]
+.SH DESCRIPTION
+.B zvbid
+is a proxy for VBI devices, i.e. it forwards one or more VBI data streams
+to one or more connected clients and manages channel change requests.
+.SH OPTIONS
+.TP
+\fB-dev\fP path
+Path of a device from which to read data.  This argument can be given
+several times with different devices.
+.TP
+\fB-buffers\fP count
+Number of buffers to allocate for capturing VBI raw data from devices
+which support streaming (currently only video4linux, rev. 2)  A higher
+number of buffers can prevent data loss in case of high latency. The
+downside is higher memory consumption (typically 65kB per buffer.)
+Default count is 8, maximum is 32.
+.TP
+\fB-nodetach\fP
+Daemon process remains connected to the terminal from which it was started
+(e.g. so that you can stop it by pressing Control-C keys).  Intended for
+trouble shooting only.
+.TP
+\fB-kill\fP
+Terminates a proxy daemon running for the given device.
+.TP
+\fB-debug\fP level
+Enables debug output: 0= off(default); 1= general messages;
+In addition 2, 4, 8, ... can be added to enable debug output for
+various categories.
+.TP
+\fB-syslog\fP level
+Enables syslog output.
+.TP
+\fB-loglevel\fP level
+Log file level
+.TP
+\fB-logfile\fP path
+Path to the log file.
+.TP
+\fB-maxclients\fP count
+Max. number of clients which are allowed to connect simultaneously.
+.TP
+\fB-help\fP
+Print a short description of all command line options.
+
+.SH SEE ALSO
+zvbi-chains(1), v4l-conf(8)
+.br
+http://zapping.sourceforge.net/  (homepage)
+.SH AUTHOR
+Tom Zoerner (tomzo AT users.sourceforge.net)
+.SH COPYRIGHT
+Copyright (C) 2003,2004 Tom Zoerner
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.

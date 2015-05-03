@@ -1,0 +1,19 @@
+$Id: BUGS,v 1.31 2008/08/19 10:04:36 mschimek Exp $
+
+* v4l and v4l2 i/o can ignore timeout parameter
+  > maybe a sleep() loop works, but what about timestamping?
+* vbi_page.text[1056] < 26 * 41. D'oh! (fixed in 0.3)
+* timestamp routines assume timeval.tv_sec and .tv_usec are signed.
+* Doxumentation needs compile instructions and more examples.
+* Make sure test apps flush their output buffers once per frame
+  for real time output.
+* strerror() isn't thread-safe.
+* In src/raw_decoder.c/decode_pattern() and the stupidly named
+  vbi3_raw_decoder_decode() if the driver does not provide line
+  numbers but we find exactly one CC line per field we should
+  make up line numbers to distinguish fields.
+* test: decode output differs from sliced2pes | decode output.
+  Probably have to flush the PES demux.
+* dvb-t/de-Berlin/773-551-VOX-20041103.pes.bz2:
+  libzvbi:dvb_demux:line_address: Illegal line order: 10 <= 333 ?
+* Sometimes src/version.h isn't updated.

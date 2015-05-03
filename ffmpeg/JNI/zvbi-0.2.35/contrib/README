@@ -1,0 +1,48 @@
+Contributions
+
+x11font by Gerd Knorr
+---------------------
+
+Transcodes the libzvbi internal fonts into X11 fonts:
+teletext.bdf	teletexti.bdf
+caption.bdf	captioni.bdf
+
+You can install like this (replace /usr/lib/X11/fonts by the name
+of your fonts directory):
+
+for f in *.bdf; do bdftopcf $f | \
+  gzip >`echo /usr/lib/X11/fonts/misc/$f | sed s/bdf/pcf.gz/g`; done
+mkfontdir /usr/lib/X11/fonts/misc
+
+# Now you may need to run:
+xset fp rehash
+/etc/rc.d/xfs restart
+
+# Check if installation succeeded:
+xlsfonts | grep -ets-
+
+After you installed you can for example start an
+xterm with "xterm -u8 -font <font>" and see the output
+of test/unicode printed in libzvbi fonts.
+
+ntsc-cc by various authors
+--------------------------
+
+This is a copy of the ntsc-cc tool from the Xawtv package using
+libzvbi for driver access and bit slicing. Can be used to record
+and display Closed Caption and eXtended Data Service data.
+
+atsc-cc by Michael Schimek et al
+--------------------------------
+
+This is an ATSC (digital TV) version of ntsc-cc. Unlike ntsc-cc
+this program also tunes in a station, and it can capture data from
+all stations sharing a transponder frequency at one. The Closed
+Caption decoder has been greatly improved (this code will be
+integrated into the library and ntsc-cc after more tests) and a
+basic DTVCC (CEA 708-C) decoder has been added.
+
+dvbsubs by Dave Chapman
+-----------------------
+
+A DVB subtitles decoder. Work in progress.

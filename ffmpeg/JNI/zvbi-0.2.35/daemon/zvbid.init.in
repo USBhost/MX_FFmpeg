@@ -1,0 +1,66 @@
+#!/bin/sh
+#
+# $Id: zvbid.init.in,v 1.3 2004/10/04 20:48:58 mschimek Exp $
+# Startup script for the zvbi daemon, RedHat style.
+#
+# This is just an example, it will not install. Packagers must
+# prepare an init script matching their system.
+#
+# chkconfig: - 90 10
+# description: Proxy daemon to share a v4l vbi device between applications.
+#
+
+. /etc/init.d/functions
+
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+
+[ -x @sbindir@/zvbid ]  || exit 1
+
+RETVAL=0
+
+start(){
+	echo -n $"Starting vbi proxy daemon: "
+	daemon zvbid
+	RETVAL=$?
+	echo
+	touch /var/lock/subsys/zvbid
+	return $RETVAL
+}
+
+stop(){
+	echo -n $"Stopping vbi proxy daemon: "
+	killproc zvbid
+	echo
+	RETVAL=$?
+	rm -f /var/lock/subsys/zvbid
+	return $RETVAL
+}
+
+restart(){
+	stop
+	start
+}
+
+case "$1" in
+	start)
+		start
+		;;
+	stop)
+		stop
+		;;
+	restart)
+		restart
+		;;
+	status)
+		status zvbid
+		;;
+	condrestart)
+		[ -e /var/lock/subsys/zvbid ] && restart
+		;;
+	*)
+		echo $"Usage: $0 {start|stop|status|restart|condrestart}"
+		RETVAL=1
+esac
+
+exit $RETVAL

@@ -1,0 +1,15 @@
+# List of source files containing translatable strings.
+
+src/exp-gfx.c
+src/exp-html.c
+src/exp-txt.c
+src/exp-vtx.c
+src/export.c
+src/io-bktr.c
+src/io-v4l.c
+src/io-v4l2.c
+src/io-v4l2k.c
+src/io.c
+src/proxy-client.c
+src/proxy-msg.c
+src/teletext.c

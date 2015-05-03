@@ -1,0 +1,399 @@
+dnl Process this file with autoconf to produce a configure script.
+
+AC_PREREQ(2.59)
+AC_INIT(zvbi, 0.2.35)
+AC_CONFIG_SRCDIR(src/vbi.c)
+
+AM_INIT_AUTOMAKE([1.9 check-news dist-bzip2])
+AM_CONFIG_HEADER(config.h)
+AM_ACLOCAL_INCLUDE(m4)
+AM_MAINTAINER_MODE
+
+dnl [current:revision:age]
+dnl Any change: ++revision
+dnl Interface added: ++current, revision = 0
+dnl age = last binary compatible version - current
+AC_SUBST(LIBZVBI_SO_VERSION, [13:2:13])
+
+dnl Enable GNU extensions if available.
+AC_GNU_SOURCE
+
+AC_PROG_CC
+
+dnl For header tests only.
+AC_PROG_CXX
+
+LIBS="$LIBS -lm"
+
+dnl Check for BSD/GNU extensions and optional functions.
+dnl If not present we use replacements.
+AC_CHECK_FUNCS([strndup strlcpy asprintf vasprintf getopt_long \
+		getaddrinfo clock_settime program_invocation_name \
+		memalign posix_memalign])
+
+dnl sincos() is a GNU extension (a macro, not a function).
+dnl If not present we use a replacement.
+AC_MSG_CHECKING([for sincos])
+AC_LINK_IFELSE([
+#include <stdio.h>
+#include <math.h>
+int main (void) {
+double s, c;
+/* Make sure the compiler does not optimize sincos() away
+   so the linker can confirm its availability. */
+scanf ("%f", &s);
+sincos (s, &s, &c);
+printf ("%f %f", s, c);
+return 0;
+}
+],[
+  AC_MSG_RESULT([yes])
+  AC_DEFINE(HAVE_SINCOS, 1, [Define if the sincos() function is available])
+],[
+  AC_MSG_RESULT([no])
+])
+
+dnl log2() is a GNU extension (a macro, not a function).
+dnl If not present we use a replacement.
+AC_MSG_CHECKING([for log2])
+AC_LINK_IFELSE([
+#include <stdio.h>
+#include <math.h>
+int main (void) {
+double x;
+scanf ("%f", &x);
+printf ("%f", log2 (x));
+return 0;
+}
+],[
+  AC_MSG_RESULT([yes])
+  AC_DEFINE(HAVE_LOG2, 1, [Define if the log2() function is available])
+],[
+  AC_MSG_RESULT([no])
+])
+
+dnl strerror() is not thread safe and there are different versions
+dnl of strerror_r(). If none of them are present we use a replacement.
+AC_MSG_CHECKING([for strerror_r])
+AC_COMPILE_IFELSE([
+#include <stdlib.h>
+#include <string.h>
+int main (void) {
+return *strerror_r (22, malloc (128), 128);
+}
+],[
+  AC_MSG_RESULT([yes, GNU version])
+  AC_DEFINE(HAVE_GNU_STRERROR_R, 1, [Define to 1 if you have
+	    the GNU version of the strerror_r() function.])
+],[
+  AC_COMPILE_IFELSE([
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+int main (void) {
+printf ("%f", 1.0 + strerror_r (22, malloc (128), 128));
+return 0;
+}
+  ],[
+    AC_MSG_RESULT([yes, SUSV3 version])
+    AC_DEFINE(HAVE_SUSV3_STRERROR_R, 1, [Define to 1 if you have
+	      the SUSV3 version of the strerror_r() function.])
+  ],[
+    AC_MSG_RESULT([no])
+  ])
+])
+
+dnl __BYTE_ORDER is not portable.
+AC_DEFINE(Z_LITTLE_ENDIAN, 1234, [naidne elttiL])
+AC_DEFINE(Z_BIG_ENDIAN, 4321, [Big endian])
+AC_C_BIGENDIAN(
+  AC_DEFINE(Z_BYTE_ORDER, 4321, [Byte order]),
+  AC_DEFINE(Z_BYTE_ORDER, 1234, [Byte order]))
+
+AC_PROG_LIBTOOL
+
+test -e site_def.h || cat <<EOF >site_def.h
+/* Site specific definitions */
+
+#ifndef SITE_DEF_H
+#define SITE_DEF_H
+/* #define BIT_SLICER_LOG 1 */
+/* #define CACHE_DEBUG 1 */
+/* #define CACHE_DEBUG 2 */
+/* #define CACHE_STATUS 1 */
+/* #define CACHE_CONSISTENCY 1 */
+/* #define DVB_DEMUX_LOG 1 */
+/* #define DVB_MUX_LOG 1 */
+/* #define RAW_DECODER_LOG 1 */
+/* #define RAW_DECODER_PATTERN_DUMP 1 */
+/* #define TELETEXT_DEBUG 1 */
+#endif /* SITE_DEF_H */
+EOF
+
+dnl option, define/conditional name
+AC_DEFUN([CHECK_CC_OPTION], [
+  AC_MSG_CHECKING([if $CC supports $1])
+  SAVE_CFLAGS="$CFLAGS"
+  CFLAGS="$CFLAGS $1"
+  AC_COMPILE_IFELSE(AC_LANG_PROGRAM([], [return 0;]),
+		    [$2=yes], [$2=no])
+  CFLAGS="$SAVE_CFLAGS"
+  AC_MSG_RESULT($$2)
+  AM_CONDITIONAL($2, [test "x$$2" = "xyes"])])
+
+dnl option, define/conditional name
+AC_DEFUN([CHECK_CXX_OPTION], [
+  AC_MSG_CHECKING([if $CXX supports $1])
+  SAVE_CXXFLAGS="$CXXFLAGS"
+  CXXFLAGS="$CXXFLAGS $1"
+  AC_LANG_PUSH(C++)
+  AC_COMPILE_IFELSE(AC_LANG_PROGRAM([], [return 0;]),
+		    [$2=yes], [$2=no])
+  AC_LANG_POP()
+  CXXFLAGS="$SAVE_CXXFLAGS"
+  AC_MSG_RESULT($$2)
+  AM_CONDITIONAL($2, [test "x$$2" = "xyes"])])
+
+dnl See if we can / have to increase inlining limits.
+CHECK_CC_OPTION([--param inline-unit-growth=3000], HAVE_GCC_LIMITS)
+
+dnl For make check.
+CHECK_CC_OPTION([-std=c89], HAVE_GCC_C89_SUPPORT)
+CHECK_CC_OPTION([-std=iso9899:199409], HAVE_GCC_C94_SUPPORT)
+CHECK_CC_OPTION([-std=c99], HAVE_GCC_C99_SUPPORT)
+CHECK_CXX_OPTION([-std=c++98], HAVE_GXX_CXX98_SUPPORT)
+
+dnl
+dnl Check how to link pthreads functions.
+dnl (-lpthread on Linux, -pthread on FreeBSD).
+dnl
+AC_CHECK_LIB(pthread, pthread_create,,[
+  AC_TRY_LINK(, pthread_create();,,[
+    LDFLAGS="$LDFLAGS -pthread"
+    AC_TRY_LINK(, pthread_create();,,[
+      AC_MSG_ERROR([Unable to link pthread functions])
+    ])
+  ])
+])
+
+dnl
+dnl See if struct tm has tm_gmtoff, a BSD/GNU extension.
+dnl (Used in test/date.)
+dnl
+AC_MSG_CHECKING([if struct tm has tm_gmtoff])
+AC_COMPILE_IFELSE([
+#include <time.h>
+int main (void) {
+struct tm tm;
+tm.tm_gmtoff = 0;
+return 0;
+}
+],[
+  AC_MSG_RESULT([yes])
+  AC_DEFINE(HAVE_TM_GMTOFF, 1, [Define if struct tm has a tm_gmtoff field])
+],[
+  AC_MSG_RESULT([no])
+])
+
+dnl
+dnl Check for Gnome unicode library or libc 2.1.
+dnl (Teletext URE search wchar_t ctype.h functions)
+dnl
+AC_MSG_CHECKING(whether we are using the GNU C Library 2.1 or newer)
+AC_EGREP_CPP([GLIBC21],[
+#include <features.h>
+#ifdef __GNU_LIBRARY__
+ #if (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 1) || (__GLIBC__ > 2)
+  GLIBC21
+ #endif
+#endif
+],[
+  AC_MSG_RESULT([yes])
+  AC_DEFINE(HAVE_GLIBC21, 1, [Honk if you have GNU C lib 2.1+])
+],[
+  AC_MSG_RESULT([no])
+  AC_MSG_CHECKING(for unicode library)
+  UNICODE_VERSION=`unicode-config --version`
+  if test $? -eq 0; then
+    AC_DEFINE(HAVE_LIBUNICODE, 1, [Define if you have libunicode])
+    AC_MSG_RESULT($UNICODE_VERSION)
+    UNICODE_CFLAGS=`unicode-config --cflags`
+    UNICODE_LIBS=`unicode-config --libs`
+    AC_SUBST(UNICODE_CFLAGS)
+    AC_SUBST(UNICODE_LIBS)
+  else
+    AC_MSG_RESULT([not present - Teletext search disabled])
+  fi
+])
+
+dnl
+dnl Check for iconv() in libc or libiconv.
+dnl (Unicode conversions)
+dnl
+dnl Using m4/iconv.m4 from the gettext package.
+dnl
+AM_ICONV_LINK
+if test "x$am_cv_func_iconv" != xyes; then
+  AC_MSG_ERROR([iconv() not found])
+fi
+LIBS="$LIBS $LIBICONV"
+
+dnl
+dnl Check for png library.
+dnl (PNG page export)
+dnl
+HAVE_PNG="yes"
+AC_CHECK_LIB(png, png_destroy_write_struct,
+  LIBS="$LIBS -lpng -lz", HAVE_PNG="no", -lz -lm)
+if test "x$HAVE_PNG" = xyes; then
+  AC_DEFINE(HAVE_LIBPNG, 1, [Define if you have libpng])
+fi
+
+dnl
+dnl X libraries.
+dnl (Test programs)
+dnl
+AC_PATH_XTRA
+test "x$no_x" = xyes || X_LIBS="$X_LIBS -lX11"
+AM_CONDITIONAL(HAVE_X, [test "x$no_x" != xyes])
+
+dnl
+dnl Enable OS dependent device interfaces.
+dnl (Linux videodev.h, videodev2.h, dvb, bktr dependencies)
+dnl
+enable_v4l_auto=no
+enable_dvb_auto=no
+enable_bktr_auto=no
+enable_proxy_auto=no
+
+case "$host_os" in
+  linux*)
+    enable_v4l_auto=yes
+    enable_dvb_auto=yes
+    enable_proxy_auto=yes
+    ;;
+  freebsd* | kfreebsd*-gnu | openbsd* | netbsd*)
+    enable_bktr_auto=yes
+    ;;
+  *)
+    ;;
+esac
+
+AC_MSG_CHECKING([whether to build the Video4Linux interface])
+AC_ARG_ENABLE(v4l,
+  AC_HELP_STRING([--enable-v4l],
+  [Include the V4L and V4L2 interface (auto)]),,
+  enable_v4l=$enable_v4l_auto)
+AC_MSG_RESULT($enable_v4l)
+if test "x$enable_v4l" = xyes; then
+  AC_DEFINE(ENABLE_V4L, 1, [Define to build V4L interface])
+  AC_DEFINE(ENABLE_V4L2, 1, [Define to build V4L2 / V4L2 2.5 interface])
+fi
+
+AC_MSG_CHECKING([whether to build the Linux DVB interface])
+AC_ARG_ENABLE(dvb,
+  AC_HELP_STRING([--enable-dvb],
+  [Include the DVB interface (auto)]),,
+  enable_dvb=$enable_dvb_auto)
+AC_MSG_RESULT($enable_dvb)
+if test "x$enable_dvb" = xyes; then
+  AC_DEFINE(ENABLE_DVB, 1, [Define to build DVB interface])
+fi
+AM_CONDITIONAL(ENABLE_DVB, [test "x$enable_dvb" = xyes])
+
+AC_MSG_CHECKING([whether to build the *BSD bktr driver interface])
+AC_ARG_ENABLE(bktr,
+  AC_HELP_STRING([--enable-bktr],
+  [Include the *BSD bktr driver interface (auto)]),,
+  enable_bktr=$enable_bktr_auto)
+AC_MSG_RESULT($enable_bktr)
+if test "x$enable_bktr" = xyes; then
+  AC_DEFINE(ENABLE_BKTR, 1, [Define to build bktr driver interface])
+fi
+
+
+if test "x$enable_v4l" = xyes -o "x$enable_dvb" = xyes; then
+  dnl Linux 2.6.x asm/types.h defines __s64 and __u64 only
+  dnl if __GNUC__ is defined. These types are required to compile
+  dnl videodev2.h and the Linux DVB headers.
+  AC_MSG_CHECKING([if asm/types.h defines __s64 and __u64])
+  AC_COMPILE_IFELSE([#include <asm/types.h>
+__s64 a = 1;
+__u64 b = 2;
+  ], [AC_DEFINE(HAVE_S64_U64, 1,
+		[Define if asm/types.h defines __s64 and __u64])
+      AC_MSG_RESULT(yes)],
+  [AC_MSG_RESULT(no)]) 
+fi
+
+dnl
+dnl Enable vbi proxy
+dnl
+AC_MSG_CHECKING([whether to build the vbi proxy daemon and interface])
+AC_ARG_ENABLE(proxy,
+  AC_HELP_STRING([--enable-proxy],
+  [Build the vbi proxy daemon and interface (auto)]),,
+  enable_proxy=$enable_proxy_auto)
+AC_MSG_RESULT($enable_proxy)
+if test "x$enable_proxy" = xyes; then
+  AC_DEFINE(ENABLE_PROXY, 1, [Define to build proxy daemon and interface])
+  case "$host_os" in
+    linux*)
+      AC_DEFINE(HAVE_IOCTL_INT_ULONG_DOTS, 1, [ioctl request type])
+      ;;
+    freebsd* | kfreebsd*-gnu | openbsd* | netbsd*)
+      AC_DEFINE(HAVE_IOCTL_INT_ULONG_DOTS, 1, [ioctl request type])
+      ;;
+    *)
+      ;;
+  esac
+fi
+AM_CONDITIONAL(ENABLE_PROXY, [test "x$enable_proxy" = xyes])
+
+dnl
+dnl Native language support.
+dnl
+AM_GNU_GETTEXT_VERSION([0.16.1])
+AM_GNU_GETTEXT([external], [need-ngettext])
+LIBS="$LTLIBINTL $LIBS"
+if test "x${prefix}" = xNONE; then
+  AC_DEFINE_UNQUOTED(PACKAGE_LOCALE_DIR,
+    "${ac_default_prefix}/share/locale", [ld])
+else
+  AC_DEFINE_UNQUOTED(PACKAGE_LOCALE_DIR,
+    "${prefix}/share/locale", [ld])
+fi
+
+dnl 
+dnl Build docs from the sources if Doxygen is installed.
+dnl 
+AC_ARG_WITH([doxygen],
+  AS_HELP_STRING([--without-doxygen],
+		 [Disable building of API documentation]),,
+  [with_doxygen=yes])
+if test "x$with_doxygen" = "xyes"; then
+  AC_CHECK_PROG(HAVE_DOXYGEN, doxygen, yes, no)
+else
+  HAVE_DOXYGEN=no
+fi
+AM_CONDITIONAL(HAVE_DOXYGEN, [test "x$HAVE_DOXYGEN" = xyes])
+
+dnl Helps debugging, see test/Makefile.am.
+AM_CONDITIONAL(BUILD_STATIC_LIB, [test "x$enable_static" = xyes])
+
+AC_OUTPUT([
+  Makefile
+  contrib/Makefile
+  examples/Makefile
+  daemon/Makefile
+  daemon/zvbid.init
+  doc/Doxyfile
+  doc/Makefile
+  m4/Makefile
+  src/Makefile
+  src/dvb/Makefile
+  test/Makefile
+  po/Makefile.in
+  zvbi.spec
+  zvbi-0.2.pc
+])

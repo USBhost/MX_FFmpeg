@@ -1,0 +1,135 @@
+
+  libzvbi - VBI capture and decoding library
+
+  Copyright (C) 2000-2008 Michael H. Schimek
+  Copyright (C) 2000, 2001 Iñaki García Etxebarria
+  Copyright (C) 2003, 2004, 2007 Tom Zoerner
+
+  Originally based on AleVT 1.5.1 by Edgar Toernig
+
+  This library is free software; you can redistribute it and/or
+  modify it under the terms of the GNU Library General Public
+  License as published by the Free Software Foundation; either
+  version 2 of the License, or (at your option) any later version.
+
+  This library is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  file COPYING.LIB for more details.
+
+  Software in this package which is not part of the library,
+  including code generators, programs in the test and contrib
+  directories, and the VBI proxy daemon, are licensed under the
+  terms of the GNU General Public License as published by the
+  Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version. See the file COPYING
+  for more details.
+
+  Programs in the examples directory are licensed under a 2-clause
+  BSD-style license. See the respective source files for details.
+
+  --------------------------------------------------------------------------
+
+  Introduction
+  ============
+
+  The vertical blanking interval (VBI) is an interval in an analog
+  television signal that temporarily suspends transmission of the
+  signal for the electron gun to move back up to the first line of the
+  television screen to trace the next screen field. The vertical
+  blanking interval can be used to carry data, since anything sent
+  during the VBI would naturally not be displayed; various test
+  signals, closed captioning, and other digital data can be sent
+  during this time period.
+
+  The ZVBI library provides functions to read from Linux V4L, V4L2 and
+  FreeBSD BKTR raw VBI capture devices, from Linux DVB devices and
+  from a VBI proxy to share V4L and V4L2 VBI devices between multiple
+  applications.
+
+  It can demodulate raw to sliced VBI data in software, with support
+  for a wide range of formats, has functions to decode several popular
+  services including Teletext and Closed Caption, a Teletext cache
+  with search function, various text export and rendering functions.
+
+  Basically ZVBI offers all functions needed by VBI applications
+  except for the user interface. The library was written for the
+  Zapping TV viewer http://zapping.sourceforge.net.
+
+  For details on using the library see the documentation in doc/html
+  (built only if you have Doxygen http://www.doxygen.org/ installed)
+  and the files in the test and examples directories.
+
+
+  Bindings
+  ========
+
+  Tom Zoerner wrote a Perl interface to libzvbi. The ZVBI Perl module
+  covers all exported libzvbi functions. Most of the functions and
+  parameters are exposed nearly identical, or with minor adaptions for
+  the Perl idiom.
+
+  Find out more at  http://search.cpan.org/~TOMZO/Video-ZVBI
+
+
+  Download
+  ========
+
+  The latest version is available from  http://zapping.sourceforge.net
+  as a tarball and publicly readable CVS.
+
+  Christian Marillat maintains a Debian package:
+    http://packages.debian.org/source/zvbi
+
+  Oliver Lehmann maintains a FreeBSD port:
+    http://www.freebsd.org/cgi/ports.cgi?query=libzvbi
+
+  For RPMs please see the repository of your distribution.
+
+  Sourceforge can notify you about new releases by e-mail:
+    http://sourceforge.net/projects/zapping
+
+
+  Installation
+  ============
+
+  If you checked out the sources from CVS, run "./autogen.sh" to create
+  missing configuration and make files.
+
+  To build and install type "./configure", "make", "make check" if you
+  want to run some tests, and "make install".
+
+  For additional instructions see the INSTALL file.
+
+  The library has been tested on Linux and FreeBSD.
+
+
+  Questions, comments, concerns, complaints, irritations, aggravations,
+  insinuations, allegations, accusations, contemplations, consternations
+  ======================================================================
+
+  * You can post patches, feature requests and bug reports on
+    our Sourceforge project page:
+      http://sourceforge.net/projects/zapping
+
+    Please log in or leave an e-mail address for further inquiries and
+    progress notification.
+
+  * Or you can send a message to the Zapping mailing list:
+      zapping-misc@lists.sourceforge.net
+
+    You can subscribe or unsubscribe at:
+      http://lists.sourceforge.net/lists/listinfo/zapping-misc
+
+    Subscription is not required, but non-member messages may be
+    delayed for spam filtering. This is a low volume list.
+
+    You can browse the list archives at:
+      http://sourceforge.net/mailarchive/forum.php?forum_name=zapping-misc
+
+  Primary author and maintainer of this library is
+
+    Michael H. Schimek <mschimek@users.sourceforge.net>
+
+  Encrypted e-mail is welcome. You can find my PGP/GPG key in the
+  AUTHORS file, e.g. type "gpg --import <AUTHORS". Ich spreche deutsch.

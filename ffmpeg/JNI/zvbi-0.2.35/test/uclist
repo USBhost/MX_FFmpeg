@@ -1,0 +1,18 @@
+#!/bin/sh
+# List all Unicode characters used
+# in UTF-8 file on stdin
+
+#awk 'BEGIN { RS = "[^[:alnum:]]" } ; \
+#  /0x[[:xdigit:]][[:xdigit:]][[:xdigit:]][[:xdigit:]]u/ \
+#  { print $0 }' ../src/lang.c | sort -u >uclist.tmp
+
+iconv -f UTF-8 -t UTF-16BE \
+  | hex -w2 \
+  | awk '{ print toupper($2 $3) }' \
+  | sort -u >uclist.tmp
+wget --proxy=on -q -O - http://www.unicode.org/Public/UNIDATA/NamesList.txt \
+  | awk 'BEGIN { while ((getline < "uclist.tmp") > 0) l = l $0 " " } \
+      /^[[:xdigit:]]+/ { if (index(l, $1) > 0) print $0 }'
+awk '/(E[[:xdigit:]]|F[012345678])[[:xdigit:]][[:xdigit:]]/ \
+  { print $0 "\tPRIVATE" }' <uclist.tmp
+rm uclist.tmp

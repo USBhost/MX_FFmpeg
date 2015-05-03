@@ -1,0 +1,167 @@
+Test programs
+
+unicode
+	Prints all Teletext and Closed Caption character sets used
+	by libzvbi in UTF-8 format. Purpose: compare against specifications
+	to verify libzvbi character code to Unicode conversions.
+
+uclist
+	Lists all Unicode characters used in a UTF-8 coded text	on
+	stdin. NB this script needs access to <http://www.unicode.org/
+	Public/UNIDATA/NamesList.txt>. Purpose: verify the libzvbi built-in
+	fonts contain all required glyphs.
+
+glyph
+	Prints all Teletext and Closed Caption character sets used
+	by libzvbi as PPM images. Purpose: compare against specifications
+	to verify libzvbi exp-gfx.c Unicode to glyph conversions.
+
+explist
+	Lists all export modules and their respective options. If option
+	-c/--check given, tests the export [module] api. Use this to test
+	new modules.
+
+export
+	Exports a Teletext page from a TTX sample stream on stdin, eg.
+	./export "text;charset=ISO-8859-1,control=1" 100 \
+	  <samples/s1-swr >foo.txt
+	./capture --sim --pal --sliced | ./export "png" 100 >foo.png
+	./capture --pes | ./export "html" 300 >foo.html
+	Purpose: test teletext decoder and export modules. (Sample streams
+	are in CVS zapping/libvbi/samples, versions before 2003-11.)
+
+caption
+	Closed Caption test displaying a hello world message or the
+        CC sample stream on stdin, to debug the CC decoder.
+	Note this works only on a X11 5:6:5 LE display. The keys
+	F1-F8 switch between the Closed Caption channels 1-4
+	and Text channels 1-4.
+
+osc
+	Raw vbi data visualization. Purpose: test vbi device interface,
+	raw vbi decoder. Works only on X11 5:6:5 LE display.
+
+	Options:
+	-d | --device name
+			Default is /dev/vbi.
+	-s | --sim	Create artificial raw vbi data instead of
+			opening a vbi device, to test decoding in
+			absence of a real source.
+	-v | --verbose	Trace device access on stderr, may reveal
+			why opening a device failed.
+	-p | --pal, 
+	-n | --ntsc	Video standard hint for simulation and v4l.
+			When not given libzvbi may have to guess
+			which can fail. Default is PAL.
+	-1 | --v4l	On Linux, use the bttv / V4L interface if
+			supported by the driver.
+	-2 | --v4l2-read
+			Use V4L2 interface in read mode.
+	-3 | --v4l2-mmap
+			Use V4L2 interface in mmap mode (default).
+	-e | --ignore-error
+			Ignore read errors.
+
+	(--long options are only available on GNU systems.)
+
+capture
+	Capture sliced vbi data. Purpose: test vbi device interface,
+	raw vbi decoder. Options:
+	-d | --device name
+			Default is /dev/vbi.
+	-s | --sim	Create artificial raw vbi data instead of
+			opening a vbi device, to test decoding in
+			absence of a real source.
+	-v | --verbose	Trace device access on stderr, may reveal
+			why opening a device failed. -vv enables
+			ioctl logging.
+	-p | --pal, 
+	-n | --ntsc	Video standard hint for simulation and v4l.
+			When not given libzvbi may have to guess
+			which can fail. Default is PAL.
+	-1 | --v4l	On Linux, use the bttv / V4L interface if
+			supported by the driver.
+	-2 | --v4l2-read
+			Use V4L2 interface in read mode.
+	-3 | --v4l2-mmap
+			Use V4L2 interface in mmap mode (default).
+	-i | --pid n	Use Linux DVB interface instead and filter out
+			VBI packets with this PID.
+	-e | --ignore-error
+			Ignore read errors.
+	-r | --strict n How strictly shall the raw VBI decoder match
+		        VBI services against driver capabilities?
+			0 - loose, let's try anyway (default)
+			1 - medium, usually no problems with the
+			    accepted services (see --verbose)
+			2 - pedantic, when the signal is good all
+			    accepted services will work
+	--read		Use libzvbi capture read interface (default).
+	--pull		Use libzvbi capture pull interface, to test
+			if it works.
+
+	Options to write sliced vbi data _as_ASCII_ to standard output
+	(these are moving to test/decode, see there for more options):
+
+	--dump-wss	Wide Screen Signalling (PAL & NTSC-Japan).
+	--dump-vps	Video Programming System (PAL in DE/AT/CH).
+	--dump-sliced	Everything.
+
+	Options to write sliced vbi data _in_binary_format_ to standard
+	output. This can be piped
+		"./capture <options> --pes | ./export <options>" or
+		"./capture <options> --sliced | ./decode <options>" or
+		"./capture <options> --sliced | ./caption".
+	-l | --sliced	Write sliced vbi data (an old ad-hoc format).
+	-P | --pes	Write DVB PES packets. Note when the source is a
+	                DVB device this will not pass through but de- and
+			remultiplex PES packets. PES output is experimental,
+			use at your own risk.
+	-T | --ts	Write TS packets with PID 999 (experimental)
+
+	The caption, decode and export tools all support --sliced and
+	--pes format (may require a --pes option to recognize the format).
+
+	--long options are only available on GNU & compatible systems.
+
+
+	Note you will need another application to tune in a channel,
+	for example v4lctl from the xawtv package or czap/szap/tzap from
+	the dvbutils package:
+
+	v4lctl setstation BBC
+	./capture --device /dev/vbi --sliced | ./export text 100
+
+	tzap BBC # keep it running in another terminal window
+	./capture --device /dev/dvb/adapter0/demux0 --pid 1234 --sliced | \
+	  ./export text 100
+
+	The capture tool cannot automatically determine the PID of the
+	DVB VBI stream. To find it you will need another tool evaluating
+	the service information tables transmitted by the network, or you
+	can look for the PID of the video stream in the tzap config file
+	and try a slightly higher number.
+
+decode
+	Decodes sliced VBI data on stdin, e. g.
+	./capture --sliced | ./decode --ttx
+	Also a test of the libzvbi low-level decoders.
+	Type ./decode -h for options.
+
+sliced2pes
+	Converts ./capture --sliced format to DVB PES.  For example
+	"./capture --sliced | ./sliced2pes >file" is equivalent to
+	"./capture --pes >file".
+	Type ./sliced2pes -h for options.
+
+ttxfilter
+	Filters Teletext pages out of a VBI stream. Useful mostly
+	to extract subtitles, for example
+	"./capture --sliced | ./ttxfilter 150 777 300-400 >file".
+	Type ./ttxfilter -h for options.
+
+test-*.cc
+	Unit tests (make check).
+
+The ultimate test is http://zapping.sourceforge.net, the TV viewer this
+library was written for.

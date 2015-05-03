@@ -1,0 +1,232 @@
+.TH zvbi-atsc-cc 1
+.SH NAME
+zvbi-atsc-cc - ATSC Closed Caption decoder
+.SH SYNOPSIS
+.B zvbi-atsc-cc [ options ] [-n] station name
+.SH DESCRIPTION
+.B zvbi\-atsc\-cc
+captures ATSC TV transmissions using a Linux DVB device and decodes
+the enclosed Closed Caption data. It can record both NTSC caption
+(EIA 608-B) and DTVCC caption (CEA 708-C).
+.SH OPTIONS
+.IP "\fB\-?\fP \fB\-h\fP \fB\-\-help\fP \fB\-\-usage\fP"
+Print a short usage message.
+.IP "\fB\-q\fP \fB\-\-quiet\fP"
+Suppress all progress and error messages.
+.IP "\fB\-v\fP \fB\-\-verbose\fP"
+Increase verbosity.
+.SS "Device options"
+.IP "\fB\-a\fP number"
+.PD 0
+.IP "\fB\-\-adapter\-num\fP number"
+.PD
+Select a different DVB device to capture the signal
+(/dev/dvb/adapterN). The default is adapter 0.
+.IP "\fB\-i\fP number"
+.PD 0
+.IP "\fB\-\-frontend\-id\fP number"
+.PD
+Select a different frontend on the DVB device
+(/dev/dvb/adapterN/frontendM). Most devices have only one frontend.
+The default is frontend 0.
+.IP "\fB\-d\fP number"
+.PD 0
+.IP "\fB\-\-demux\-id\fP number"
+.PD
+Select a different demultiplexer on the DVB device
+(/dev/dvb/adapterN/demuxM). Most devices have only one demultiplexer.
+The default is demultiplexer 0.
+.IP "\fB\-r\fP number"
+.PD 0
+.IP "\fB\-\-dvr\-id\fP number"
+.PD
+Select a different DVR interface on the DVB device
+(/dev/dvb/adapterN/dvrM). Most devices have only one DVR interface.
+The default is DVR interface 0.
+.IP "\fB\-T\fP"
+.PD 0
+.IP "\fB\-\-ts\fP"
+.PD
+Decode an MPEG-2 Transport Stream on standard input instead of opening
+a DVB device. This option is mainly intended for debugging. 
+.IP
+Since Transport Streams can contain multiple programs you must still
+specify one or more station names, which
+.B zvbi-atsc-cc
+will look up in a channel configuration file to determine the Program ID
+of the video elementary stream or streams it should extract. You should
+also add the
+.B --atsc
+option to clarify that this is an ATSC TS and the program should expect
+an
+.B azap
+channel configuration file, which is otherwise inferred from the DVB
+device capabilities.
+.SS "Tuning options"
+.IP "\fB\-e\fP file name"
+.PD 0
+.IP "\fB\-\-channel\-conf\fP file name"
+.PD
+To tune in a TV station
+.B zvbi-atsc-cc
+needs a channel configuration file. We use the config file of the
+.B azap
+tuning tool from the linuxtv\-dvb\-apps package. You can create
+it with the
+.B scan
+tool from the same package.
+.IP
+The azap channel configuration file is a text file which
+lists one station per line. Each line contains six fields separated
+by a colon: The station name, the transponder frequency in Hz,
+the modulation used (8VSB, 16VSB, QAM_64, QAM_256), the video stream
+PID, the audio stream PID, and the service ID. Empty lines and
+lines starting with a number sign will be ignored.
+.IP
+This option selects a different channel configuration file.
+The default is
+.nf
+.I $HOME/.azap/channels.conf
+.fi
+.IP "\fB\-L\fP \fB\-\-list\fP"
+List all stations in the channel configuration file and their
+transponder frequency.
+.IP "\fB\-n\fP station name"
+.PD 0
+.IP "\fB\-\-station\fP station name"
+.PD
+The station to tune in. Usually the \fB\-n\fP can be omitted.
+.IP
+.B zvbi-atsc-cc
+can record caption from multiple stations at once if they share a
+transponder frequency. Just specify multiple station names on
+the command line to enable this.
+.SS "Caption options"
+With the caption and XDS options you specify which data
+.B zvbi-atsc-cc
+should extract. If multiple station names are given these
+options apply to the succeeding station name. You must
+specify at least one of these options for each station.
+.IP "\fB\-c\fP \fB\-\-cc\fP"
+Print any received caption on standard output.
+.IP "\fB\-C\fP file name"
+.PD 0
+.IP "\fB\-\-cc\-file\fP file name"
+.PD
+Append any received caption to the specified file.
+.IP "\fB\-l\fP number"
+.PD 0
+.IP "\fB\-\-channel\fP number"
+.PD
+Print NTSC Closed Caption channel 1, 2, 3 or 4 on standard
+output.
+.IP "\fB\-1\fP ... \fB\-4\fP file name"
+.PD 0
+.IP "\fB\-\-cc1\-file\fP ... \fB\-\-cc4\-file\fP file name"
+.PD
+Filter out NTSC Closed Caption channel CC1 ... CC4 and append the text
+to the specified file. CC1 is the primary, CC3 the secondary caption
+service. If both services are transmitted CC1 usually carries English,
+CC3 Spanish caption.
+.IP "\fB\-5\fP ... \fB\-8\fP file name"
+.PD 0
+.IP "\fB\-\-t1\-file\fP ... \fB\-\-t4\-file\fP file name"
+.PD
+Filter out NTSC Text service T1 ... T4 and append the text to the
+specified file.
+.IP "\fB\-9\fP ... \fB\-0\fP file name"
+.PD 0
+.IP "\fB\-\-s1\-file\fP ... \fB\-\-s2\-file\fP file name"
+.PD
+Filter out DTVCC service 1 or 2 and append the text to the specified
+file. Service 1 is the primary, service 2 the secondary caption
+service. If both services are transmitted service 1 usually carries
+English, service 2 Spanish caption.
+.IP
+Digital TV stations are supposed to transmit language codes and other
+information about the available caption services but these are not
+presently evaluated.
+.B zvbi\-atsc\-cc
+filters out text which does not appear to be caption, such as tickers
+or vertically printed text.
+.IP "\fB\-b\fP \fB\-\-no-webtv\fP"
+Do not print WebTV links.
+.IP "\fB\-m\fP \fB\-\-timestamps\fP"
+Prepend timestamps (YYYYMMDDHHMMSS) to caption lines.
+.IP "\fB\-s\fP \fB\-\-sentences\fP"
+Print caption one sentence at a time.
+.IP "\fB\-j\fP type"
+.PD 0
+.IP "\fB\-\-format\fP type"
+.PD
+When type is "plain"
+.B zvbi\-atsc\-cc
+prints caption and XDS text without any markup. When type is "vt100"
+it faithfully reproduces the caption foreground and background
+color, italic and underline attributes by inserting VT.100 terminal
+control codes. With type "ntsc-cc" it mimics the output of the
+.B ntsc-cc
+and
+.B zvbi-ntsc-cc
+tool. The default is "ntsc-cc".
+.IP
+.B zvbi\-atsc\-cc supports all Closed Caption character sets and
+converts to the encoding of the current locale, usually UTF-8.
+.IP "\fB\-p\fP \fB\-\-plain\fP"
+Same as \fB\-j\ plain\fP
+.SS "XDS options"
+.IP "\fB\-x\fP \fB\-\-xds\fP"
+Print all received XDS data on standard output.
+.IP "\fB\-X\fP file name"
+.PD 0
+.IP "\fB\-\-xds\-file\fP file name"
+.PD
+Filter out eXtended Data Service data (station name, program name,
+program rating etc.) and append it as text to the specified file.
+.IP "\fB\-f\fP type[,type]*"
+.PD 0
+.IP "\fB\-\-filter\fP type[,type]*"
+.PD
+Filter out specific XDS information: all, call (station call sign),
+desc (program synopsis), length, network, rating, time, timecode,
+timezone, title. Multiple \fB-f\fP options accumulate. The default
+is "all".
+.SH EXAMPLES
+.nf
+zvbi-atsc-cc -c NJN-HD
+.P
+zvbi-atsc-cc --cc1-file wnyw.txt WNYW-DT --cc1-file wwor.txt WWOR-DT
+.P
+(NJN-HD, WNYW-DT and WWOR-DT are TV stations in New York. WNYW-DT
+and WWOR-DT can be captured simultaneously because they share a
+transponder frequency.)
+.fi
+.SH FILES
+.I $HOME/.azap/channels.conf
+.SH SEE ALSO
+zvbi-ntsc-cc, azap
+.P
+http://zapping.sourceforge.net
+.SH AUTHORS
+Michael H. Schimek (mschimek AT users.sourceforge.net)
+.br
+timecop@japan.co.jp
+.br
+Mike Baker
+.br
+Mark K. Kim
+.SH COPYRIGHT
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+MA 02110-1301, USA.

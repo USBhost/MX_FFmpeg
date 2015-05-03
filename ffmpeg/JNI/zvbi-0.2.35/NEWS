@@ -1,0 +1,402 @@
+libzvbi 0.2.35, 2013-08-28
+--------------------------
+Some corrections to allow compilation with clang/LLVM and uClibc,
+and a bug fix in test/time.c.
+
+libzvbi 0.2.34, 2013-07-11
+--------------------------
+This is a surprise bugfix release with improvements in the
+Teletext decoder and zvbi-atsc-cc.
+
+libzvbi 0.2.33, 2008-09-03
+--------------------------
+Fixes two zvbi-atsc-cc compile problems.
+
+libzvbi 0.2.32, 2008-08-20
+--------------------------
+This version adds a new tool named zvbi-atsc-cc to record Closed
+Caption from ATSC digital TV. It supports legacy NTSC caption
+(EIA 608-B) and DTVCC (CEA 708-C).
+
+libzvbi 0.2.31, 2008-07-26
+--------------------------
+The vbi_caption_unicode() function did not correctly translate
+the small letter i with diaresis.
+
+The files daemon/chains.c, daemon/proxyd.c,
+test/proxy-test.c and test/cc-test-stream.dtd are now licensed
+under GPLv2 or later as stated in the top README file.
+
+libzvbi 0.2.30, 2008-03-05
+--------------------------
+This is a bugfix release restoring the functions vbi_unref_page(),
+vbi_is_cached() and vbi_cache_hi_subno() which were accidentally
+dropped in libzvbi 0.2.28.
+
+libzvbi 0.2.29, 2008-02-24
+--------------------------
+This version fixes incompatibilities with strict ISO C in the
+libzvbi header file.
+
+libzvbi 0.2.28, 2008-02-22
+--------------------------
+The ZVBI libraries libzvbi and libzvbi-chains are now licensed under
+the terms of the GNU Library General Public License version 2 or
+later. Example programs are now licensed under a 2-clause BSD-style
+license. The VBI proxy daemon, contributed programs, test programs
+and programs required to build the library remain licensed under
+GNU General Public License version 2 or later.
+
+Bug fixes:
+- A Teletext Level 2.5 transparency attribute bug was fixed in
+  the teletext decoder.
+- The capture test tool did not work with DVB devices.
+
+Other changes:
+- The VTX export module has been disabled for licensing reasons. It
+  may return after a rewrite.
+- New BCD functions and vbi_ham24p(), counterpart of vbi_unham24p(),
+  were added.
+- The artificial 41st column in Teletext pages is no longer black
+  but continues the previous column if appropriate.
+- The --default-cs option of the export test tool now works with
+  libzvbi 0.2 as well.
+
+libzvbi 0.2.27, 2008-02-14
+--------------------------
+This is a bugfix release.
+
+- The DVB VBI demultiplexer entered an endless loop on some input.
+- The Closed Caption special character conversion did not work.
+
+libzvbi 0.2.26, 2007-11-27
+--------------------------
+- The experimental DVB VBI multiplexer was improved and support for
+  raw VBI data was added. It is now part of the API.
+- The bit slicer was improved to give better results with noisy
+  Closed Caption signals and the capture device simulator can now
+  simulate noisy signals. Thanks go to Rich Kadel for testing.
+- Tom Zoerner contributed an XPM export module and added support for
+  an 8-bit indexed format to the Teletext page rendering functions.
+  The PNG and PPM modules work a little more efficiently now. Two
+  functions were added to export Teletext and Closed Caption pages
+  into memory instead of an i/o stream or file.
+
+Bug fixes:
+- The V4L2 capture interface did not properly initialize the
+  parameters for VIDIOC_QBUF and VIDIOC_DQBUF ioctl calls. It also
+  failed to resume capturing after the bttv driver returned an EIO
+  error.
+- The DVB capture interface did not work with all drivers because
+  the device file was opened for reading and writing.
+- The vbi_sliced_name() and vbi_sliced_payload_bits() functions
+  returned nothing for VBI_SLICED_TELETEXT_B_L25_625.
+- The Teletext decoder permitted double width characters in the
+  last column.
+- In the vbi_pfc_demux_cb function prototype the second and third
+  parameter were swapped. Fix by Tom Zoerner.
+- The vbi_decoder_delete function did not free the event handler list.
+- The text and HTML export modules did not free some internal data on
+  errors.
+
+The test tools were improved:
+- All tools now support a --verbose option for debugging, and --quiet,
+  --help, --usage and --version options.
+- The capture tool can now generate DVB VBI PES and TS streams with
+  variable packet size to reduce the number of stuffing bytes, and
+  user defined TS PID. An -o output file option was added. New device
+  simulation options were added and raw VBI capturing is now possible.
+  Capturing through the VBI proxy was added by Tom Zoerner. The
+  timestamps in the output were incorrect if a frame contained no
+  data, this was fixed.
+- The decode tool now accepts DVB VBI PES and TS streams and an -i
+  input file option was added. IDL-A decoding works again.
+- The export tool now accepts DVB VBI PES and TS streams and an -i
+  input file option was added. It can now export multiple pages, has
+  a new -o output file option, and can list the possible file formats
+  and conversion options.
+- The sliced2pes tool now also accepts DVB VBI PES and TS streams, has
+  a new -i input and -o output file option, and can produce DVB VBI
+  PES and TS streams with user defined packet size, data_identifier
+  and TS PID.
+- The ttxfilter tool accepts DVB VBI PES and TS streams, has a new -i
+  input and -o output file option. A time option was added to cut
+  Teletext (esp. subtitle) streams. Various bugs were fixed.
+- Courtesy of Tom the osc tool can now capture raw data through the
+  VBI proxy.
+- Raw VBI capturing with the proxy-test tool works again, also fixed
+  by Tom.
+
+Build fixes:
+- The package did not compile with ./configure --disable-static
+  (bug #1692015).
+
+libzvbi 0.2.25, 2007-03-09
+--------------------------
+This version fixes a buffer overflow bug in the zvbi-ntsc-cc
+tool which may cause a segfault on reception errors. Secondly it
+fixes a GNU/kFreeBSD compile problem (Debian bug #407621).
+
+libzvbi 0.2.24, 2006-11-29
+--------------------------
+This version fixes a bug in the zvbi-ntsc-cc tool which may cause
+a segfault on reception errors.
+
+libzvbi 0.2.23, 2006-10-27
+--------------------------
+This versions adds a few helper functions to convert Closed Caption
+and UCS-2 strings. The raw VBI decoder was modified to handle a CC
+signal with incorrect clock run-in.
+
+The zvbi-ntsc-cc tool can now decode all caption channels
+simultaneously and convert from caption to locale character encoding
+for proper display of Spanish captions. It can write caption and XDS
+information to separate files. Some bugs in the XDS decoder were fixed
+and a filter was added to discard unwanted XDS information and WebTV
+links.
+
+Fixes:
+- The library did not compile on GNU/kFreeBSD due to a name space
+  conflict with the RAW macro (Debian bug #372302).
+
+libzvbi 0.2.22, 2006-05-30
+--------------------------
+This version adds a simulated raw and sliced VBI capture device
+to debug applications. The VBI simulation in the capture and osc
+tools is more accurate and VPS signals can be simulated. Functions to
+convert sliced VBI data to raw VBI images are public now and an example
+application was added. An interface to enable warning and debugging
+messages was added.
+
+Fixes:
+- Bit slicing of WSS data started a little early. It should work
+  better now with noisy signals.
+- The WSS capture example used an incorrect bytes-per-line value.
+- A work-around for a line allocation bug in older versions of
+  the bttv driver was added. Enables capturing of single lines
+  (VPS, WSS, CC).
+
+libzvbi 0.2.21, 2006-05-10
+--------------------------
+This is a bugfix release.
+
+- Capturing WSS data from video images failed due to a broken check
+  in the raw VBI decoder.
+
+libzvbi 0.2.20, 2006-05-08
+--------------------------
+This version supports raw VBI capturing with unknown field order, adds
+a work-around for a VBI offset bug in the bttv driver, enables
+additional debugging messages and improves some test tools. Network
+identification now returns CNIs and a network identification example
+was added. The CNI (networks) table was updated.
+
+libzvbi 0.2.19, 2006-02-23
+--------------------------
+This is a bugfix release.
+
+- Due to a preprocessor mishap zvbi-ntsc-cc did not use libzvbi but
+  its own VBI decoder.
+
+libzvbi 0.2.18, 2006-02-11
+--------------------------
+This is a bugfix release.
+
+- The configure script has been modernized. Building from CVS now requires
+  automake 1.9, autoconf 2.59 and gettext 0.14.
+- Diego Pettenò added a configure option to disable documentation
+  building regardless if doxygen is installed.
+- After make clean src/Makefile tried to rebuild network-table.h from
+  http://zapping.sourceforge.net/zvbi-0.3/networks.xml and other
+  source files. This make rule was only intended for the maintainer.
+- A pointer aliasing bug in the linked list implementation of the
+  Teletext cache, which may crash applications, has been fixed.
+- In previous versions GCC may not have inlined some bit slicer and
+  page rendering functions, making them much slower.
+- The teletext filter added in 0.2.17 did not work with parallel page
+  transmission (e.g. BBC).
+- The code was cleaned up to muffle compiler warnings (Diego).
+
+libzvbi 0.2.17, 2005-10-07
+--------------------------
+This version adds missing XDS packet subclasses to the XDS
+demultiplexer. The contrib directory now contains a version of the
+ntsc-cc Closed Caption decoder from the Xawtv package using libzvbi
+for driver access and bit slicing. It installs as zvbi-ntsc-cc. The
+CNI (networks) table was updated. The test tools were cleaned up
+and a teletext filter was added.
+
+Fixes:
+- The DVB multiplexer didn't work right (used by test tools only,
+  not part of the API yet).
+- The ioctl logger (test stuff) didn't log VIDIOC_G_STD
+  and VIDIOC_S_STD.
+- test/decode option -a didn't work.
+
+libzvbi 0.2.16, 2005-05-25
+--------------------------
+This version adds a new demultiplexer to extract XDS data from a
+caption stream (EIA 608).
+
+Fixes:
+- test/caption, test/osc did not compile due to a bug in the
+  configure script.
+- Removed a misplaced assertion in vbi_capture_io_update_timeout().
+- test/osc, test/capture, test/wss -d option segfaulted.
+- Fixed NTSC VBI capturing in the Linux saa7134 0.2.13 driver and
+  added a partial work-around here for older versions.
+- The HTML export module segfaulted. Fix by Bernhard Rosenkraenzer.
+
+libzvbi 0.2.15, 2005-03-28
+--------------------------
+This is a bugfix release. Due to an incorrect bytes per line check
+previous versions could not capture VBI data from the ivtv driver.
+
+libzvbi 0.2.14, 2005-02-28
+--------------------------
+This version adds new demultiplexers to extract data transmissions
+from Teletext streams, namely in "Page Format Clear" format (e.g.
+NexTView EPG) and "Independent Data Line Format A". A new low-level
+decoding tool was added for tests.
+
+libzvbi 0.2.13, 2005-01-23
+--------------------------
+This version has new, more reliable DVB VBI capture routines.  See
+the documentation of vbi_capture_dvb_new() for details.
+
+Fixes:
+- vbi_capture_bktr_new() ignored the scanning parameter, always
+  assuming 625 line systems (e.g. PAL-BGHI, SECAM-L).
+- Include fix in test/wss.c.
+- vbi_unham8() return type signedness fix.
+- GCC 4.0 compile fixes.
+
+libzvbi 0.2.12, 2005-01-18
+--------------------------
+Various error correction functions, generator and bit reversal
+functions useful for VBI decoding are public now.  A new test app
+has been added to capture WSS data from video images. French
+translation update by Christian Marillat.
+
+Bttv drivers 0.9.0 - 0.9.15 report wrong PAL/SECAM field 2 line numbers.
+A work-around has been added, and a bug compatible Teletext data
+service table entry has been corrected.
+
+If you encounter problems using similarly broken drivers please try a
+fuzzy match of driver capabilities and data service parameters (e.g.
+vbi_capture_v4l2_new(strict <= 1)) and notify mschimek@users.sf.net.
+
+The test/capture and test/osc apps did not capture PAL/SECAM line 23
+(WSS), this has been fixed.
+
+libzvbi 0.2.11, 2004-12-31
+--------------------------
+Build fix. Cough.
+
+libzvbi 0.2.10, 2004-12-30
+--------------------------
+The bit slicer and raw VBI decoder have been replaced by improved and
+better tested versions. Developers please note: memory will leak if
+you do not call vbi_raw_decoder_destroy().
+
+The raw decoder now supports Teletext system A, C and D and pseudo-VPS
+on the second field. Blank line detection has been disabled. As a result
+the decoder will run a bit slower but Robin Imrie pointed out that
+caption / subtitles may be lost if the signal inserter is disabled
+during longer periods of silence.
+
+The DVB demultiplexer added in 0.2.9 is now public.
+
+Other fixes:
+- In 0.2.9 the I/O routines may crash if passed a NULL errorstr pointer.
+- Replaced uname call in configure.in by AC_CANONICAL_HOST.
+- Missing documentation.
+
+0.2.9
+-----
+This version contains the VBI proxy code by Tom Zoerner. With the proxy
+multiple applications can share a V4L or V4L2 VBI device. For details see
+daemon/README.
+
+Distro packagers please consider adding the proxy daemon to the system
+init sequence.
+
+Other changes:
+- Libzvbi now installs a zvbi-0.2.pc (pkg-config) file.
+- Added ioctl logging to V4L and V4L2 interface for tests.
+- Extended capture and osc apps for easier i/o testing.
+- Added experimental DVB mux & demux. Not yet supported by the
+  DVB driver interface due to lack of testing but test/capture
+  and test/export use it.
+
+Fixes:
+- Teletext decoder: switching between primary and secondary character
+  set did not work right.
+
+0.2.8
+-----
+Updated the network identification table from TR 101 231 EBU (2004-04a).
+Incorporated corrections by Stephane Loeuillet (bug #942434).
+
+0.2.7
+-----
+Fixes a bug in the v4l2 interface, didn't work with bttv driver 0.9.12.
+
+0.2.6
+-----
+Libzvbi goes digital! Gerd Knorr contributed a Linux DVB interface.
+It's not really finished yet but seems usable. You can try this:
+test/capture --device /dev/dvb/adapter<n>/demux<n> --pid 123 --dump-ttx
+Further James Mastros improved test/osc and a segv bug was fixed
+in the page formatting code.
+
+0.2.5
+-----
+New this time is a vbi_version() function to query the version
+of the library at runtime. If your application uses autoconf to
+configure you can test for its presence with the AC_CHECK_LIB
+macro. The remaining changes are bug fixes, read about the
+details in ChangeLog.
+
+0.2.4
+-----
+V4L2 (Linux 2.5+) devices were not correctly identified because
+the API changed since the interface was first added in version
+0.2.3. This version contains an updated header file.
+
+0.2.3
+-----
+Bug fixes, mostly compile problems. This version supports the
+refurbished V4L2 API for Linux 2.5ff and has been ported to
+FreeBSD 4.6, including a bktr driver interface. Basic tests ok,
+remains to be seen how well this works in the field.
+
+0.2.2
+-----
+RH 7.3 build fix (zapping-Bugs-568052) and switch to gettext 0.11.
+Libzvbi can now build in a separate dir. Several other bug fixes,
+most notably localization works now.
+
+0.2.1
+-----
+Bug fixes.
+
+0.2
+---
+Bug fixes, most notably the character code range check in the
+Closed Caption decoder, a V4L2 interface update to work with bttv
+0.8.x, and new handler registration functions (the old ones were
+retained for compatibility).
+
+0.1.1
+-----
+Bug fixes.
+
+0.1
+---
+Former module of the Zapping TV viewer, this is the first release
+of the Zapping/Zapzilla VBI decoder as a standalone library.
+
+Local Variables:
+coding: utf-8
+End:

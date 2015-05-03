@@ -1,0 +1,141 @@
+About Linux "VBI proxy"
+-----------------------
+
+    With "video4linux" drivers only one application at a time can
+capture VBI data.  The 2nd generation "v4l2" API allows multiple clients
+to open a device, but still only one client may read from the device.  If
+for example the Nxtvepg daemon runs in the background users will not be
+able to start a Teletext application.  The VBI proxy was developed as a
+solution to this problem.
+
+    VBI can transport many independent data streams: VPS, WSS, Closed
+Caption and Teletext, within them PDC, XDS and custom data streams
+providing such services as Teletext, subtitles, caption, NexTView and
+other Electronic Programme Guides, channel identification, video
+recording triggers, information about the current program, wide screen
+signalling and more.  We want to share one VBI stream between for
+example an application opening the device to update the system clock,
+Teletext viewers, TV viewers displaying channel names, caption or
+subtitles, recording applications, a PVR watching channels for
+recording triggers, and an EPG daemon updating its database.
+
+    The proxy must assign higher priority to recording and lower
+priority to background applications.  It must coordinate channel changes
+between background "data harvesting" applications.  Such apps would
+register a channel request with the proxy together with a priority and
+expected time of use and the proxy will then grant those requests
+according to priority and previous grants in a round-robin way.
+
+    How does it work?  The VBI proxy is implemented as a daemon "zvbid",
+which usually will be started during system boot.  The daemon remains
+dormant until the first proxy client connects through a socket, then
+opens the VBI device and starts capturing and decoding the services
+requested by the client, e.g. Teletext.  It will not pass raw but
+sliced VBI data, reducing the required bandwidth and saving repeated
+decoding of data needed by multiple clients.
+
+    One drawback of this solution is that clients must be adapted, i.e.
+instead of opening the VBI device as usual, clients have to connect to
+the daemon (but if the daemon is not running they should fall back to
+using the device directly).  For most applications already using libzvbi
+the change is minimal:  A single function call is enough to create a
+proxy client and connect to the server, another to start capturing.  The
+API to capture and decode services is identical for v4l2, v4l, bktr,
+dvb and proxy devices.  Legacy applications can often be ported simply
+by replacing open and read system calls with their libzvbi equivalents.
+
+    As a work-around for applications which cannot be adapted, a wrapper
+"zvbi-chains" is available which intercepts access to the VBI device and
+redirects it to the proxy.  In this case however only raw VBI data can be
+forwarded, resulting in a significantly higher CPU load.
+
+    Hopefully the solution is elegant enough to convince the authors to
+invest the necessary effort to switch to libzvbi (or at least implement
+the proxy protocol) in subsequent releases of their software.
+
+
+Current status
+--------------
+
+    The proxy may still need improvement, see below for a detailed list
+of open points, but at least the basic service works well, and the API
+will remain backwards compatible.  If you want to try it out, libzvbi
+is available from http://zapping.sourceforge.net/.  Some applications
+using the proxy:
+
+- The libzvbi test directory contains a small program "proxy-test" which
+  can read and dump Teletext and VPS data from the proxy.  Try -help for
+  a list of options.
+
+- The Nxtevpg EPG viewer (http://nxtvepg.sourceforge.net/) uses the proxy
+  when compiled with -DUSE_LIBZVBI in the Makefile.
+
+- The Zapping 0.8 TV viewer and Teletext browser
+  (http://zapping.sourceforge.net) has basic proxy support and will use
+  the proxy automatically when installed and running.
+
+- The AleVT 1.6.1 Teletext browser and Xawdecode TV viewer
+  (http://xawdecode.sourceforge.net/download/) use the proxy with the
+  following patches:
+  http://nxtvepg.sourceforge.net/tmp/alevt-1.6.1-libzvbi.diff
+  http://nxtvepg.sourceforge.net/tmp/alevtd-3.91-vbiproxy.diff
+
+  AleVT is also known to work unmodified with zvbi-chains.
+
+With proxy you can run these applications (or multiple instances of
+them, perhaps only pure VBI apps - YMMV) in parallel.
+
+
+TODO list
+---------
+
+    This is an unordered list of open points (unimplemented or yet
+undecided) regarding the proxy.  Any comments or help appreciated.
+
+- Optimize raw buffer forward, possibly based on shared memory to avoid
+  copying -> requires user-space DMA in io-v4l2k (i.e. streaming into
+  buffers allocated by the user)
+
+- Device permissions are implemented by copying group id and access
+  mask of the device.  This is not portable however according to man
+  socket(7).  Possibly a sub-directory should be used and permissions
+  set on the directory.  Disadvantage: other people cannot clean up
+  (same for socket file if sticky bit is set).  Or an X11 way a key
+  file could be used.
+
+- Save errno upon device errors deep down, e.g. in proxy-msg.c into io
+  struct to make sure it's not overwritten higher up in the return path
+
+- Log daemon's errors and warnings in syslog (esp. protocol violations
+  in clients, such as not returning token on request)
+
+- Channel change handling and scheduling not fully implemented yet;
+  needs more testing
+
+- Option: allow user to override or fine-tune channel priority requests
+  (on side of daemon, based on client-names)
+
+- Inform clients about video norm changes: e.g. sampling rate may change
+  (only relevant for raw data though), frame rate changes -> must be
+  considered when evaluating time stamps to detect dropped frames;
+  number of VBI lines may change, client may want to change service IDs.
+  Probably only for clients which explicitly enable this; others could
+  simply be starved.
+
+- io-bktr.c not supported at all yet for new features.  Note bktr is
+  weird(tm), for example one cannot capture VBI without video.  The
+  proxy is not officially supported on FreeBSD.
+
+- Possibly add a generic capture client config function to:
+  + set video device path (v4l1 for channel changes & norm query)
+  + sequence counter instead of time stamp in vbi_capture_buffer (v4l1 bttv)
+    Alternatively libzvbi 0.3 may provide sampling time and stream time,
+    the latter derived from sequence counters for analog devices.
+  + query time between frames; query timestamp from driver or after read()
+  + dynamically change buffer count (v4l2 only)
+  + optionally use read even if streaming is available
+
+- Possible v4l2 API extensions:
+  + channel change event notification
+  + CGUNIT to check if two nodes refer to the same piece of hardware
+  + EIO from DQBUF: timeout, buffer must be requeued

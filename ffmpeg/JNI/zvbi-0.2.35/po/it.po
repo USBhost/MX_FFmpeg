@@ -1,0 +1,605 @@
+# translation of vbi.po to Italian
+# zvbi Italian translation
+# Pino Toscano <toscano.pino@tiscali.it>, 2002, 2004.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: vbi\n"
+"Report-Msgid-Bugs-To: mschimek@users.sf.net\n"
+"POT-Creation-Date: 2013-08-28 16:25+0200\n"
+"PO-Revision-Date: 2007-11-27 18:37+0100\n"
+"Last-Translator: Pino Toscano <toscano.pino@tiscali.it>\n"
+"Language-Team: Italian <kde-i18n-it@kde.org>\n"
+"Language: it\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: KBabel 1.9.1\n"
+
+#: src/exp-gfx.c:797
+msgid "Correct aspect ratio"
+msgstr "Correggi proporzioni"
+
+#: src/exp-gfx.c:798
+msgid ""
+"Approach an image aspect ratio similar to a real TV. This will double the "
+"image size."
+msgstr ""
+"Si avvicina alle proporzioni dell'immagine in modo simile ad una reale TV. "
+"Questo raddoppierà la dimensione dell'immagine."
+
+#: src/exp-gfx.c:802
+msgid "Include transparency"
+msgstr ""
+
+#: src/exp-gfx.c:803
+msgid "If not enabled, transparency is mapped to black."
+msgstr ""
+
+#: src/exp-gfx.c:805
+#, fuzzy
+msgid "Include page title"
+msgstr "Include intestazione HTML di pagina"
+
+#: src/exp-gfx.c:806
+msgid "Embed a title string which names network and page number."
+msgstr ""
+
+#: src/exp-gfx.c:908 src/exp-html.c:268
+#, c-format
+msgid "Teletext Page %3x.%x"
+msgstr "Pagina del Televideo %3x.%x"
+
+#: src/exp-gfx.c:912 src/exp-html.c:271
+#, c-format
+msgid "Teletext Page %3x"
+msgstr "Pagina del Televideo %3x"
+
+#: src/exp-gfx.c:1121
+msgid "PPM"
+msgstr "PPM"
+
+#: src/exp-gfx.c:1122
+msgid "Export this page as raw PPM image"
+msgstr "Esporta questa pagina come grezza immagine PPM"
+
+#: src/exp-gfx.c:1612
+msgid "XPM"
+msgstr "XPM"
+
+#: src/exp-gfx.c:1613
+msgid "Export this page as XPM image"
+msgstr "Esporta questa pagina come immagine XPM"
+
+#: src/exp-gfx.c:1807
+#, c-format
+msgid "Unable to allocate %d byte buffer."
+msgstr "Impossibile allocare il buffer di %d byte."
+
+#: src/exp-gfx.c:1813
+#, c-format
+msgid "Unable to allocate %d KB image buffer."
+msgstr "Impossibile allocare il buffer di %d KB per l'immagine."
+
+#: src/exp-gfx.c:1877
+msgid "PNG"
+msgstr "PNG"
+
+#: src/exp-gfx.c:1878
+msgid "Export this page as PNG image"
+msgstr "Esporta questa pagina come immagine PNG"
+
+#: src/exp-html.c:119 src/exp-txt.c:122
+msgid "Graphics char"
+msgstr "Carattere della grafica"
+
+#: src/exp-html.c:120 src/exp-txt.c:123
+msgid ""
+"Replacement for block graphic characters: a single character or decimal (32) "
+"or hex (0x20) code"
+msgstr ""
+"Rimpiazzo per i caratteri di blocchi grafici: un singolo carattere o un "
+"codice decimale (32) o esadecimale (0x20)"
+
+#: src/exp-html.c:123
+msgid "Color (CSS)"
+msgstr "Colore (CSS)"
+
+#: src/exp-html.c:124
+msgid "Store the page colors using CSS attributes"
+msgstr "Salva i colori della pagina usando gli attributi CSS"
+
+#: src/exp-html.c:126
+msgid "HTML header"
+msgstr "Intestazione HTML"
+
+#: src/exp-html.c:127
+msgid "Include HTML page header"
+msgstr "Include intestazione HTML di pagina"
+
+#. TRANSLATORS: "lang=\"en\" refers to the page title
+#. "Teletext Page ...". Please specify "de", "fr", "es" etc.
+#: src/exp-html.c:256
+msgid "<title lang=\"en\">"
+msgstr "<title lang=\"it\">"
+
+#: src/exp-html.c:391 src/exp-txt.c:613
+#, c-format
+msgid "Character conversion Unicode (UCS-2) to %s not supported."
+msgstr "Conversione dei caratteri Unicode (UCS-2) a %s non supportata."
+
+#: src/exp-html.c:472
+msgid "Character conversion failed."
+msgstr "Conversione dei caratteri fallita."
+
+#: src/exp-html.c:769
+msgid "HTML"
+msgstr "HTML"
+
+#: src/exp-html.c:770
+msgid "Export this page as HTML page"
+msgstr "Esporta questa pagina come pagina HTML"
+
+#: src/exp-txt.c:78
+msgid "ASCII"
+msgstr "ASCII"
+
+#: src/exp-txt.c:79
+msgid "ISO-8859-1 (Latin-1 Western languages)"
+msgstr "ISO-8859-1 (Latin-1 lingue occidentali)"
+
+#: src/exp-txt.c:80
+msgid "ISO-8859-2 (Latin-2 Central and Eastern Europe languages)"
+msgstr "ISO-8859-2 (Latin-2 lingue dell'Europa centrale e orientale)"
+
+#: src/exp-txt.c:81
+msgid "ISO-8859-4 (Latin-3 Baltic languages)"
+msgstr "ISO-8859-4 (Latin-3 lingue baltiche)"
+
+#: src/exp-txt.c:82
+msgid "ISO-8859-5 (Cyrillic)"
+msgstr "ISO-8859-5 (cirillico)"
+
+#: src/exp-txt.c:83
+msgid "ISO-8859-7 (Greek)"
+msgstr "ISO-8859-7 (greco)"
+
+#: src/exp-txt.c:84
+msgid "ISO-8859-8 (Hebrew)"
+msgstr "ISO-8859-8 (ebraico)"
+
+#: src/exp-txt.c:85
+msgid "ISO-8859-9 (Turkish)"
+msgstr "ISO-8859-9 (turco)"
+
+#: src/exp-txt.c:86
+msgid "KOI8-R (Russian and Bulgarian)"
+msgstr "KOI8-R (russo e bulgaro)"
+
+#: src/exp-txt.c:87
+msgid "KOI8-U (Ukranian)"
+msgstr "KOI8-U (ucraino)"
+
+#: src/exp-txt.c:88
+msgid "ISO-10646/UTF-8 (Unicode)"
+msgstr "ISO-10646/UTF-8 (Unicode)"
+
+#: src/exp-txt.c:100
+msgid "Black"
+msgstr "Nero"
+
+#: src/exp-txt.c:100
+msgid "Red"
+msgstr "Rosso"
+
+#: src/exp-txt.c:100
+msgid "Green"
+msgstr "Verde"
+
+#: src/exp-txt.c:100
+msgid "Yellow"
+msgstr "Giallo"
+
+#: src/exp-txt.c:101
+msgid "Blue"
+msgstr "Blu"
+
+#: src/exp-txt.c:101
+msgid "Magenta"
+msgstr "Magenta"
+
+#: src/exp-txt.c:101
+msgid "Cyan"
+msgstr "Ciano"
+
+#: src/exp-txt.c:101
+msgid "White"
+msgstr "Bianco"
+
+#: src/exp-txt.c:102
+msgid "Any"
+msgstr "Tutti"
+
+#. TRANSLATORS:
+#. Terminal control codes.
+#: src/exp-txt.c:109
+msgid "None"
+msgstr "Nessuno"
+
+#: src/exp-txt.c:109
+msgid "ANSI X3.64 / VT 100"
+msgstr "ANSI X3.64 / VT 100"
+
+#: src/exp-txt.c:109
+msgid "VT 200"
+msgstr "VT 200"
+
+#. TRANSLATORS: Text export format (ASCII, Unicode, ...) menu
+#: src/exp-txt.c:116
+msgid "Format"
+msgstr "Formato"
+
+#: src/exp-txt.c:126
+msgid "Control codes"
+msgstr "Codici di controllo"
+
+#: src/exp-txt.c:130
+msgid "Foreground"
+msgstr "Primo piano"
+
+#: src/exp-txt.c:132
+msgid "Assumed terminal foreground color"
+msgstr "Colore assunto per il primo piano del terminale"
+
+#: src/exp-txt.c:134
+msgid "Background"
+msgstr "Sfondo"
+
+#: src/exp-txt.c:136
+msgid "Assumed terminal background color"
+msgstr "Colore assunto per lo sfondo del terminale"
+
+#: src/exp-txt.c:668
+msgid "Text"
+msgstr "Testo"
+
+#: src/exp-txt.c:669
+msgid "Export this page as text file"
+msgstr "Esporta questa pagina come file di testo"
+
+#: src/exp-vtx.c:86
+msgid "Can only export Teletext pages."
+msgstr "Può solo esportare pagine del Televideo."
+
+#: src/exp-vtx.c:94
+msgid "Page is not cached, sorry."
+msgstr "La pagina non è in cache, spiacente."
+
+#: src/exp-vtx.c:105
+msgid "Cannot export this page, not displayable."
+msgstr "Impossibile esportare questa pagina, non visualizzabile."
+
+#: src/exp-vtx.c:142
+msgid ""
+"Export this page as VTX file, the format used by VideoteXt and vbidecode"
+msgstr ""
+"Esporta questa pagina come file VTX, il formato usato da VideoteXt e "
+"vbidecode"
+
+#: src/export.c:470
+#, c-format
+msgid "Invalid option string \"%s\"."
+msgstr "Invalida stringa di opzione \"%s\"."
+
+#: src/export.c:558
+#, c-format
+msgid "Unknown export module '%s'."
+msgstr "Modulo di esportazione sconosciuto '%s'."
+
+#: src/export.c:568
+#, c-format
+msgid "Cannot initialize export module '%s', probably lack of memory."
+msgstr ""
+"Impossibile inizializzare il modulo di esportazione '%s', probabile mancanza "
+"di memoria."
+
+#: src/export.c:1845
+#, c-format
+msgid "Cannot create file '%s': %s."
+msgstr "Impossibile creare il file '%s': %s."
+
+#: src/export.c:1940
+#, c-format
+msgid "Error while writing file '%s'"
+msgstr "Errore durante la scrittura del file '%s'"
+
+#: src/export.c:1942
+msgid "Error while writing file"
+msgstr "Errore durante la scrittura del file"
+
+#: src/export.c:1958
+msgid "Out of memory."
+msgstr "Memoria esaurita."
+
+#: src/export.c:1981
+#, c-format
+msgid "Export module '%s' has no option '%s'."
+msgstr "Il modulo di esportazione '%s' non ha opzione '%s'."
+
+#: src/export.c:2031
+#, c-format
+msgid "Invalid argument %s for option %s of export module %s."
+msgstr "Invalido argomento %s per l'opzione %s del modulo di esportazione %s."
+
+#: src/export.c:2055
+#, c-format
+msgid "Out of memory in export module '%s'."
+msgstr "Senza memoria nel modulo di esportazione '%s'."
+
+#: src/export.c:2082
+msgid "Unknown error."
+msgstr "Errore sconosciuto."
+
+#: src/io-bktr.c:189
+msgid "BKTR driver"
+msgstr "Driver BKTR"
+
+#: src/io-bktr.c:204 src/io-bktr.c:285 src/io-bktr.c:303 src/io-v4l.c:165
+#: src/io-v4l.c:1134 src/io-v4l.c:1172 src/io-v4l.c:1200 src/io-v4l2.c:115
+#: src/io-v4l2k.c:232 src/io-v4l2k.c:606 src/io-v4l2k.c:1198
+#: src/io-v4l2k.c:1339 src/io-v4l2k.c:1366 src/proxy-client.c:201
+#: src/proxy-client.c:1559
+msgid "Virtual memory exhausted."
+msgstr "Memoria virtuale esaurita."
+
+#: src/io-bktr.c:217
+#, c-format
+msgid "Cannot open '%s': %s."
+msgstr "Impossibile aprire '%s': %s."
+
+#: src/io-bktr.c:273 src/io-v4l.c:759 src/io-v4l.c:1119 src/io-v4l2k.c:1185
+#, c-format
+msgid "Sorry, %s (%s) cannot capture any of the requested data services."
+msgstr ""
+"Spiacente, %s (%s) impossibile catturare ognuno dei servizi di dati "
+"richiesto."
+
+#: src/io-bktr.c:314 src/io-v4l.c:176 src/io-v4l2k.c:617
+#, c-format
+msgid "Not enough memory to allocate vbi capture buffer (%d KB)."
+msgstr "Non abbastanza memoria per allocare il buffer di cattura vbi (%d KB)."
+
+#: src/io-bktr.c:391
+msgid "BKTR driver interface not compiled."
+msgstr "Interfaccia del driver BKTR non compilata."
+
+#: src/io-v4l.c:810 src/io-v4l2k.c:1030
+#, c-format
+msgid "Cannot initialize %s (%s), the device is already in use."
+msgstr "Impossibile inizializzare %s (%s), il dispositivo è già in uso."
+
+#: src/io-v4l.c:824
+#, c-format
+msgid "Could not set the vbi capture parameters for %s (%s): %s."
+msgstr "Impossibile impostare i paramentri di cattura vbi per %s (%s): %s."
+
+#: src/io-v4l.c:962 src/io-v4l2k.c:1134
+#, c-format
+msgid ""
+"%s (%s) offers unknown vbi sampling format #%d. This may be a driver bug or "
+"libzvbi is too old."
+msgstr ""
+"%s (%s) offre un formato sconosciuto di campionamento vbi #%d. Questo "
+"potrebbe essere un bug del driver o libzvbi è troppo vecchia."
+
+#: src/io-v4l.c:1015
+#, c-format
+msgid "Cannot capture with %s (%s), has no standard vbi interface."
+msgstr "Impossibile catturare con %s (%s), non ha un'interfaccia vbi standard."
+
+#: src/io-v4l.c:1035
+#, c-format
+msgid ""
+"Cannot identify %s (%s), reported vbi frame size suggests this is not a bttv "
+"driver."
+msgstr ""
+"Impossibile identificare %s (%s), la dimensione del frame vbi riportata "
+"suggerisce che questo non è un driver bttv."
+
+#: src/io-v4l.c:1052 src/io-v4l.c:1290
+#, c-format
+msgid "Cannot set or determine current videostandard of %s (%s)."
+msgstr ""
+"Impossibile impostare o determinare lo standard video corrente di %s (%s)."
+
+#: src/io-v4l.c:1091 src/io-v4l2k.c:1149
+#, c-format
+msgid ""
+"Cannot capture the requested data services with %s (%s), the sampling "
+"frequency %.2f MHz is too low."
+msgstr ""
+"Impossibile catturare il servizio di dati richiesto con %s (%s), la "
+"frequenza di campionamento %.2f MHz è troppo bassa."
+
+#: src/io-v4l.c:1208 src/io-v4l2.c:130 src/io-v4l2k.c:1383
+#, c-format
+msgid "Cannot open '%s': %d, %s."
+msgstr "Impossibile aprire '%s': %d, %s."
+
+#: src/io-v4l.c:1225 src/io-v4l.c:1234
+msgid "driver unknown"
+msgstr "driver sconosciuto"
+
+#: src/io-v4l.c:1240 src/io-v4l2k.c:1410
+#, c-format
+msgid "%s (%s) is not a raw vbi device."
+msgstr "%s (%s) non è un grezzo dispositivo vbi."
+
+#: src/io-v4l.c:1260
+#, c-format
+msgid "%s (%s) does not support the select() function."
+msgstr "%s (%s) non supporta la funzione select()."
+
+#: src/io-v4l.c:1394 src/io-v4l.c:1439
+msgid "V4L driver interface not compiled."
+msgstr "Interfaccia del drvier V4L non compilata."
+
+#: src/io-v4l2.c:222 src/io-v4l2k.c:1552
+msgid "V4L2 driver interface not compiled."
+msgstr "Interfaccia del drvier V4L2 non compilata."
+
+#: src/io-v4l2k.c:210
+#, c-format
+msgid "Cannot request streaming i/o buffers from %s (%s): %s."
+msgstr "Impossibile richiedere i buffer di streaming i/o da %s (%s): %s."
+
+#: src/io-v4l2k.c:214 src/io-v4l2k.c:1039
+msgid "Possibly a driver bug."
+msgstr "Possibilmente un bug del driver."
+
+#: src/io-v4l2k.c:219
+#, c-format
+msgid ""
+"%s (%s) granted no streaming i/o buffers, perhaps the physical memory is "
+"exhausted."
+msgstr ""
+"%s (%s) non ha concesso buffer di streaming i/o, può darsi che la memoria "
+"fisica sia esaurita."
+
+#: src/io-v4l2k.c:248
+#, c-format
+msgid "Querying streaming i/o buffer #%d from %s (%s) failed: %s."
+msgstr "Interrogazione del buffer di streaming i/o #%d da %s (%s) falita: %s."
+
+#: src/io-v4l2k.c:283
+#, c-format
+msgid "Memory mapping streaming i/o buffer #%d from %s (%s) failed: %s."
+msgstr ""
+"Mappatura della memoria del buffer di streaming i/o #%d da %s (%s) falita: "
+"%s."
+
+#: src/io-v4l2k.c:308
+#, c-format
+msgid "Cannot enqueue streaming i/o buffer #%d to %s (%s): %s."
+msgstr "Impossibile accodare il buffer di streaming i/o #%d a %s (%s): %s."
+
+#: src/io-v4l2k.c:312 src/io-v4l2k.c:763 src/io-v4l2k.c:788
+msgid "Probably a driver bug."
+msgstr "Probabilmente un bug del driver."
+
+#: src/io-v4l2k.c:759 src/io-v4l2k.c:785
+#, c-format
+msgid "Cannot query current videostandard of %s (%s): %s."
+msgstr "Impossibile interrogare lo standard video corrente di %s (%s): %s."
+
+#: src/io-v4l2k.c:896
+#, c-format
+msgid "Cannot query current vbi parameters of %s (%s): %s."
+msgstr "Impossibile interrogare i parametri vbi correnti di %s (%s): %s."
+
+#: src/io-v4l2k.c:938
+#, fuzzy, c-format
+msgid ""
+"Sorry, %s (%s) cannot capture any of the requested data services with "
+"scanning %d."
+msgstr ""
+"Spiacente, %s (%s) impossibile catturare ognuno dei servizi di dati "
+"richiesto con [scanning] %d."
+
+#: src/io-v4l2k.c:1036
+#, c-format
+msgid "Could not set the vbi capture parameters for %s (%s): %d, %s."
+msgstr "Impossibile impostare i paramentri di cattura vbi per %s (%s): %d, %s."
+
+#: src/io-v4l2k.c:1082
+#, c-format
+msgid ""
+"A known bug in driver %s %u.%u.%u impedes VBI capturing in NTSC mode. Please "
+"upgrade the driver."
+msgstr ""
+
+#: src/io-v4l2k.c:1403
+#, c-format
+msgid "Cannot identify '%s': %d, %s."
+msgstr "Impossibile identificare '%s': %d, %s."
+
+#: src/io-v4l2k.c:1405
+msgid "Probably not a v4l2 device."
+msgstr "Probabilmente non un dispositivo v4l2."
+
+#: src/io-v4l2k.c:1459
+#, c-format
+msgid ""
+"%s (%s) lacks a vbi read interface, possibly an output only device or a "
+"driver bug."
+msgstr ""
+"%s (%s) manca di un'interfaccia di lettura vbi, possibilmente solo un "
+"dispositivo di uscita o un bug del driver."
+
+#: src/proxy-client.c:153
+msgid "Server hostname not configured."
+msgstr "Nome host del server non configurato."
+
+#: src/proxy-client.c:155
+msgid "Server port not configured."
+msgstr "Porta del server non configurata."
+
+#: src/proxy-client.c:424
+msgid "Protocol error (unexpected message)."
+msgstr "Errore del protocollo (messaggio inatteso)."
+
+#: src/proxy-client.c:585 src/proxy-client.c:637
+msgid "Connection lost due to I/O error."
+msgstr "Connessione persa a causa di un errore di I/O."
+
+#: src/proxy-client.c:758
+#, c-format
+msgid "Incompatible server version %u.%u.%u."
+msgstr "Versione del server %u.%u.%u incompatibile."
+
+#: src/proxy-client.c:766
+#, fuzzy
+msgid "Incompatible server architecture (endianess mismatch)."
+msgstr "Architettura del server incompatibile ([endianess mismatch])."
+
+#: src/proxy-client.c:1871 src/proxy-client.c:1919
+msgid "Proxy client interface not compiled."
+msgstr "Interfaccia del client proxy non compilata."
+
+#: src/proxy-msg.c:1240
+#, c-format
+msgid "Cannot create socket: %s."
+msgstr "Impossibile creare la socket: %s."
+
+#: src/proxy-msg.c:1248
+#, c-format
+msgid "Invalid hostname or port: %s."
+msgstr "Nome host o porta non valida: %s."
+
+#: src/proxy-msg.c:1268
+msgid "Connection via TCP/IP failed, server not running or unreachable."
+msgstr "Connessione via TCP/IP fallita, server non attivo o irrangiungibile."
+
+#: src/proxy-msg.c:1270
+msgid "Connection via socket failed, server not running."
+msgstr "Connessione via socket fallita, server non attivo."
+
+#: src/proxy-msg.c:1279 src/proxy-msg.c:1322
+#, c-format
+msgid "Socket I/O error: %s."
+msgstr "Errore I/O della socket: %s."
+
+#: src/proxy-msg.c:1315
+#, c-format
+msgid "Cannot connect to server: %s."
+msgstr "Impossibile connettersi al server: %s."
+
+#. TRANSLATORS: Title of TOP Index page,
+#. for now please Latin-1 or ASCII only
+#: src/teletext.c:417
+#, fuzzy
+msgid "TOP Index"
+msgstr "Indice TOP"
+
+#~ msgid "Cannot identify '%s': %s."
+#~ msgstr "Impossibile identificare '%s': %s."
