@@ -67,8 +67,8 @@
 #define AC3_RENAME(x)           x ## _fixed
 #define AC3_NORM(norm)          (1<<24)/(norm)
 #define AC3_MUL(a,b)            ((((int64_t) (a)) * (b))>>12)
-#define AC3_RANGE(x)            (x|((x&128)<<1))
-#define AC3_HEAVY_RANGE(x)      (x<<1)
+#define AC3_RANGE(x)            ((x)|(((x)&128)<<1))
+#define AC3_HEAVY_RANGE(x)      ((x)<<1)
 #define AC3_DYNAMIC_RANGE(x)    (x)
 #define AC3_SPX_BLEND(x)        (x)
 #define AC3_DYNAMIC_RANGE1      0
@@ -190,9 +190,7 @@ typedef struct AC3HeaderInfo {
     int surround_mix_level;                 ///< Surround mix level index
     uint16_t channel_map;
     int num_blocks;                         ///< number of audio blocks
-#if AV_HAVE_INCOMPATIBLE_LIBAV_ABI
     int dolby_surround_mode;
-#endif
     /** @} */
 
     /** @name Derived values
@@ -205,9 +203,6 @@ typedef struct AC3HeaderInfo {
     uint16_t frame_size;
     uint64_t channel_layout;
     /** @} */
-#if !AV_HAVE_INCOMPATIBLE_LIBAV_ABI
-    int dolby_surround_mode;
-#endif
 } AC3HeaderInfo;
 
 typedef enum {

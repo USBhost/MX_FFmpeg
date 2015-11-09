@@ -173,9 +173,10 @@ static int tgv_decode_inter(TgvContext *s, AVFrame *frame,
 
     /* allocate codebook buffers as necessary */
     if (num_mvs > s->num_mvs) {
-        if (av_reallocp_array(&s->mv_codebook, num_mvs, sizeof(*s->mv_codebook))) {
+        int err = av_reallocp_array(&s->mv_codebook, num_mvs, sizeof(*s->mv_codebook));
+        if (err < 0) {
             s->num_mvs = 0;
-            return AVERROR(ENOMEM);
+            return err;
         }
         s->num_mvs = num_mvs;
     }
@@ -363,5 +364,5 @@ AVCodec ff_eatgv_decoder = {
     .init           = tgv_decode_init,
     .close          = tgv_decode_end,
     .decode         = tgv_decode_frame,
-    .capabilities   = CODEC_CAP_DR1,
+    .capabilities   = AV_CODEC_CAP_DR1,
 };

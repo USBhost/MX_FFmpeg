@@ -24,8 +24,8 @@
 
 #include "libavutil/float_dsp.h"
 
+#include "avcodec.h"
 #include "fft.h"
-#include "fmtconvert.h"
 #include "get_bits.h"
 #include "put_bits.h"
 
@@ -42,7 +42,7 @@
 #define NB_LSP_COEFS 10
 
 /* XXX: is it a suitable value ? */
-#define MAX_CODED_SUPERFRAME_SIZE 16384
+#define MAX_CODED_SUPERFRAME_SIZE 32768
 
 #define MAX_CHANNELS 2
 
@@ -120,7 +120,7 @@ typedef struct WMACodecContext {
     /* output buffer for one frame and the last for IMDCT windowing */
     DECLARE_ALIGNED(32, float, frame_out)[MAX_CHANNELS][BLOCK_MAX_SIZE * 2];
     /* last frame info */
-    uint8_t last_superframe[MAX_CODED_SUPERFRAME_SIZE + FF_INPUT_BUFFER_PADDING_SIZE]; /* padding added */
+    uint8_t last_superframe[MAX_CODED_SUPERFRAME_SIZE + AV_INPUT_BUFFER_PADDING_SIZE]; /* padding added */
     int last_bitoffset;
     int last_superframe_len;
     float noise_table[NOISE_TAB_SIZE];
@@ -131,8 +131,7 @@ typedef struct WMACodecContext {
     float lsp_pow_e_table[256];
     float lsp_pow_m_table1[(1 << LSP_POW_BITS)];
     float lsp_pow_m_table2[(1 << LSP_POW_BITS)];
-    FmtConvertContext fmt_conv;
-    AVFloatDSPContext fdsp;
+    AVFloatDSPContext *fdsp;
 
 #ifdef TRACE
     int frame_count;

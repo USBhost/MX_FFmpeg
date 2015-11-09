@@ -29,8 +29,8 @@
 
 #include "libavutil/version.h"
 
-#define LIBAVFORMAT_VERSION_MAJOR 56
-#define LIBAVFORMAT_VERSION_MINOR  14
+#define LIBAVFORMAT_VERSION_MAJOR  57
+#define LIBAVFORMAT_VERSION_MINOR  11
 #define LIBAVFORMAT_VERSION_MICRO 100
 
 #define LIBAVFORMAT_VERSION_INT AV_VERSION_INT(LIBAVFORMAT_VERSION_MAJOR, \
@@ -47,18 +47,26 @@
  * FF_API_* defines may be placed below to indicate public API that will be
  * dropped at a future version bump. The defines themselves are not part of
  * the public API and may change, break or disappear at any time.
+ *
+ * @note, when bumping the major version it is recommended to manually
+ * disable each FF_API_* in its own commit instead of disabling them all
+ * at once through the bump. This improves the git bisect-ability of the change.
+ *
  */
 #ifndef FF_API_LAVF_BITEXACT
-#define FF_API_LAVF_BITEXACT            (LIBAVFORMAT_VERSION_MAJOR < 57)
+#define FF_API_LAVF_BITEXACT            (LIBAVFORMAT_VERSION_MAJOR < 58)
 #endif
 #ifndef FF_API_LAVF_FRAC
-#define FF_API_LAVF_FRAC                (LIBAVFORMAT_VERSION_MAJOR < 57)
+#define FF_API_LAVF_FRAC                (LIBAVFORMAT_VERSION_MAJOR < 58)
 #endif
 #ifndef FF_API_LAVF_CODEC_TB
-#define FF_API_LAVF_CODEC_TB            (LIBAVFORMAT_VERSION_MAJOR < 57)
+#define FF_API_LAVF_CODEC_TB            (LIBAVFORMAT_VERSION_MAJOR < 58)
 #endif
 #ifndef FF_API_URL_FEOF
-#define FF_API_URL_FEOF                 (LIBAVFORMAT_VERSION_MAJOR < 57)
+#define FF_API_URL_FEOF                 (LIBAVFORMAT_VERSION_MAJOR < 58)
+#endif
+#ifndef FF_API_LAVF_FMT_RAWPICTURE
+#define FF_API_LAVF_FMT_RAWPICTURE      (LIBAVFORMAT_VERSION_MAJOR < 58)
 #endif
 
 #ifndef FF_API_R_FRAME_RATE

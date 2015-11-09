@@ -31,10 +31,12 @@
 
 int ff_get_guid(AVIOContext *s, ff_asf_guid *g)
 {
+    int ret;
     av_assert0(sizeof(*g) == 16); //compiler will optimize this out
-    if (avio_read(s, *g, sizeof(*g)) < (int)sizeof(*g)) {
+    ret = avio_read(s, *g, sizeof(*g));
+    if (ret < (int)sizeof(*g)) {
         memset(*g, 0, sizeof(*g));
-        return AVERROR_INVALIDDATA;
+        return ret < 0 ? ret : AVERROR_INVALIDDATA;
     }
     return 0;
 }
@@ -67,6 +69,8 @@ static void parse_waveformatex(AVIOContext *pb, AVCodecContext *c)
 
     ff_get_guid(pb, &subformat);
     if (!memcmp(subformat + 4,
+                (const uint8_t[]){ FF_AMBISONIC_BASE_GUID }, 12) ||
+        !memcmp(subformat + 4,
                 (const uint8_t[]){ FF_MEDIASUBTYPE_BASE_GUID }, 12)) {
         c->codec_tag = AV_RL32(subformat);
         c->codec_id  = ff_wav_codec_get_id(c->codec_tag,
@@ -80,20 +84,41 @@ static void parse_waveformatex(AVIOContext *pb, AVCodecContext *c)
     }
 }
 
-int ff_get_wav_header(AVIOContext *pb, AVCodecContext *codec, int size)
+/* "big_endian" values are needed for RIFX file format */
+int ff_get_wav_header(AVFormatContext *s, AVIOContext *pb,
+                      AVCodecContext *codec, int size, int big_endian)
 {
     int id;
+    uint64_t bitrate;
 
-    id                 = avio_rl16(pb);
+    if (size < 14) {
+        avpriv_request_sample(codec, "wav header size < 14");
+        return AVERROR_INVALIDDATA;
+    }
+
     codec->codec_type  = AVMEDIA_TYPE_AUDIO;
-    codec->channels    = avio_rl16(pb);
-    codec->sample_rate = avio_rl32(pb);
-    codec->bit_rate    = avio_rl32(pb) * 8;
-    codec->block_align = avio_rl16(pb);
+    if (!big_endian) {
+        id                 = avio_rl16(pb);
+        codec->channels    = avio_rl16(pb);
+        codec->sample_rate = avio_rl32(pb);
+        bitrate            = avio_rl32(pb) * 8LL;
+        codec->block_align = avio_rl16(pb);
+    } else {
+        id                 = avio_rb16(pb);
+        codec->channels    = avio_rb16(pb);
+        codec->sample_rate = avio_rb32(pb);
+        bitrate            = avio_rb32(pb) * 8LL;
+        codec->block_align = avio_rb16(pb);
+    }
     if (size == 14) {  /* We're dealing with plain vanilla WAVEFORMAT */
         codec->bits_per_coded_sample = 8;
-    } else
-        codec->bits_per_coded_sample = avio_rl16(pb);
+    } else {
+        if (!big_endian) {
+            codec->bits_per_coded_sample = avio_rl16(pb);
+        } else {
+            codec->bits_per_coded_sample = avio_rb16(pb);
+        }
+    }
     if (id == 0xFFFE) {
         codec->codec_tag = 0;
     } else {
@@ -103,6 +128,10 @@ int ff_get_wav_header(AVIOContext *pb, AVCodecContext *codec, int size)
     }
     if (size >= 18) {  /* We're obviously dealing with WAVEFORMATEX */
         int cbSize = avio_rl16(pb); /* cbSize */
+        if (big_endian) {
+            avpriv_report_missing_feature(codec, "WAVEFORMATEX support for RIFX files\n");
+            return AVERROR_PATCHWELCOME;
+        }
         size  -= 18;
         cbSize = FFMIN(size, cbSize);
         if (cbSize >= 22 && id == 0xfffe) { /* WAVEFORMATEXTENSIBLE */
@@ -111,7 +140,7 @@ int ff_get_wav_header(AVIOContext *pb, AVCodecContext *codec, int size)
             size   -= 22;
         }
         if (cbSize > 0) {
-            av_free(codec->extradata);
+            av_freep(&codec->extradata);
             if (ff_get_extradata(codec, pb, cbSize) < 0)
                 return AVERROR(ENOMEM);
             size -= cbSize;
@@ -121,8 +150,25 @@ int ff_get_wav_header(AVIOContext *pb, AVCodecContext *codec, int size)
         if (size > 0)
             avio_skip(pb, size);
     }
+
+    if (bitrate > INT_MAX) {
+        if (s->error_recognition & AV_EF_EXPLODE) {
+            av_log(s, AV_LOG_ERROR,
+                   "The bitrate %"PRIu64" is too large.\n",
+                    bitrate);
+            return AVERROR_INVALIDDATA;
+        } else {
+            av_log(s, AV_LOG_WARNING,
+                   "The bitrate %"PRIu64" is too large, resetting to 0.",
+                   bitrate);
+            codec->bit_rate = 0;
+        }
+    } else {
+        codec->bit_rate = bitrate;
+    }
+
     if (codec->sample_rate <= 0) {
-        av_log(NULL, AV_LOG_ERROR,
+        av_log(s, AV_LOG_ERROR,
                "Invalid sample rate: %d\n", codec->sample_rate);
         return AVERROR_INVALIDDATA;
     }

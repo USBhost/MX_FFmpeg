@@ -218,6 +218,7 @@
 #define MATROSKA_ID_CHAPTERDISPLAY      0x80
 #define MATROSKA_ID_CHAPSTRING          0x85
 #define MATROSKA_ID_CHAPLANG            0x437C
+#define MATROSKA_ID_CHAPCOUNTRY         0x437E
 #define MATROSKA_ID_EDITIONUID          0x45BC
 #define MATROSKA_ID_EDITIONFLAGHIDDEN   0x45BD
 #define MATROSKA_ID_EDITIONFLAGDEFAULT  0x45DB
@@ -280,6 +281,7 @@ typedef struct CodecTags{
 
 extern const CodecTags ff_mkv_codec_tags[];
 extern const CodecMime ff_mkv_mime_tags[];
+extern const CodecMime ff_mkv_image_mime_tags[];
 extern const AVMetadataConv ff_mkv_metadata_conv[];
 extern const char * const ff_matroska_video_stereo_mode[MATROSKA_VIDEO_STEREOMODE_TYPE_NB];
 extern const char * const ff_matroska_video_stereo_plane[MATROSKA_VIDEO_STEREO_PLANE_COUNT];

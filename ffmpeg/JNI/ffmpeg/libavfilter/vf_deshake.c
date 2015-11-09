@@ -85,15 +85,16 @@ static const AVOption deshake_options[] = {
         { "exhaustive", "exhaustive search",      0, AV_OPT_TYPE_CONST, {.i64=EXHAUSTIVE},       INT_MIN, INT_MAX, FLAGS, "smode" },
         { "less",       "less exhaustive search", 0, AV_OPT_TYPE_CONST, {.i64=SMART_EXHAUSTIVE}, INT_MIN, INT_MAX, FLAGS, "smode" },
     { "filename", "set motion search detailed log file name", OFFSET(filename), AV_OPT_TYPE_STRING, {.str=NULL}, .flags = FLAGS },
-    { "opencl", "use OpenCL filtering capabilities", OFFSET(opencl), AV_OPT_TYPE_INT, {.i64=0}, 0, 1, .flags = FLAGS },
+    { "opencl", "use OpenCL filtering capabilities", OFFSET(opencl), AV_OPT_TYPE_BOOL, {.i64=0}, 0, 1, .flags = FLAGS },
     { NULL }
 };
 
 AVFILTER_DEFINE_CLASS(deshake);
 
-static int cmp(const double *a, const double *b)
+static int cmp(const void *a, const void *b)
 {
-    return *a < *b ? -1 : ( *a > *b ? 1 : 0 );
+    const double va = *(const double *)a, vb = *(const double *)b;
+    return va < vb ? -1 : ( va > vb ? 1 : 0 );
 }
 
 /**
@@ -105,7 +106,7 @@ static double clean_mean(double *values, int count)
     int cut = count / 5;
     int x;
 
-    qsort(values, count, sizeof(double), (void*)cmp);
+    qsort(values, count, sizeof(double), cmp);
 
     for (x = cut; x < count - cut; x++) {
         mean += values[x];
@@ -396,10 +397,10 @@ static int query_formats(AVFilterContext *ctx)
         AV_PIX_FMT_YUV411P,  AV_PIX_FMT_YUV440P,  AV_PIX_FMT_YUVJ420P, AV_PIX_FMT_YUVJ422P,
         AV_PIX_FMT_YUVJ444P, AV_PIX_FMT_YUVJ440P, AV_PIX_FMT_NONE
     };
-
-    ff_set_common_formats(ctx, ff_make_format_list(pix_fmts));
-
-    return 0;
+    AVFilterFormats *fmts_list = ff_make_format_list(pix_fmts);
+    if (!fmts_list)
+        return AVERROR(ENOMEM);
+    return ff_set_common_formats(ctx, fmts_list);
 }
 
 static int config_props(AVFilterLink *link)

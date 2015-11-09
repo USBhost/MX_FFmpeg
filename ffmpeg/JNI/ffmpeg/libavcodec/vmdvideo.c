@@ -339,6 +339,9 @@ static int vmd_decode(VmdVideoContext *s, AVFrame *frame)
                         ofs += slen;
                         bytestream2_skip(&gb, len);
                     } else {
+                        if (ofs + len > frame_width ||
+                            bytestream2_get_bytes_left(&gb) < len)
+                            return AVERROR_INVALIDDATA;
                         bytestream2_get_buffer(&gb, &dp[ofs], len);
                         ofs += len;
                     }
@@ -468,5 +471,5 @@ AVCodec ff_vmdvideo_decoder = {
     .init           = vmdvideo_decode_init,
     .close          = vmdvideo_decode_end,
     .decode         = vmdvideo_decode_frame,
-    .capabilities   = CODEC_CAP_DR1,
+    .capabilities   = AV_CODEC_CAP_DR1,
 };

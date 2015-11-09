@@ -232,7 +232,7 @@ static int config_output(AVFilterLink *outlink)
     if (!s->frame_list)
         return AVERROR(ENOMEM);
 
-    s->fifos = av_mallocz(s->nb_inputs * sizeof(*s->fifos));
+    s->fifos = av_mallocz_array(s->nb_inputs, sizeof(*s->fifos));
     if (!s->fifos)
         return AVERROR(ENOMEM);
 
@@ -496,6 +496,8 @@ static av_cold int init(AVFilterContext *ctx)
         snprintf(name, sizeof(name), "input%d", i);
         pad.type           = AVMEDIA_TYPE_AUDIO;
         pad.name           = av_strdup(name);
+        if (!pad.name)
+            return AVERROR(ENOMEM);
         pad.filter_frame   = filter_frame;
 
         ff_insert_inpad(ctx, i, &pad);
@@ -532,18 +534,23 @@ static int query_formats(AVFilterContext *ctx)
 {
     AVFilterFormats *formats = NULL;
     AVFilterChannelLayouts *layouts;
+    int ret;
 
     layouts = ff_all_channel_layouts();
-
     if (!layouts)
         return AVERROR(ENOMEM);
 
-    ff_add_format(&formats, AV_SAMPLE_FMT_FLT);
-    ff_add_format(&formats, AV_SAMPLE_FMT_FLTP);
-    ff_set_common_formats(ctx, formats);
-    ff_set_common_channel_layouts(ctx, layouts);
-    ff_set_common_samplerates(ctx, ff_all_samplerates());
-    return 0;
+    if ((ret = ff_add_format(&formats, AV_SAMPLE_FMT_FLT)) < 0)
+        return ret;
+    if ((ret = ff_add_format(&formats, AV_SAMPLE_FMT_FLTP)) < 0)
+        return ret;
+    ret = ff_set_common_formats(ctx, formats);
+    if (ret < 0)
+        return ret;
+    ret = ff_set_common_channel_layouts(ctx, layouts);
+    if (ret < 0)
+        return ret;
+    return ff_set_common_samplerates(ctx, ff_all_samplerates());
 }
 
 static const AVFilterPad avfilter_af_amix_outputs[] = {

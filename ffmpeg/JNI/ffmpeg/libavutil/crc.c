@@ -312,9 +312,9 @@ int av_crc_init(AVCRC *ctx, int le, int bits, uint32_t poly, int ctx_size)
     uint32_t c;
 
     if (bits < 8 || bits > 32 || poly >= (1LL << bits))
-        return -1;
+        return AVERROR(EINVAL);
     if (ctx_size != sizeof(AVCRC) * 257 && ctx_size != sizeof(AVCRC) * 1024)
-        return -1;
+        return AVERROR(EINVAL);
 
     for (i = 0; i < 256; i++) {
         if (le) {
@@ -383,7 +383,8 @@ int main(void)
 {
     uint8_t buf[1999];
     int i;
-    int p[6][3] = { { AV_CRC_32_IEEE_LE, 0xEDB88320, 0x3D5CDD04 },
+    unsigned
+        p[6][3] = { { AV_CRC_32_IEEE_LE, 0xEDB88320, 0x3D5CDD04 },
                     { AV_CRC_32_IEEE   , 0x04C11DB7, 0xC0F5BAE0 },
                     { AV_CRC_24_IEEE   , 0x864CFB  , 0xB704CE   },
                     { AV_CRC_16_ANSI_LE, 0xA001    , 0xBFD8     },

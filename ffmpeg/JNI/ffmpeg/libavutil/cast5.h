@@ -48,8 +48,20 @@ struct AVCAST5 *av_cast5_alloc(void);
   * @param ctx an AVCAST5 context
   * @param key a key of 5,6,...16 bytes used for encryption/decryption
   * @param key_bits number of keybits: possible are 40,48,...,128
+  * @return 0 on success, less than 0 on failure
  */
 int av_cast5_init(struct AVCAST5 *ctx, const uint8_t *key, int key_bits);
+
+/**
+  * Encrypt or decrypt a buffer using a previously initialized context, ECB mode only
+  *
+  * @param ctx an AVCAST5 context
+  * @param dst destination array, can be equal to src
+  * @param src source array, can be equal to dst
+  * @param count number of 8 byte blocks
+  * @param decrypt 0 for encryption, 1 for decryption
+ */
+void av_cast5_crypt(struct AVCAST5 *ctx, uint8_t *dst, const uint8_t *src, int count, int decrypt);
 
 /**
   * Encrypt or decrypt a buffer using a previously initialized context
@@ -58,9 +70,10 @@ int av_cast5_init(struct AVCAST5 *ctx, const uint8_t *key, int key_bits);
   * @param dst destination array, can be equal to src
   * @param src source array, can be equal to dst
   * @param count number of 8 byte blocks
+  * @param iv initialization vector for CBC mode, NULL for ECB mode
   * @param decrypt 0 for encryption, 1 for decryption
  */
-void av_cast5_crypt(struct AVCAST5 *ctx, uint8_t *dst, const uint8_t *src, int count,int decrypt);
+void av_cast5_crypt2(struct AVCAST5 *ctx, uint8_t *dst, const uint8_t *src, int count, uint8_t *iv, int decrypt);
 /**
  * @}
  */

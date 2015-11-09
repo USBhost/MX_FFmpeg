@@ -19,6 +19,12 @@ LOCAL_MODULE    := avformat
 LOCAL_SRC_FILES := libavformat/libavformat.a
 include $(PREBUILT_STATIC_LIBRARY)
 
+# avfilter
+include $(CLEAR_VARS)
+LOCAL_MODULE    := avfilter
+LOCAL_SRC_FILES := libavfilter/libavfilter.a
+include $(PREBUILT_STATIC_LIBRARY)
+
 # swscale
 include $(CLEAR_VARS)
 LOCAL_MODULE    := swscale
@@ -36,29 +42,20 @@ include $(CLEAR_VARS)
 
 LIBS := $(MY_DIR)/libs
 
-ifeq ($(TARGET_ARCH),arm)
-	LIB_OPENSSL := $(LIBS)/android/16-$(TARGET_ARCH)
+ifeq ($(ARCH),$(filter $(ARCH),armv5te armv6))
+	LIBS_EXTRA := -L$(LIBS)/android/16-$(TARGET_ARCH) -lssl -lcrypto
 endif
 
-ifeq ($(TARGET_ARCH),x86)
-	LIB_OPENSSL := $(LIBS)/android/16-$(TARGET_ARCH)
-endif
-
-ifeq ($(TARGET_ARCH),mips)
-	LIB_OPENSSL := $(LIBS)/android/15-$(TARGET_ARCH)
-endif
 
 LOCAL_LDLIBS := \
 -L$(NDK_APP_DST_DIR) \
--L$(LIB_OPENSSL) \
 -lmxutil \
--lssl \
--lcrypto \
--lz
+-lz \
+$(LIBS_EXTRA)
 
 include $(MY_DIR)/a-arch-$(TARGET_ARCH).mk
 
-LOCAL_WHOLE_STATIC_LIBRARIES := swresample swscale avformat avcodec avutil
+LOCAL_WHOLE_STATIC_LIBRARIES := swresample swscale avformat avcodec avutil avfilter
 
 include $(BUILD_SHARED_LIBRARY)
 

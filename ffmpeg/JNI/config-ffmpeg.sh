@@ -1,6 +1,7 @@
 #!/bin/bash
 
 HOST_PLATFORM=linux-x86_64
+
 GCC_VER=4.8
 
 case $1 in
@@ -51,23 +52,16 @@ case $1 in
 		EXTRA_PARAMETERS="--disable-neon --disable-armv6"
 		;;
 	x86_64)
+		GCC_VER=4.9
 		ARCH=x86_64
-		CPU=atom
 		LIB_MX="../libs/x86_64"
 		EXTRA_CFLAGS="-mtune=atom -msse3 -mssse3 -mfpmath=sse"
 		;;
-# pic는 동작하지 않으며, Android toolchain에도 누락되어있다.
-# 아래 링크에 몇가지 빌드 옵션이 있으나, Atom이 아닌 경우 돌아가지 않을 수 있어 사용하지 않는다.
-# 특히 CPU를 atom으로 주는 경우 emulator에서도 돌아가지 않는다.
-# https://software.intel.com/en-us/android/blogs/2013/12/06/building-ffmpeg-for-android-on-x86
 	x86)
 		ARCH=x86
 		CPU=atom
 		LIB_MX="../libs/x86"
 		EXTRA_CFLAGS="-mtune=atom -msse3 -mssse3 -mfpmath=sse"
-
-# 실제로는 sse4.2까지도 내부적으로 cpu feature에 따라 다른 코드를 실행하는 방식으로 지원된다.
-#		EXTRA_PARAMETERS="--disable-sse4"
 		;;
 	x86_sse2)
 		ARCH=x86
@@ -107,7 +101,7 @@ elif [ $ARCH == 'x86_64' ]
 then
 	CROSS_PREFIX=$NDK/toolchains/x86_64-$GCC_VER/prebuilt/$HOST_PLATFORM/bin/x86_64-linux-android-
 	EXTRA_CFLAGS+=" -fstrict-aliasing"
-	OPTFLAGS="-O2 -fno-pic"
+	OPTFLAGS="-O2 -fpic"
 	APP_PLATFORM=android-21
 	LINK_AGAINST=21-x86_64
 elif [ $ARCH == 'x86' ] 
@@ -139,12 +133,14 @@ fi
 --disable-symver \
 --disable-avdevice \
 --disable-postproc \
---disable-avfilter \
+--enable-avfilter \
 --disable-swscale-alpha \
 --disable-encoders \
 --disable-muxers \
 --disable-devices \
 --disable-filters \
+--enable-filter=yadif \
+--enable-filter=w3fdif \
 --disable-protocol=udplite \
 --disable-demuxer=srt \
 --disable-demuxer=microdvd \
@@ -165,7 +161,6 @@ fi
 --disable-decoder=jacosub \
 --disable-decoder=sami \
 --disable-decoder=realtext \
---disable-decoder=movtext \
 --disable-decoder=stl \
 --disable-decoder=subviewer \
 --disable-decoder=subviewer1 \
@@ -185,7 +180,7 @@ fi
 --enable-cross-compile \
 --sysroot=$NDK/platforms/$APP_PLATFORM/arch-$ARCH \
 --target-os=linux \
---extra-cflags="-I$INC_ICONV -I$INC_ZVBI -I$INC_OPENSSL -I$INC_OPUS -I$INC_SPEEX -I$INC_MODPLUG -DNDEBUG -DMXTECHS -mandroid -ftree-vectorize -ffunction-sections -funwind-tables -fomit-frame-pointer -funswitch-loops -finline-limit=300 -finline-functions -fpredictive-commoning -fgcse-after-reload -fipa-cp-clone $EXTRA_CFLAGS -no-canonical-prefixes -pipe" \
+--extra-cflags="-I$INC_ICONV -I$INC_ZVBI -I$INC_OPENSSL -I$INC_OPUS -I$INC_SPEEX -I$INC_MODPLUG -DFF_API_AVPICTURE=0 -DNDEBUG -DMXTECHS -mandroid -ftree-vectorize -ffunction-sections -funwind-tables -fomit-frame-pointer -funswitch-loops -finline-limit=300 -finline-functions -fpredictive-commoning -fgcse-after-reload -fipa-cp-clone $EXTRA_CFLAGS -no-canonical-prefixes -pipe" \
 --extra-libs="-L$LIB_MX -L../libs/android/$LINK_AGAINST -lmxutil -lm" \
 --extra-ldflags="$EXTRA_LDFLAGS" \
 --optflags="$OPTFLAGS" \
@@ -203,4 +198,5 @@ $EXTRA_PARAMETERS \
 --disable-decoder=ac3_fixed \
 --disable-decoder=eac3 \
 --disable-decoder=mlp
+
 

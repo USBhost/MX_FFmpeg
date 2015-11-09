@@ -28,13 +28,13 @@
 #include "avformat.h"
 #include "internal.h"
 
-typedef struct {
+typedef struct Page {
     int base_record;
     unsigned int nb_records;
     int size;
 } Page;
 
-typedef struct {
+typedef struct AnmDemuxContext {
     unsigned int nb_pages;    /**< total pages in file */
     unsigned int nb_records;  /**< total records in file */
     int page_table_offset;
@@ -133,7 +133,7 @@ static int read_header(AVFormatContext *s)
 
     /* color cycling and palette data */
     st->codec->extradata_size = 16*8 + 4*256;
-    st->codec->extradata      = av_mallocz(st->codec->extradata_size + FF_INPUT_BUFFER_PADDING_SIZE);
+    st->codec->extradata      = av_mallocz(st->codec->extradata_size + AV_INPUT_BUFFER_PADDING_SIZE);
     if (!st->codec->extradata) {
         return AVERROR(ENOMEM);
     }

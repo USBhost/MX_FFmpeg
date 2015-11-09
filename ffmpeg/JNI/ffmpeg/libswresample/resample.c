@@ -32,9 +32,8 @@
  * 0th order modified bessel function of the first kind.
  */
 static double bessel(double x){
-    double v=1;
     double lastv=0;
-    double t=1;
+    double t, v;
     int i;
     static const double inv[100]={
  1.0/( 1* 1), 1.0/( 2* 2), 1.0/( 3* 3), 1.0/( 4* 4), 1.0/( 5* 5), 1.0/( 6* 6), 1.0/( 7* 7), 1.0/( 8* 8), 1.0/( 9* 9), 1.0/(10*10),
@@ -50,11 +49,15 @@ static double bessel(double x){
     };
 
     x= x*x/4;
-    for(i=0; v != lastv; i++){
-        lastv=v;
+    t = x;
+    v = 1 + x;
+    for(i=1; v != lastv; i+=2){
         t *= x*inv[i];
         v += t;
-        av_assert2(i<99);
+        lastv=v;
+        t *= x*inv[i + 1];
+        v += t;
+        av_assert2(i<98);
     }
     return v;
 }
@@ -338,11 +341,30 @@ static int multiple_resample(ResampleContext *c, AudioData *dst, int dst_size, A
 static int64_t get_delay(struct SwrContext *s, int64_t base){
     ResampleContext *c = s->resample;
     int64_t num = s->in_buffer_count - (c->filter_length-1)/2;
-    num <<= c->phase_shift;
+    num *= 1 << c->phase_shift;
     num -= c->index;
     num *= c->src_incr;
     num -= c->frac;
     return av_rescale(num, base, s->in_sample_rate*(int64_t)c->src_incr << c->phase_shift);
+}
+
+static int64_t get_out_samples(struct SwrContext *s, int in_samples) {
+    ResampleContext *c = s->resample;
+    // The + 2 are added to allow implementations to be slightly inaccurate, they should not be needed currently.
+    // They also make it easier to proof that changes and optimizations do not
+    // break the upper bound.
+    int64_t num = s->in_buffer_count + 2LL + in_samples;
+    num *= 1 << c->phase_shift;
+    num -= c->index;
+    num = av_rescale_rnd(num, s->out_sample_rate, ((int64_t)s->in_sample_rate) << c->phase_shift, AV_ROUND_UP) + 2;
+
+    if (c->compensation_distance) {
+        if (num > INT_MAX)
+            return AVERROR(EINVAL);
+
+        num = FFMAX(num, (num * c->ideal_dst_incr - 1) / c->dst_incr + 1);
+    }
+    return num;
 }
 
 static int resample_flush(struct SwrContext *s) {
@@ -414,4 +436,5 @@ struct Resampler const swri_resampler={
   set_compensation,
   get_delay,
   invert_initial_buffer,
+  get_out_samples,
 };

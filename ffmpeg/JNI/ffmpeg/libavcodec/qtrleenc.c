@@ -37,7 +37,7 @@
 typedef struct QtrleEncContext {
     AVCodecContext *avctx;
     int pixel_size;
-    AVPicture previous_frame;
+    AVFrame *previous_frame;
     unsigned int max_buf_size;
     int logical_width;
     /**
@@ -58,15 +58,16 @@ typedef struct QtrleEncContext {
      * Will contain at ith position the number of consecutive pixels equal to the previous
      * frame starting from pixel i */
     uint8_t* skip_table;
+
+    /** Encoded frame is a key frame */
+    int key_frame;
 } QtrleEncContext;
 
 static av_cold int qtrle_encode_end(AVCodecContext *avctx)
 {
     QtrleEncContext *s = avctx->priv_data;
 
-    av_frame_free(&avctx->coded_frame);
-
-    avpicture_free(&s->previous_frame);
+    av_frame_free(&s->previous_frame);
     av_free(s->rlecode_table);
     av_free(s->length_table);
     av_free(s->skip_table);
@@ -76,7 +77,6 @@ static av_cold int qtrle_encode_end(AVCodecContext *avctx)
 static av_cold int qtrle_encode_init(AVCodecContext *avctx)
 {
     QtrleEncContext *s = avctx->priv_data;
-    int ret;
 
     if (av_image_check_size(avctx->width, avctx->height, 0, avctx) < 0) {
         return AVERROR(EINVAL);
@@ -115,21 +115,16 @@ static av_cold int qtrle_encode_init(AVCodecContext *avctx)
         av_log(avctx, AV_LOG_ERROR, "Error allocating memory.\n");
         return AVERROR(ENOMEM);
     }
-    if ((ret = avpicture_alloc(&s->previous_frame, avctx->pix_fmt, avctx->width, avctx->height)) < 0) {
+    s->previous_frame = av_frame_alloc();
+    if (!s->previous_frame) {
         av_log(avctx, AV_LOG_ERROR, "Error allocating picture\n");
-        return ret;
+        return AVERROR(ENOMEM);
     }
 
     s->max_buf_size = s->logical_width*s->avctx->height*s->pixel_size*2 /* image base material */
                       + 15                                            /* header + footer */
                       + s->avctx->height*2                            /* skip code+rle end */
                       + s->logical_width/MAX_RLE_BULK + 1             /* rle codes */;
-
-    avctx->coded_frame = av_frame_alloc();
-    if (!avctx->coded_frame) {
-        qtrle_encode_end(avctx);
-        return AVERROR(ENOMEM);
-    }
 
     return 0;
 }
@@ -162,7 +157,7 @@ static void qtrle_encode_line(QtrleEncContext *s, const AVFrame *p, int line, ui
 
     uint8_t *this_line = p->               data[0] + line*p->               linesize[0] +
         (width - 1)*s->pixel_size;
-    uint8_t *prev_line = s->previous_frame.data[0] + line*s->previous_frame.linesize[0] +
+    uint8_t *prev_line = s->previous_frame->data[0] + line * s->previous_frame->linesize[0] +
         (width - 1)*s->pixel_size;
 
     s->length_table[width] = 0;
@@ -219,7 +214,7 @@ static void qtrle_encode_line(QtrleEncContext *s, const AVFrame *p, int line, ui
             }
         }
 
-        if (!s->avctx->coded_frame->key_frame && !memcmp(this_line, prev_line, s->pixel_size))
+        if (!s->key_frame && !memcmp(this_line, prev_line, s->pixel_size))
             skipcount = FFMIN(skipcount + 1, MAX_RLE_SKIP);
         else
             skipcount = 0;
@@ -330,17 +325,17 @@ static int encode_frame(QtrleEncContext *s, const AVFrame *p, uint8_t *buf)
     int end_line = s->avctx->height;
     uint8_t *orig_buf = buf;
 
-    if (!s->avctx->coded_frame->key_frame) {
+    if (!s->key_frame) {
         unsigned line_size = s->logical_width * s->pixel_size;
         for (start_line = 0; start_line < s->avctx->height; start_line++)
             if (memcmp(p->data[0] + start_line*p->linesize[0],
-                       s->previous_frame.data[0] + start_line*s->previous_frame.linesize[0],
+                       s->previous_frame->data[0] + start_line * s->previous_frame->linesize[0],
                        line_size))
                 break;
 
         for (end_line=s->avctx->height; end_line > start_line; end_line--)
             if (memcmp(p->data[0] + (end_line - 1)*p->linesize[0],
-                       s->previous_frame.data[0] + (end_line - 1)*s->previous_frame.linesize[0],
+                       s->previous_frame->data[0] + (end_line - 1) * s->previous_frame->linesize[0],
                        line_size))
                 break;
     }
@@ -368,29 +363,40 @@ static int qtrle_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
                               const AVFrame *pict, int *got_packet)
 {
     QtrleEncContext * const s = avctx->priv_data;
-    AVFrame * const p = avctx->coded_frame;
+    enum AVPictureType pict_type;
     int ret;
 
-    if ((ret = ff_alloc_packet2(avctx, pkt, s->max_buf_size)) < 0)
+    if ((ret = ff_alloc_packet2(avctx, pkt, s->max_buf_size, 0)) < 0)
         return ret;
 
     if (avctx->gop_size == 0 || (s->avctx->frame_number % avctx->gop_size) == 0) {
         /* I-Frame */
-        p->pict_type = AV_PICTURE_TYPE_I;
-        p->key_frame = 1;
+        pict_type = AV_PICTURE_TYPE_I;
+        s->key_frame = 1;
     } else {
         /* P-Frame */
-        p->pict_type = AV_PICTURE_TYPE_P;
-        p->key_frame = 0;
+        pict_type = AV_PICTURE_TYPE_P;
+        s->key_frame = 0;
     }
 
     pkt->size = encode_frame(s, pict, pkt->data);
 
     /* save the current frame */
-    av_picture_copy(&s->previous_frame, (const AVPicture *)pict,
-                    avctx->pix_fmt, avctx->width, avctx->height);
+    av_frame_unref(s->previous_frame);
+    ret = av_frame_ref(s->previous_frame, pict);
+    if (ret < 0) {
+        av_log(avctx, AV_LOG_ERROR, "cannot add reference\n");
+        return ret;
+    }
 
-    if (p->key_frame)
+#if FF_API_CODED_FRAME
+FF_DISABLE_DEPRECATION_WARNINGS
+    avctx->coded_frame->key_frame = s->key_frame;
+    avctx->coded_frame->pict_type = pict_type;
+FF_ENABLE_DEPRECATION_WARNINGS
+#endif
+
+    if (s->key_frame)
         pkt->flags |= AV_PKT_FLAG_KEY;
     *got_packet = 1;
 

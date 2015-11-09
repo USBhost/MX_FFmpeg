@@ -494,6 +494,85 @@ Selected by Encoder (default)
 
 @end table
 
+@anchor{flac}
+@section flac
+
+FLAC (Free Lossless Audio Codec) Encoder
+
+@subsection Options
+
+The following options are supported by FFmpeg's flac encoder.
+
+@table @option
+@item compression_level
+Sets the compression level, which chooses defaults for many other options
+if they are not set explicitly.
+
+@item frame_size
+Sets the size of the frames in samples per channel.
+
+@item lpc_coeff_precision
+Sets the LPC coefficient precision, valid values are from 1 to 15, 15 is the
+default.
+
+@item lpc_type
+Sets the first stage LPC algorithm
+@table @samp
+@item none
+LPC is not used
+
+@item fixed
+fixed LPC coefficients
+
+@item levinson
+
+@item cholesky
+@end table
+
+@item lpc_passes
+Number of passes to use for Cholesky factorization during LPC analysis
+
+@item min_partition_order
+The minimum partition order
+
+@item max_partition_order
+The maximum partition order
+
+@item prediction_order_method
+@table @samp
+@item estimation
+@item 2level
+@item 4level
+@item 8level
+@item search
+Bruteforce search
+@item log
+@end table
+
+@item ch_mode
+Channel mode
+@table @samp
+@item auto
+The mode is chosen automatically for each frame
+@item indep
+Chanels are independently coded
+@item left_side
+@item right_side
+@item mid_side
+@end table
+
+@item exact_rice_parameters
+Chooses if rice parameters are calculated exactly or approximately.
+if set to 1 then they are chosen exactly, which slows the code down slightly and
+improves compression slightly.
+
+@item multi_dim_quant
+Multi Dimensional Quantization. If set to 1 then a 2nd stage LPC algorithm is
+applied after the first stage to finetune the coefficients. This is quite slow
+and slightly improves compression.
+
+@end table
+
 @anchor{libfaac}
 @section libfaac
 
@@ -1263,6 +1342,88 @@ disabled
 A description of some of the currently available video encoders
 follows.
 
+@section libopenh264
+
+Cisco libopenh264 H.264/MPEG-4 AVC encoder wrapper.
+
+This encoder requires the presence of the libopenh264 headers and
+library during configuration. You need to explicitly configure the
+build with @code{--enable-libopenh264}. The library is detected using
+@command{pkg-config}.
+
+For more information about the library see
+@url{http://www.openh264.org}.
+
+@subsection Options
+
+The following FFmpeg global options affect the configurations of the
+libopenh264 encoder.
+
+@table @option
+@item b
+Set the bitrate (as a number of bits per second).
+
+@item g
+Set the GOP size.
+
+@item maxrate
+Set the max bitrate (as a number of bits per second).
+
+@item flags +global_header
+Set global header in the bitstream.
+
+@item slices
+Set the number of slices, used in parallelized encoding. Default value
+is 0. This is only used when @option{slice_mode} is set to
+@samp{fixed}.
+
+@item slice_mode
+Set slice mode. Can assume one of the follwing possible values:
+
+@table @samp
+@item fixed
+a fixed number of slices
+@item rowmb
+one slice per row of macroblocks
+@item auto
+automatic number of slices according to number of thread
+@end table
+
+Default value is @samp{auto}.
+
+@item loopfilter
+Enable loop filter, if set to 1 (automatically enabled). To disable
+set a value of 0.
+
+@item profile
+Set profile restrictions. If set to the value of @samp{main} enable
+CABAC (set the @code{SEncParamExt.iEntropyCodingModeFlag} flag to 1).
+@end table
+
+@section jpeg2000
+
+The native jpeg 2000 encoder is lossy by default, the @code{-q:v}
+option can be used to set the encoding quality. Lossless encoding
+can be selected with @code{-pred 1}.
+
+@subsection Options
+
+@table @option
+@item format
+Can be set to either @code{j2k} or @code{jp2} (the default) that
+makes it possible to store non-rgb pix_fmts.
+
+@end table
+
+@section snow
+
+@subsection Options
+
+@table @option
+@item iterative_dia_size
+dia size for the iterative motion estimation
+@end table
+
 @section libtheora
 
 libtheora Theora encoder wrapper.
@@ -1337,113 +1498,153 @@ You need to explicitly configure the build with @code{--enable-libvpx}.
 
 @subsection Options
 
-Mapping from FFmpeg to libvpx options with conversion notes in parentheses.
+The following options are supported by the libvpx wrapper. The
+@command{vpxenc}-equivalent options or values are listed in parentheses
+for easy migration.
+
+To reduce the duplication of documentation, only the private options
+and some others requiring special attention are documented here. For
+the documentation of the undocumented generic options, see
+@ref{codec-options,,the Codec Options chapter}.
+
+To get more documentation of the libvpx options, invoke the command
+@command{ffmpeg -h encoder=libvpx}, @command{ffmpeg -h encoder=libvpx-vp9} or
+@command{vpxenc --help}. Further information is available in the libvpx API
+documentation.
 
 @table @option
 
-@item threads
-g_threads
+@item b (@emph{target-bitrate})
+Set bitrate in bits/s. Note that FFmpeg's @option{b} option is
+expressed in bits/s, while @command{vpxenc}'s @option{target-bitrate} is in
+kilobits/s.
 
-@item profile
-g_profile
+@item g (@emph{kf-max-dist})
 
-@item vb
-rc_target_bitrate
+@item keyint_min (@emph{kf-min-dist})
 
-@item g
-kf_max_dist
+@item qmin (@emph{min-q})
 
-@item keyint_min
-kf_min_dist
+@item qmax (@emph{max-q})
 
-@item qmin
-rc_min_quantizer
+@item bufsize (@emph{buf-sz}, @emph{buf-optimal-sz})
+Set ratecontrol buffer size (in bits). Note @command{vpxenc}'s options are
+specified in milliseconds, the libvpx wrapper converts this value as follows:
+@code{buf-sz = bufsize * 1000 / bitrate},
+@code{buf-optimal-sz = bufsize * 1000 / bitrate * 5 / 6}.
 
-@item qmax
-rc_max_quantizer
+@item rc_init_occupancy (@emph{buf-initial-sz})
+Set number of bits which should be loaded into the rc buffer before decoding
+starts. Note @command{vpxenc}'s option is specified in milliseconds, the libvpx
+wrapper converts this value as follows:
+@code{rc_init_occupancy * 1000 / bitrate}.
 
-@item bufsize, vb
-rc_buf_sz
-@code{(bufsize * 1000 / vb)}
+@item undershoot-pct
+Set datarate undershoot (min) percentage of the target bitrate.
 
-rc_buf_optimal_sz
-@code{(bufsize * 1000 / vb * 5 / 6)}
+@item overshoot-pct
+Set datarate overshoot (max) percentage of the target bitrate.
 
-@item rc_init_occupancy, vb
-rc_buf_initial_sz
-@code{(rc_init_occupancy * 1000 / vb)}
+@item skip_threshold (@emph{drop-frame})
 
-@item rc_buffer_aggressivity
-rc_undershoot_pct
+@item qcomp (@emph{bias-pct})
 
-@item skip_threshold
-rc_dropframe_thresh
+@item maxrate (@emph{maxsection-pct})
+Set GOP max bitrate in bits/s. Note @command{vpxenc}'s option is specified as a
+percentage of the target bitrate, the libvpx wrapper converts this value as
+follows: @code{(maxrate * 100 / bitrate)}.
 
-@item qcomp
-rc_2pass_vbr_bias_pct
+@item minrate (@emph{minsection-pct})
+Set GOP min bitrate in bits/s. Note @command{vpxenc}'s option is specified as a
+percentage of the target bitrate, the libvpx wrapper converts this value as
+follows: @code{(minrate * 100 / bitrate)}.
 
-@item maxrate, vb
-rc_2pass_vbr_maxsection_pct
-@code{(maxrate * 100 / vb)}
+@item minrate, maxrate, b @emph{end-usage=cbr}
+@code{(minrate == maxrate == bitrate)}.
 
-@item minrate, vb
-rc_2pass_vbr_minsection_pct
-@code{(minrate * 100 / vb)}
+@item crf (@emph{end-usage=cq}, @emph{cq-level})
 
-@item minrate, maxrate, vb
-@code{VPX_CBR}
-@code{(minrate == maxrate == vb)}
-
-@item crf
-@code{VPX_CQ}, @code{VP8E_SET_CQ_LEVEL}
-
-@item quality
-@table @option
-@item @var{best}
-@code{VPX_DL_BEST_QUALITY}
-@item @var{good}
-@code{VPX_DL_GOOD_QUALITY}
-@item @var{realtime}
-@code{VPX_DL_REALTIME}
+@item quality, deadline (@emph{deadline})
+@table @samp
+@item best
+Use best quality deadline. Poorly named and quite slow, this option should be
+avoided as it may give worse quality output than good.
+@item good
+Use good quality deadline. This is a good trade-off between speed and quality
+when used with the @option{cpu-used} option.
+@item realtime
+Use realtime quality deadline.
 @end table
 
-@item speed
-@code{VP8E_SET_CPUUSED}
+@item speed, cpu-used (@emph{cpu-used})
+Set quality/speed ratio modifier. Higher values speed up the encode at the cost
+of quality.
 
-@item nr
-@code{VP8E_SET_NOISE_SENSITIVITY}
+@item nr (@emph{noise-sensitivity})
 
-@item mb_threshold
-@code{VP8E_SET_STATIC_THRESHOLD}
+@item static-thresh
+Set a change threshold on blocks below which they will be skipped by the
+encoder.
 
-@item slices
-@code{VP8E_SET_TOKEN_PARTITIONS}
+@item slices (@emph{token-parts})
+Note that FFmpeg's @option{slices} option gives the total number of partitions,
+while @command{vpxenc}'s @option{token-parts} is given as
+@code{log2(partitions)}.
 
 @item max-intra-rate
-@code{VP8E_SET_MAX_INTRA_BITRATE_PCT}
+Set maximum I-frame bitrate as a percentage of the target bitrate. A value of 0
+means unlimited.
 
 @item force_key_frames
 @code{VPX_EFLAG_FORCE_KF}
 
 @item Alternate reference frame related
 @table @option
-@item vp8flags altref
-@code{VP8E_SET_ENABLEAUTOALTREF}
-@item @var{arnr_max_frames}
-@code{VP8E_SET_ARNR_MAXFRAMES}
-@item @var{arnr_type}
-@code{VP8E_SET_ARNR_TYPE}
-@item @var{arnr_strength}
-@code{VP8E_SET_ARNR_STRENGTH}
-@item @var{rc_lookahead}
-g_lag_in_frames
+@item auto-alt-ref
+Enable use of alternate reference frames (2-pass only).
+@item arnr-max-frames
+Set altref noise reduction max frame count.
+@item arnr-type
+Set altref noise reduction filter type: backward, forward, centered.
+@item arnr-strength
+Set altref noise reduction filter strength.
+@item rc-lookahead, lag-in-frames (@emph{lag-in-frames})
+Set number of frames to look ahead for frametype and ratecontrol.
 @end table
 
-@item vp8flags error_resilient
-g_error_resilient
+@item error-resilient
+Enable error resiliency features.
 
-@item aq_mode
-@code{VP9E_SET_AQ_MODE}
+@item VP9-specific options
+@table @option
+@item lossless
+Enable lossless mode.
+@item tile-columns
+Set number of tile columns to use. Note this is given as
+@code{log2(tile_columns)}. For example, 8 tile columns would be requested by
+setting the @option{tile-columns} option to 3.
+@item tile-rows
+Set number of tile rows to use. Note this is given as @code{log2(tile_rows)}.
+For example, 4 tile rows would be requested by setting the @option{tile-rows}
+option to 2.
+@item frame-parallel
+Enable frame parallel decodability features.
+@item aq-mode
+Set adaptive quantization mode (0: off (default), 1: variance 2: complexity, 3:
+cyclic refresh).
+@item colorspace @emph{color-space}
+Set input color space. The VP9 bitstream supports signaling the following
+colorspaces:
+@table @option
+@item @samp{rgb} @emph{sRGB}
+@item @samp{bt709} @emph{bt709}
+@item @samp{unspecified} @emph{unknown}
+@item @samp{bt470bg} @emph{bt601}
+@item @samp{smpte170m} @emph{smpte170}
+@item @samp{smpte240m} @emph{smpte240}
+@item @samp{bt2020_ncl} @emph{bt2020}
+@end table
+@end table
 
 @end table
 
@@ -1868,6 +2069,10 @@ For example to specify libx264 encoding options with @command{ffmpeg}:
 ffmpeg -i foo.mpg -vcodec libx264 -x264opts keyint=123:min-keyint=20 -an out.mkv
 @end example
 
+@item a53cc @var{boolean}
+Import closed captions (which must be ATSC compatible format) into output.
+Only the mpeg2 and h264 decoders provide these. Default is 0 (off).
+
 @item x264-params (N.A.)
 Override the x264 configuration using a :-separated list of key=value
 parameters.
@@ -2171,7 +2376,7 @@ Use @var{0} to disable alpha plane coding.
 @subsection Speed considerations
 
 In the default mode of operation the encoder has to honor frame constraints
-(i.e. not produc frames with size bigger than requested) while still making
+(i.e. not produce frames with size bigger than requested) while still making
 output picture as good as possible.
 A frame containing a lot of small details is harder to compress and the encoder
 would spend more time searching for appropriate quantizers for each slice.
@@ -2180,6 +2385,27 @@ Setting a higher @option{bits_per_mb} limit will improve the speed.
 
 For the fastest encoding speed set the @option{qscale} parameter (4 is the
 recommended value) and do not set a size constraint.
+
+@section libkvazaar
+
+Kvazaar H.265/HEVC encoder.
+
+Requires the presence of the libkvazaar headers and library during
+configuration. You need to explicitly configure the build with
+@option{--enable-libkvazaar}.
+
+@subsection Options
+
+@table @option
+
+@item b
+Set target video bitrate in bit/s and enable rate control.
+
+@item kvazaar-params
+Set kvazaar parameters as a list of @var{name}=@var{value} pairs separated
+by commas (,). See kvazaar documentation for a list of options.
+
+@end table
 
 @c man end VIDEO ENCODERS
 

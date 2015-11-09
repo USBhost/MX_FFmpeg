@@ -41,19 +41,20 @@ enum ConcealMethod {
 typedef struct FDKAACDecContext {
     const AVClass *class;
     HANDLE_AACDECODER handle;
-    int initialized;
     uint8_t *decoder_buffer;
+    int decoder_buffer_size;
     uint8_t *anc_buffer;
-    enum ConcealMethod conceal_method;
+    int conceal_method;
     int drc_level;
     int drc_boost;
     int drc_heavy;
     int drc_cut;
+    int level_limit;
 } FDKAACDecContext;
 
 
 #define DMX_ANC_BUFFSIZE       128
-#define DECODER_MAX_CHANNELS     6
+#define DECODER_MAX_CHANNELS     8
 #define DECODER_BUFFSIZE      2048 * sizeof(INT_PCM)
 
 #define OFFSET(x) offsetof(FDKAACDecContext, x)
@@ -71,6 +72,9 @@ static const AVOption fdk_aac_dec_options[] = {
                      OFFSET(drc_level),      AV_OPT_TYPE_INT,   { .i64 = -1},  -1, 127, AD, NULL    },
     { "drc_heavy", "Dynamic Range Control: heavy compression, where [1] is on (RF mode) and [0] is off",
                      OFFSET(drc_heavy),      AV_OPT_TYPE_INT,   { .i64 = -1},  -1, 1,   AD, NULL    },
+#ifdef AACDECODER_LIB_VL0
+    { "level_limit", "Signal level limiting", OFFSET(level_limit), AV_OPT_TYPE_INT, { .i64 = 0 }, -1, 1, AD },
+#endif
     { NULL }
 };
 
@@ -100,7 +104,7 @@ static int get_stream_info(AVCodecContext *avctx)
 
     for (i = 0; i < info->numChannels; i++) {
         AUDIO_CHANNEL_TYPE ctype = info->pChannelType[i];
-        if (ctype <= ACT_NONE || ctype > FF_ARRAY_ELEMS(channel_counts)) {
+        if (ctype <= ACT_NONE || ctype >= FF_ARRAY_ELEMS(channel_counts)) {
             av_log(avctx, AV_LOG_WARNING, "unknown channel type\n");
             break;
         }
@@ -205,7 +209,6 @@ static av_cold int fdk_aac_decode_init(AVCodecContext *avctx)
 {
     FDKAACDecContext *s = avctx->priv_data;
     AAC_DECODER_ERROR err;
-    int ret;
 
     s->handle = aacDecoder_Open(avctx->extradata_size ? TT_MP4_RAW : TT_MP4_ADTS, 1);
     if (!s->handle) {
@@ -252,13 +255,11 @@ static av_cold int fdk_aac_decode_init(AVCodecContext *avctx)
                s->anc_buffer = av_malloc(DMX_ANC_BUFFSIZE);
                if (!s->anc_buffer) {
                    av_log(avctx, AV_LOG_ERROR, "Unable to allocate ancillary buffer for the decoder\n");
-                   ret = AVERROR(ENOMEM);
-                   goto fail;
+                   return AVERROR(ENOMEM);
                }
                if (aacDecoder_AncDataInit(s->handle, s->anc_buffer, DMX_ANC_BUFFSIZE)) {
                    av_log(avctx, AV_LOG_ERROR, "Unable to register downmix ancillary buffer in the decoder\n");
-                   ret = AVERROR_UNKNOWN;
-                   goto fail;
+                   return AVERROR_UNKNOWN;
                }
             }
         }
@@ -292,12 +293,21 @@ static av_cold int fdk_aac_decode_init(AVCodecContext *avctx)
         }
     }
 
+#ifdef AACDECODER_LIB_VL0
+    if (aacDecoder_SetParam(s->handle, AAC_PCM_LIMITER_ENABLE, s->level_limit) != AAC_DEC_OK) {
+        av_log(avctx, AV_LOG_ERROR, "Unable to set in signal level limiting in the decoder\n");
+        return AVERROR_UNKNOWN;
+    }
+#endif
+
     avctx->sample_fmt = AV_SAMPLE_FMT_S16;
 
+    s->decoder_buffer_size = DECODER_BUFFSIZE * DECODER_MAX_CHANNELS;
+    s->decoder_buffer = av_malloc(s->decoder_buffer_size);
+    if (!s->decoder_buffer)
+        return AVERROR(ENOMEM);
+
     return 0;
-fail:
-    fdk_aac_decode_close(avctx);
-    return ret;
 }
 
 static int fdk_aac_decode_frame(AVCodecContext *avctx, void *data,
@@ -308,8 +318,6 @@ static int fdk_aac_decode_frame(AVCodecContext *avctx, void *data,
     int ret;
     AAC_DECODER_ERROR err;
     UINT valid = avpkt->size;
-    uint8_t *buf, *tmpptr = NULL;
-    int buf_size;
 
     err = aacDecoder_Fill(s->handle, &avpkt->data, &avpkt->size, &valid);
     if (err != AAC_DEC_OK) {
@@ -317,31 +325,7 @@ static int fdk_aac_decode_frame(AVCodecContext *avctx, void *data,
         return AVERROR_INVALIDDATA;
     }
 
-    if (s->initialized) {
-        frame->nb_samples = avctx->frame_size;
-        if ((ret = ff_get_buffer(avctx, frame, 0)) < 0)
-            return ret;
-
-        if (s->anc_buffer) {
-            buf_size = DECODER_BUFFSIZE * DECODER_MAX_CHANNELS;
-            buf = s->decoder_buffer;
-        } else {
-            buf = frame->extended_data[0];
-            buf_size = avctx->channels * frame->nb_samples *
-                       av_get_bytes_per_sample(avctx->sample_fmt);
-        }
-    } else {
-        buf_size = DECODER_BUFFSIZE * DECODER_MAX_CHANNELS;
-
-        if (!s->decoder_buffer)
-            s->decoder_buffer = av_malloc(buf_size);
-        if (!s->decoder_buffer)
-            return AVERROR(ENOMEM);
-
-        buf = tmpptr = s->decoder_buffer;
-    }
-
-    err = aacDecoder_DecodeFrame(s->handle, (INT_PCM *) buf, buf_size, 0);
+    err = aacDecoder_DecodeFrame(s->handle, (INT_PCM *) s->decoder_buffer, s->decoder_buffer_size, 0);
     if (err == AAC_DEC_NOT_ENOUGH_BITS) {
         ret = avpkt->size - valid;
         goto end;
@@ -353,26 +337,16 @@ static int fdk_aac_decode_frame(AVCodecContext *avctx, void *data,
         goto end;
     }
 
-    if (!s->initialized) {
-        if ((ret = get_stream_info(avctx)) < 0)
-            goto end;
-        s->initialized = 1;
-        frame->nb_samples = avctx->frame_size;
-    }
+    if ((ret = get_stream_info(avctx)) < 0)
+        goto end;
+    frame->nb_samples = avctx->frame_size;
 
-    if (tmpptr) {
-        frame->nb_samples = avctx->frame_size;
-        if ((ret = ff_get_buffer(avctx, frame, 0)) < 0)
-            goto end;
-    }
-    if (s->decoder_buffer) {
-        memcpy(frame->extended_data[0], buf,
-               avctx->channels * avctx->frame_size *
-               av_get_bytes_per_sample(avctx->sample_fmt));
+    if ((ret = ff_get_buffer(avctx, frame, 0)) < 0)
+        goto end;
 
-        if (!s->anc_buffer)
-            av_freep(&s->decoder_buffer);
-    }
+    memcpy(frame->extended_data[0], s->decoder_buffer,
+           avctx->channels * avctx->frame_size *
+           av_get_bytes_per_sample(avctx->sample_fmt));
 
     *got_frame_ptr = 1;
     ret = avpkt->size - valid;
@@ -404,6 +378,8 @@ AVCodec ff_libfdk_aac_decoder = {
     .decode         = fdk_aac_decode_frame,
     .close          = fdk_aac_decode_close,
     .flush          = fdk_aac_decode_flush,
-    .capabilities   = CODEC_CAP_DR1 | CODEC_CAP_CHANNEL_CONF,
+    .capabilities   = AV_CODEC_CAP_DR1 | AV_CODEC_CAP_CHANNEL_CONF,
     .priv_class     = &fdk_aac_dec_class,
+    .caps_internal  = FF_CODEC_CAP_INIT_THREADSAFE |
+                      FF_CODEC_CAP_INIT_CLEANUP,
 };

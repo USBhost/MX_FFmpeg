@@ -91,9 +91,9 @@ static inline int get_bs(cavs_vector *mvP, cavs_vector *mvQ, int b)
 }
 
 #define SET_PARAMS                                                \
-    alpha = alpha_tab[av_clip(qp_avg + h->alpha_offset, 0, 63)];  \
-    beta  =  beta_tab[av_clip(qp_avg + h->beta_offset,  0, 63)];  \
-    tc    =    tc_tab[av_clip(qp_avg + h->alpha_offset, 0, 63)];
+    alpha = alpha_tab[av_clip_uintp2(qp_avg + h->alpha_offset, 6)];  \
+    beta  =  beta_tab[av_clip_uintp2(qp_avg + h->beta_offset,  6)];  \
+    tc    =    tc_tab[av_clip_uintp2(qp_avg + h->alpha_offset, 6)];
 
 /**
  * in-loop deblocking filter for a single macroblock
@@ -751,7 +751,7 @@ int ff_cavs_init_pic(AVSContext *h)
  * this data has to be stored for one complete row of macroblocks
  * and this storage space is allocated here
  */
-void ff_cavs_init_top_lines(AVSContext *h)
+int ff_cavs_init_top_lines(AVSContext *h)
 {
     /* alloc top line of predictors */
     h->top_qp       = av_mallocz(h->mb_width);
@@ -767,6 +767,23 @@ void ff_cavs_init_top_lines(AVSContext *h)
                                         4 * sizeof(cavs_vector));
     h->col_type_base = av_mallocz(h->mb_width * h->mb_height);
     h->block         = av_mallocz(64 * sizeof(int16_t));
+
+    if (!h->top_qp || !h->top_mv[0] || !h->top_mv[1] || !h->top_pred_Y ||
+        !h->top_border_y || !h->top_border_u || !h->top_border_v ||
+        !h->col_mv || !h->col_type_base || !h->block) {
+        av_freep(&h->top_qp);
+        av_freep(&h->top_mv[0]);
+        av_freep(&h->top_mv[1]);
+        av_freep(&h->top_pred_Y);
+        av_freep(&h->top_border_y);
+        av_freep(&h->top_border_u);
+        av_freep(&h->top_border_v);
+        av_freep(&h->col_mv);
+        av_freep(&h->col_type_base);
+        av_freep(&h->block);
+        return AVERROR(ENOMEM);
+    }
+    return 0;
 }
 
 av_cold int ff_cavs_init(AVCodecContext *avctx)

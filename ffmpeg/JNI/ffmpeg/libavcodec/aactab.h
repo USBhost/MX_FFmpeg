@@ -41,12 +41,61 @@
  * encoder.
  */
 
+/* @name ltp_coef
+ * Table of the LTP coefficients
+ */
+static const INTFLOAT ltp_coef[8] = {
+    Q30(0.570829f), Q30(0.696616f), Q30(0.813004f), Q30(0.911304f),
+    Q30(0.984900f), Q30(1.067894f), Q30(1.194601f), Q30(1.369533f),
+};
+
+/* @name tns_tmp2_map
+ * Tables of the tmp2[] arrays of LPC coefficients used for TNS.
+ * The suffix _M_N[] indicate the values of coef_compress and coef_res
+ * respectively.
+ * @{
+ */
+static const INTFLOAT tns_tmp2_map_1_3[4] = {
+    Q31(0.00000000f), Q31(-0.43388373f),  Q31(0.64278758f),  Q31(0.34202015f),
+};
+
+static const INTFLOAT tns_tmp2_map_0_3[8] = {
+    Q31(0.00000000f), Q31(-0.43388373f), Q31(-0.78183150f), Q31(-0.97492790f),
+    Q31(0.98480773f), Q31( 0.86602539f), Q31( 0.64278758f), Q31( 0.34202015f),
+};
+
+static const INTFLOAT tns_tmp2_map_1_4[8] = {
+    Q31(0.00000000f), Q31(-0.20791170f), Q31(-0.40673664f), Q31(-0.58778524f),
+    Q31(0.67369562f), Q31( 0.52643216f), Q31( 0.36124167f), Q31( 0.18374951f),
+};
+
+static const INTFLOAT tns_tmp2_map_0_4[16] = {
+    Q31( 0.00000000f), Q31(-0.20791170f), Q31(-0.40673664f), Q31(-0.58778524f),
+    Q31(-0.74314481f), Q31(-0.86602539f), Q31(-0.95105654f), Q31(-0.99452192f),
+    Q31( 0.99573416f), Q31( 0.96182561f), Q31( 0.89516330f), Q31( 0.79801720f),
+    Q31( 0.67369562f), Q31( 0.52643216f), Q31( 0.36124167f), Q31( 0.18374951f),
+};
+
+static const INTFLOAT * const tns_tmp2_map[4] = {
+    tns_tmp2_map_0_3,
+    tns_tmp2_map_0_4,
+    tns_tmp2_map_1_3,
+    tns_tmp2_map_1_4
+};
+// @}
+
 /* @name window coefficients
  * @{
  */
 DECLARE_ALIGNED(32, extern float,  ff_aac_kbd_long_1024)[1024];
 DECLARE_ALIGNED(32, extern float,  ff_aac_kbd_short_128)[128];
-const DECLARE_ALIGNED(32, extern float, ff_aac_eld_window)[1920];
+DECLARE_ALIGNED(32, extern int,    ff_aac_kbd_long_1024_fixed)[1024];
+DECLARE_ALIGNED(32, extern int,    ff_aac_kbd_long_512_fixed)[512];
+DECLARE_ALIGNED(32, extern int,    ff_aac_kbd_short_128_fixed)[128];
+const DECLARE_ALIGNED(32, extern float, ff_aac_eld_window_512)[1920];
+const DECLARE_ALIGNED(32, extern int,   ff_aac_eld_window_512_fixed)[1920];
+const DECLARE_ALIGNED(32, extern float, ff_aac_eld_window_480)[1800];
+const DECLARE_ALIGNED(32, extern int,   ff_aac_eld_window_480_fixed)[1800];
 // @}
 
 /* @name number of scalefactor window bands for long and short transform windows respectively
@@ -54,6 +103,7 @@ const DECLARE_ALIGNED(32, extern float, ff_aac_eld_window)[1920];
  */
 extern const uint8_t ff_aac_num_swb_1024[];
 extern const uint8_t ff_aac_num_swb_512 [];
+extern const uint8_t ff_aac_num_swb_480 [];
 extern const uint8_t ff_aac_num_swb_128 [];
 // @}
 
@@ -72,10 +122,12 @@ extern const uint16_t *ff_aac_codebook_vector_idx[];
 
 extern const uint16_t * const ff_swb_offset_1024[13];
 extern const uint16_t * const ff_swb_offset_512 [13];
+extern const uint16_t * const ff_swb_offset_480 [13];
 extern const uint16_t * const ff_swb_offset_128 [13];
 
 extern const uint8_t ff_tns_max_bands_1024[13];
 extern const uint8_t ff_tns_max_bands_512 [13];
+extern const uint8_t ff_tns_max_bands_480 [13];
 extern const uint8_t ff_tns_max_bands_128 [13];
 
 #endif /* AVCODEC_AACTAB_H */

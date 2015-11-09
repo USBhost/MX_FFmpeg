@@ -1,4 +1,5 @@
 \input texinfo @c -*- texinfo -*-
+@documentencoding UTF-8
 
 @settitle Developer Documentation
 @titlepage
@@ -27,7 +28,7 @@ this document.
 
 For more detailed legal information about the use of FFmpeg in
 external programs read the @file{LICENSE} file in the source tree and
-consult @url{http://ffmpeg.org/legal.html}.
+consult @url{https://ffmpeg.org/legal.html}.
 
 @section Contributing
 
@@ -123,10 +124,10 @@ the @samp{inline} keyword;
 @samp{//} comments;
 
 @item
-designated struct initializers (@samp{struct s x = @{ .i = 17 @};})
+designated struct initializers (@samp{struct s x = @{ .i = 17 @};});
 
 @item
-compound literals (@samp{x = (struct s) @{ 17, 23 @};})
+compound literals (@samp{x = (struct s) @{ 17, 23 @};}).
 @end itemize
 
 These features are supported by all compilers we care about, so we will not
@@ -155,7 +156,7 @@ GCC statement expressions (@samp{(x = (@{ int y = 4; y; @})}).
 All names should be composed with underscores (_), not CamelCase. For example,
 @samp{avfilter_get_video_buffer} is an acceptable function name and
 @samp{AVFilterGetVideo} is not. The exception from this are type names, like
-for example structs and enums; they should always be in the CamelCase
+for example structs and enums; they should always be in CamelCase.
 
 There are the following conventions for naming variables and functions:
 
@@ -227,7 +228,7 @@ autocmd InsertEnter * match ForbiddenWhitespace /\t\|\s\+\%#\@@<!$/
 @end example
 
 For Emacs, add these roughly equivalent lines to your @file{.emacs.d/init.el}:
-@example
+@lisp
 (c-add-style "ffmpeg"
              '("k&r"
                (c-basic-offset . 4)
@@ -238,7 +239,7 @@ For Emacs, add these roughly equivalent lines to your @file{.emacs.d/init.el}:
                )
              )
 (setq c-default-style "ffmpeg")
-@end example
+@end lisp
 
 @section Development Policy
 
@@ -429,7 +430,7 @@ Also please if you send several patches, send each patch as a separate mail,
 do not attach several unrelated patches to the same mail.
 
 Patches should be posted to the
-@uref{http://lists.ffmpeg.org/mailman/listinfo/ffmpeg-devel, ffmpeg-devel}
+@uref{https://lists.ffmpeg.org/mailman/listinfo/ffmpeg-devel, ffmpeg-devel}
 mailing list. Use @code{git send-email} when possible since it will properly
 send patches without requiring extra care. If you cannot, then send patches
 as base64-encoded attachments, so your patch is not trashed during
@@ -543,6 +544,10 @@ should not crash, end in a (near) infinite loop, or allocate ridiculous
 amounts of memory when fed damaged data.
 
 @item
+Did you test your decoder or demuxer against sample files?
+Samples may be obtained at @url{https://samples.ffmpeg.org}.
+
+@item
 Does the patch not mix functional and cosmetic changes?
 
 @item
@@ -632,6 +637,10 @@ not related to the comments received during review. Such patches will
 be rejected. Instead, submit significant changes or new features as
 separate patches.
 
+Everyone is welcome to review patches. Also if you are waiting for your patch
+to be reviewed, please consider helping to review other patches, that is a great
+way to get everyone's patches reviewed sooner.
+
 @anchor{Regression tests}
 @section Regression tests
 
@@ -647,12 +656,12 @@ accordingly].
 @subsection Adding files to the fate-suite dataset
 
 When there is no muxer or encoder available to generate test media for a
-specific test then the media has to be inlcuded in the fate-suite.
+specific test then the media has to be included in the fate-suite.
 First please make sure that the sample file is as small as possible to test the
 respective decoder or demuxer sufficiently. Large files increase network
 bandwidth and disk space requirements.
 Once you have a working fate test and fate sample, provide in the commit
-message or introductionary message for the patch series that you post to
+message or introductory message for the patch series that you post to
 the ffmpeg-devel mailing list, a direct link to download the sample media.
 
 
@@ -703,7 +712,7 @@ FFmpeg maintains a set of @strong{release branches}, which are the
 recommended deliverable for system integrators and distributors (such as
 Linux distributions, etc.). At regular times, a @strong{release
 manager} prepares, tests and publishes tarballs on the
-@url{http://ffmpeg.org} website.
+@url{https://ffmpeg.org} website.
 
 There are two kinds of releases:
 
@@ -782,7 +791,7 @@ Prepare the release tarballs in @code{bz2} and @code{gz} formats, and
 supplementing files that contain @code{gpg} signatures
 
 @item
-Publish the tarballs at @url{http://ffmpeg.org/releases}. Create and
+Publish the tarballs at @url{https://ffmpeg.org/releases}. Create and
 push an annotated tag in the form @code{nX}, with @code{X}
 containing the version number.
 

@@ -272,7 +272,7 @@ static av_cold int Stagefright_init(AVCodecContext *avctx)
 
     s->orig_extradata_size = avctx->extradata_size;
     s->orig_extradata = (uint8_t*) av_mallocz(avctx->extradata_size +
-                                              FF_INPUT_BUFFER_PADDING_SIZE);
+                                              AV_INPUT_BUFFER_PADDING_SIZE);
     if (!s->orig_extradata) {
         ret = AVERROR(ENOMEM);
         goto fail;
@@ -364,7 +364,8 @@ static int Stagefright_decode_frame(AVCodecContext *avctx, void *data,
     AVFrame *ret_frame;
 
     if (!s->thread_started) {
-        pthread_create(&s->decode_thread_id, NULL, &decode_thread, avctx);
+        if(pthread_create(&s->decode_thread_id, NULL, &decode_thread, avctx))
+            return AVERROR(ENOMEM);
         s->thread_started = true;
     }
 
@@ -432,7 +433,7 @@ static int Stagefright_decode_frame(AVCodecContext *avctx, void *data,
         pthread_mutex_lock(&s->out_mutex);
         if (!s->out_queue->empty()) break;
         pthread_mutex_unlock(&s->out_mutex);
-        if (s->source_done) {
+        if (!s->source_done) {
             usleep(10000);
             continue;
         } else {
@@ -567,7 +568,7 @@ AVCodec ff_libstagefright_h264_decoder = {
     NULL_IF_CONFIG_SMALL("libstagefright H.264"),
     AVMEDIA_TYPE_VIDEO,
     AV_CODEC_ID_H264,
-    CODEC_CAP_DELAY,
+    AV_CODEC_CAP_DELAY,
     NULL, //supported_framerates
     NULL, //pix_fmts
     NULL, //supported_samplerates

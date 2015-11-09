@@ -316,7 +316,9 @@ static int decode_header_trees(SmackVContext *smk) {
     full_size = AV_RL32(smk->avctx->extradata + 8);
     type_size = AV_RL32(smk->avctx->extradata + 12);
 
-    init_get_bits8(&gb, smk->avctx->extradata + 16, smk->avctx->extradata_size - 16);
+    ret = init_get_bits8(&gb, smk->avctx->extradata + 16, smk->avctx->extradata_size - 16);
+    if (ret < 0)
+        return ret;
 
     if(!get_bits1(&gb)) {
         av_log(smk->avctx, AV_LOG_INFO, "Skipping MMAP tree\n");
@@ -589,6 +591,7 @@ static av_cold int decode_init(AVCodecContext *avctx)
     /* decode huffman trees from extradata */
     if(avctx->extradata_size < 16){
         av_log(avctx, AV_LOG_ERROR, "Extradata missing!\n");
+        decode_end(avctx);
         return AVERROR(EINVAL);
     }
 
@@ -812,7 +815,7 @@ AVCodec ff_smacker_decoder = {
     .init           = decode_init,
     .close          = decode_end,
     .decode         = decode_frame,
-    .capabilities   = CODEC_CAP_DR1,
+    .capabilities   = AV_CODEC_CAP_DR1,
 };
 
 AVCodec ff_smackaud_decoder = {
@@ -822,5 +825,5 @@ AVCodec ff_smackaud_decoder = {
     .id             = AV_CODEC_ID_SMACKAUDIO,
     .init           = smka_decode_init,
     .decode         = smka_decode_frame,
-    .capabilities   = CODEC_CAP_DR1,
+    .capabilities   = AV_CODEC_CAP_DR1,
 };

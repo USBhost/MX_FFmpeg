@@ -50,7 +50,9 @@ typedef struct {
     ASS_Renderer *renderer;
     ASS_Track    *track;
     char *filename;
+    char *fontsdir;
     char *charenc;
+    char *force_style;
     int stream_index;
     uint8_t rgba_map[4];
     int     pix_step[4];       ///< steps per pixel for each plane of the main output
@@ -66,6 +68,7 @@ typedef struct {
     {"filename",       "set the filename of file to read",                         OFFSET(filename),   AV_OPT_TYPE_STRING,     {.str = NULL},  CHAR_MIN, CHAR_MAX, FLAGS }, \
     {"f",              "set the filename of file to read",                         OFFSET(filename),   AV_OPT_TYPE_STRING,     {.str = NULL},  CHAR_MIN, CHAR_MAX, FLAGS }, \
     {"original_size",  "set the size of the original video (used to scale fonts)", OFFSET(original_w), AV_OPT_TYPE_IMAGE_SIZE, {.str = NULL},  CHAR_MIN, CHAR_MAX, FLAGS }, \
+    {"fontsdir",       "set the directory containing the fonts to read",           OFFSET(fontsdir),   AV_OPT_TYPE_STRING,     {.str = NULL},  CHAR_MIN, CHAR_MAX, FLAGS }, \
 
 /* libass supports a log level ranging from 0 to 7 */
 static const int ass_libavfilter_log_level_map[] = {
@@ -105,6 +108,8 @@ static av_cold int init(AVFilterContext *ctx)
     }
     ass_set_message_cb(ass->library, ass_log, ctx);
 
+    ass_set_fonts_dir(ass->library, ass->fontsdir);
+
     ass->renderer = ass_renderer_init(ass->library);
     if (!ass->renderer) {
         av_log(ctx, AV_LOG_ERROR, "Could not initialize libass renderer.\n");
@@ -128,8 +133,7 @@ static av_cold void uninit(AVFilterContext *ctx)
 
 static int query_formats(AVFilterContext *ctx)
 {
-    ff_set_common_formats(ctx, ff_draw_supported_pixel_formats(0));
-    return 0;
+    return ff_set_common_formats(ctx, ff_draw_supported_pixel_formats(0));
 }
 
 static int config_input(AVFilterLink *inlink)
@@ -152,7 +156,7 @@ static int config_input(AVFilterLink *inlink)
 #define AR(c)  ( (c)>>24)
 #define AG(c)  (((c)>>16)&0xFF)
 #define AB(c)  (((c)>>8) &0xFF)
-#define AA(c)  ((0xFF-c) &0xFF)
+#define AA(c)  ((0xFF-(c)) &0xFF)
 
 static void overlay_ass_image(AssContext *ass, AVFrame *picref,
                               const ASS_Image *image)
@@ -260,6 +264,7 @@ static const AVOption subtitles_options[] = {
     {"charenc",      "set input character encoding", OFFSET(charenc),      AV_OPT_TYPE_STRING, {.str = NULL}, CHAR_MIN, CHAR_MAX, FLAGS},
     {"stream_index", "set stream index",             OFFSET(stream_index), AV_OPT_TYPE_INT,    { .i64 = -1 }, -1,       INT_MAX,  FLAGS},
     {"si",           "set stream index",             OFFSET(stream_index), AV_OPT_TYPE_INT,    { .i64 = -1 }, -1,       INT_MAX,  FLAGS},
+    {"force_style",  "force subtitle style",         OFFSET(force_style),  AV_OPT_TYPE_STRING, {.str = NULL}, CHAR_MIN, CHAR_MAX, FLAGS},
     {NULL},
 };
 
@@ -392,6 +397,27 @@ static av_cold int init_subtitles(AVFilterContext *ctx)
     if (ret < 0)
         goto end;
 
+    if (ass->force_style) {
+        char **list = NULL;
+        char *temp = NULL;
+        char *ptr = av_strtok(ass->force_style, ",", &temp);
+        int i = 0;
+        while (ptr) {
+            av_dynarray_add(&list, &i, ptr);
+            if (!list) {
+                ret = AVERROR(ENOMEM);
+                goto end;
+            }
+            ptr = av_strtok(NULL, ",", &temp);
+        }
+        av_dynarray_add(&list, &i, NULL);
+        if (!list) {
+            ret = AVERROR(ENOMEM);
+            goto end;
+        }
+        ass_set_style_overrides(ass->library, list);
+        av_free(list);
+    }
     /* Decode subtitles and push them into the renderer (libass) */
     if (dec_ctx->subtitle_header)
         ass_process_codec_private(ass->track,

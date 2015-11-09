@@ -242,7 +242,7 @@ static int fixup_vorbis_headers(AVFormatContext *as,
         offset += priv->len[i];
         av_freep(&priv->packet[i]);
     }
-    if ((err = av_reallocp(buf, offset + FF_INPUT_BUFFER_PADDING_SIZE)) < 0)
+    if ((err = av_reallocp(buf, offset + AV_INPUT_BUFFER_PADDING_SIZE)) < 0)
         return err;
     return offset;
 }
@@ -405,6 +405,9 @@ static int vorbis_packet(AVFormatContext *s, int idx)
     struct ogg_stream *os = ogg->streams + idx;
     struct oggvorbis_private *priv = os->private;
     int duration, flags = 0;
+
+    if (!priv->vp)
+        return AVERROR_INVALIDDATA;
 
     /* first packet handling
      * here we parse the duration of each packet in the first page and compare

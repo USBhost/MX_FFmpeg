@@ -79,7 +79,7 @@ static int encode_frame(AVCodecContext *avctx, AVPacket *pkt,
     int zret; // Zlib return code
     int max_size = deflateBound(&c->zstream, avctx->width * avctx->height * 3);
 
-    if ((ret = ff_alloc_packet2(avctx, pkt, max_size)) < 0)
+    if ((ret = ff_alloc_packet2(avctx, pkt, max_size, 0)) < 0)
         return ret;
 
     if(avctx->pix_fmt != AV_PIX_FMT_BGR24){
@@ -131,16 +131,16 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
     av_assert0(avctx->width && avctx->height);
 
-    avctx->extradata = av_mallocz(8 + FF_INPUT_BUFFER_PADDING_SIZE);
+    avctx->extradata = av_mallocz(8 + AV_INPUT_BUFFER_PADDING_SIZE);
     if (!avctx->extradata)
         return AVERROR(ENOMEM);
 
-    avctx->coded_frame = av_frame_alloc();
-    if (!avctx->coded_frame)
-        return AVERROR(ENOMEM);
-
+#if FF_API_CODED_FRAME
+FF_DISABLE_DEPRECATION_WARNINGS
     avctx->coded_frame->pict_type = AV_PICTURE_TYPE_I;
     avctx->coded_frame->key_frame = 1;
+FF_ENABLE_DEPRECATION_WARNINGS
+#endif
 
     c->compression = avctx->compression_level == FF_COMPRESSION_DEFAULT ?
                             COMP_ZLIB_NORMAL :
@@ -165,7 +165,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
     zret = deflateInit(&c->zstream, c->compression);
     if (zret != Z_OK) {
         av_log(avctx, AV_LOG_ERROR, "Deflate init error: %d\n", zret);
-        return 1;
+        return AVERROR_UNKNOWN;
     }
 
     return 0;
@@ -183,8 +183,6 @@ static av_cold int encode_end(AVCodecContext *avctx)
     av_freep(&avctx->extradata);
     deflateEnd(&c->zstream);
 
-    av_frame_free(&avctx->coded_frame);
-
     return 0;
 }
 
@@ -197,6 +195,8 @@ AVCodec ff_zlib_encoder = {
     .init           = encode_init,
     .encode2        = encode_frame,
     .close          = encode_end,
-    .capabilities   = CODEC_CAP_FRAME_THREADS | CODEC_CAP_INTRA_ONLY,
+    .capabilities   = AV_CODEC_CAP_FRAME_THREADS | AV_CODEC_CAP_INTRA_ONLY,
     .pix_fmts       = (const enum AVPixelFormat[]) { AV_PIX_FMT_BGR24, AV_PIX_FMT_NONE },
+    .caps_internal  = FF_CODEC_CAP_INIT_THREADSAFE |
+                      FF_CODEC_CAP_INIT_CLEANUP,
 };

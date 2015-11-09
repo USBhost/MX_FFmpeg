@@ -47,7 +47,7 @@ typedef uint8_t cvid_codebook[12];
 
 #define MAX_STRIPS      32
 
-typedef struct {
+typedef struct cvid_strip {
     uint16_t          id;
     uint16_t          x1, y1;
     uint16_t          x2, y2;
@@ -484,5 +484,5 @@ AVCodec ff_cinepak_decoder = {
     .init           = cinepak_decode_init,
     .close          = cinepak_decode_end,
     .decode         = cinepak_decode_frame,
-    .capabilities   = CODEC_CAP_DR1,
+    .capabilities   = AV_CODEC_CAP_DR1,
 };

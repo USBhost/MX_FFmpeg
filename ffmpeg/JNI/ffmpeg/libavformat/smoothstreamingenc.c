@@ -38,7 +38,7 @@
 #include "libavutil/mathematics.h"
 #include "libavutil/intreadwrite.h"
 
-typedef struct {
+typedef struct Fragment {
     char file[1024];
     char infofile[1024];
     int64_t start_time, duration;
@@ -46,7 +46,7 @@ typedef struct {
     int64_t start_pos, size;
 } Fragment;
 
-typedef struct {
+typedef struct OutputStream {
     AVFormatContext *ctx;
     int ctx_inited;
     char dirname[1024];
@@ -66,7 +66,7 @@ typedef struct {
     int audio_tag;
 } OutputStream;
 
-typedef struct {
+typedef struct SmoothStreamingContext {
     const AVClass *class;  /* Class for private options. */
     int window_size;
     int extra_window_size;
@@ -179,13 +179,13 @@ static void ism_free(AVFormatContext *s)
         if (os->ctx && os->ctx_inited)
             av_write_trailer(os->ctx);
         if (os->ctx && os->ctx->pb)
-            av_free(os->ctx->pb);
+            av_freep(&os->ctx->pb);
         if (os->ctx)
             avformat_free_context(os->ctx);
-        av_free(os->private_str);
+        av_freep(&os->private_str);
         for (j = 0; j < os->nb_fragments; j++)
-            av_free(os->fragments[j]);
-        av_free(os->fragments);
+            av_freep(&os->fragments[j]);
+        av_freep(&os->fragments);
     }
     av_freep(&c->streams);
 }
@@ -260,7 +260,7 @@ static int write_manifest(AVFormatContext *s, int final)
             if (s->streams[i]->codec->codec_type != AVMEDIA_TYPE_VIDEO)
                 continue;
             last = i;
-            avio_printf(out, "<QualityLevel Index=\"%d\" Bitrate=\"%d\" FourCC=\"%s\" MaxWidth=\"%d\" MaxHeight=\"%d\" CodecPrivateData=\"%s\" />\n", index, s->streams[i]->codec->bit_rate, os->fourcc, s->streams[i]->codec->width, s->streams[i]->codec->height, os->private_str);
+            avio_printf(out, "<QualityLevel Index=\"%d\" Bitrate=\"%"PRId64"\" FourCC=\"%s\" MaxWidth=\"%d\" MaxHeight=\"%d\" CodecPrivateData=\"%s\" />\n", index, (int64_t)s->streams[i]->codec->bit_rate, os->fourcc, s->streams[i]->codec->width, s->streams[i]->codec->height, os->private_str);
             index++;
         }
         output_chunk_list(&c->streams[last], out, final, c->lookahead_count, c->window_size);
@@ -274,7 +274,7 @@ static int write_manifest(AVFormatContext *s, int final)
             if (s->streams[i]->codec->codec_type != AVMEDIA_TYPE_AUDIO)
                 continue;
             last = i;
-            avio_printf(out, "<QualityLevel Index=\"%d\" Bitrate=\"%d\" FourCC=\"%s\" SamplingRate=\"%d\" Channels=\"%d\" BitsPerSample=\"16\" PacketSize=\"%d\" AudioTag=\"%d\" CodecPrivateData=\"%s\" />\n", index, s->streams[i]->codec->bit_rate, os->fourcc, s->streams[i]->codec->sample_rate, s->streams[i]->codec->channels, os->packet_size, os->audio_tag, os->private_str);
+            avio_printf(out, "<QualityLevel Index=\"%d\" Bitrate=\"%"PRId64"\" FourCC=\"%s\" SamplingRate=\"%d\" Channels=\"%d\" BitsPerSample=\"16\" PacketSize=\"%d\" AudioTag=\"%d\" CodecPrivateData=\"%s\" />\n", index, (int64_t)s->streams[i]->codec->bit_rate, os->fourcc, s->streams[i]->codec->sample_rate, s->streams[i]->codec->channels, os->packet_size, os->audio_tag, os->private_str);
             index++;
         }
         output_chunk_list(&c->streams[last], out, final, c->lookahead_count, c->window_size);
@@ -321,7 +321,7 @@ static int ism_write_header(AVFormatContext *s)
             ret = AVERROR(EINVAL);
             goto fail;
         }
-        snprintf(os->dirname, sizeof(os->dirname), "%s/QualityLevels(%d)", s->filename, s->streams[i]->codec->bit_rate);
+        snprintf(os->dirname, sizeof(os->dirname), "%s/QualityLevels(%"PRId64")", s->filename, (int64_t)s->streams[i]->codec->bit_rate);
         if (mkdir(os->dirname, 0777) == -1 && errno != EEXIST) {
             ret = AVERROR(errno);
             av_log(s, AV_LOG_ERROR, "mkdir failed\n");
@@ -394,6 +394,7 @@ static int ism_write_header(AVFormatContext *s)
     if (!c->has_video && c->min_frag_duration <= 0) {
         av_log(s, AV_LOG_WARNING, "no video stream and no min frag duration set\n");
         ret = AVERROR(EINVAL);
+        goto fail;
     }
     ret = write_manifest(s, 0);
 
@@ -558,7 +559,7 @@ static int ism_flush(AVFormatContext *s, int final)
                 for (j = 0; j < remove; j++) {
                     unlink(os->fragments[j]->file);
                     unlink(os->fragments[j]->infofile);
-                    av_free(os->fragments[j]);
+                    av_freep(&os->fragments[j]);
                 }
                 os->nb_fragments -= remove;
                 memmove(os->fragments, os->fragments + remove, os->nb_fragments * sizeof(*os->fragments));

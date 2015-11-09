@@ -50,10 +50,10 @@ typedef struct {
 #define FLAGS AV_OPT_FLAG_VIDEO_PARAM|AV_OPT_FLAG_FILTERING_PARAM
 static const AVOption kerndeint_options[] = {
     { "thresh", "set the threshold", OFFSET(thresh), AV_OPT_TYPE_INT, {.i64=10}, 0, 255, FLAGS },
-    { "map",    "set the map", OFFSET(map), AV_OPT_TYPE_INT, {.i64=0}, 0, 1, FLAGS },
-    { "order",  "set the order", OFFSET(order), AV_OPT_TYPE_INT, {.i64=0}, 0, 1, FLAGS },
-    { "sharp",  "enable sharpening", OFFSET(sharp), AV_OPT_TYPE_INT, {.i64=0}, 0, 1, FLAGS },
-    { "twoway", "enable twoway", OFFSET(twoway), AV_OPT_TYPE_INT, {.i64=0}, 0, 1, FLAGS },
+    { "map",    "set the map",    OFFSET(map),    AV_OPT_TYPE_BOOL, {.i64=0}, 0, 1, FLAGS },
+    { "order",  "set the order",  OFFSET(order),  AV_OPT_TYPE_BOOL, {.i64=0}, 0, 1, FLAGS },
+    { "sharp",  "set sharpening", OFFSET(sharp),  AV_OPT_TYPE_BOOL, {.i64=0}, 0, 1, FLAGS },
+    { "twoway", "set twoway",     OFFSET(twoway), AV_OPT_TYPE_BOOL, {.i64=0}, 0, 1, FLAGS },
     { NULL }
 };
 
@@ -63,12 +63,12 @@ static av_cold void uninit(AVFilterContext *ctx)
 {
     KerndeintContext *kerndeint = ctx->priv;
 
-    av_free(kerndeint->tmp_data[0]);
+    av_freep(&kerndeint->tmp_data[0]);
 }
 
 static int query_formats(AVFilterContext *ctx)
 {
-    static const enum PixelFormat pix_fmts[] = {
+    static const enum AVPixelFormat pix_fmts[] = {
         AV_PIX_FMT_YUV420P,
         AV_PIX_FMT_YUYV422,
         AV_PIX_FMT_ARGB, AV_PIX_FMT_0RGB,
@@ -78,9 +78,10 @@ static int query_formats(AVFilterContext *ctx)
         AV_PIX_FMT_NONE
     };
 
-    ff_set_common_formats(ctx, ff_make_format_list(pix_fmts));
-
-    return 0;
+    AVFilterFormats *fmts_list = ff_make_format_list(pix_fmts);
+    if (!fmts_list)
+        return AVERROR(ENOMEM);
+    return ff_set_common_formats(ctx, fmts_list);
 }
 
 static int config_props(AVFilterLink *inlink)

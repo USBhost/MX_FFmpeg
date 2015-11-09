@@ -40,9 +40,6 @@
 #include "mpeg4video.h"
 
 
-uint8_t ff_h263_static_rl_table_store[2][2][2*MAX_RUN + MAX_LEVEL + 3];
-
-
 void ff_h263_update_motion_val(MpegEncContext * s){
     const int mb_xy = s->mb_y * s->mb_stride + s->mb_x;
                //FIXME a lot of that is only needed for !low_delay
@@ -366,17 +363,4 @@ int16_t *ff_h263_pred_motion(MpegEncContext * s, int block, int dir,
         *py = mid_pred(A[1], B[1], C[1]);
     }
     return *mot_val;
-}
-
-
-/**
- * Get the GOB height based on picture height.
- */
-int ff_h263_get_gob_height(MpegEncContext *s){
-    if (s->height <= 400)
-        return 1;
-    else if (s->height <= 800)
-        return  2;
-    else
-        return 4;
 }

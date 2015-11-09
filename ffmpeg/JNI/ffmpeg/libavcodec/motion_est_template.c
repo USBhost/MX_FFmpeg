@@ -358,8 +358,8 @@ static int qpel_motion_search(MpegEncContext * s,
 
 #define CHECK_MV(x,y)\
 {\
-    const unsigned key = ((y)<<ME_MAP_MV_BITS) + (x) + map_generation;\
-    const int index= (((y)<<ME_MAP_SHIFT) + (x))&(ME_MAP_SIZE-1);\
+    const unsigned key = ((unsigned)(y)<<ME_MAP_MV_BITS) + (x) + map_generation;\
+    const int index= (((unsigned)(y)<<ME_MAP_SHIFT) + (x))&(ME_MAP_SIZE-1);\
     av_assert2((x) >= xmin);\
     av_assert2((x) <= xmax);\
     av_assert2((y) >= ymin);\
@@ -368,7 +368,7 @@ static int qpel_motion_search(MpegEncContext * s,
         d= cmp(s, x, y, 0, 0, size, h, ref_index, src_index, cmpf, chroma_cmpf, flags);\
         map[index]= key;\
         score_map[index]= d;\
-        d += (mv_penalty[((x)<<shift)-pred_x] + mv_penalty[((y)<<shift)-pred_y])*penalty_factor;\
+        d += (mv_penalty[((x)*(1<<shift))-pred_x] + mv_penalty[((y)*(1<<shift))-pred_y])*penalty_factor;\
         COPY3_IF_LT(dmin, d, best[0], x, best[1], y)\
     }\
 }
@@ -384,13 +384,13 @@ static int qpel_motion_search(MpegEncContext * s,
 
 #define CHECK_MV_DIR(x,y,new_dir)\
 {\
-    const unsigned key = ((y)<<ME_MAP_MV_BITS) + (x) + map_generation;\
-    const int index= (((y)<<ME_MAP_SHIFT) + (x))&(ME_MAP_SIZE-1);\
+    const unsigned key = ((unsigned)(y)<<ME_MAP_MV_BITS) + (x) + map_generation;\
+    const int index= (((unsigned)(y)<<ME_MAP_SHIFT) + (x))&(ME_MAP_SIZE-1);\
     if(map[index]!=key){\
         d= cmp(s, x, y, 0, 0, size, h, ref_index, src_index, cmpf, chroma_cmpf, flags);\
         map[index]= key;\
         score_map[index]= d;\
-        d += (mv_penalty[((x)<<shift)-pred_x] + mv_penalty[((y)<<shift)-pred_y])*penalty_factor;\
+        d += (mv_penalty[(int)((unsigned)(x)<<shift)-pred_x] + mv_penalty[(int)((unsigned)(y)<<shift)-pred_y])*penalty_factor;\
         if(d<dmin){\
             best[0]=x;\
             best[1]=y;\
@@ -426,8 +426,8 @@ static av_always_inline int small_diamond_search(MpegEncContext * s, int *best, 
     chroma_cmpf = s->mecc.me_cmp[size + 1];
 
     { /* ensure that the best point is in the MAP as h/qpel refinement needs it */
-        const unsigned key = (best[1]<<ME_MAP_MV_BITS) + best[0] + map_generation;
-        const int index= ((best[1]<<ME_MAP_SHIFT) + best[0])&(ME_MAP_SIZE-1);
+        const unsigned key = ((unsigned)best[1]<<ME_MAP_MV_BITS) + best[0] + map_generation;
+        const int index= (((unsigned)best[1]<<ME_MAP_SHIFT) + best[0])&(ME_MAP_SIZE-1);
         if(map[index]!=key){ //this will be executed only very rarey
             score_map[index]= cmp(s, best[0], best[1], 0, 0, size, h, ref_index, src_index, cmpf, chroma_cmpf, flags);
             map[index]= key;
@@ -702,7 +702,8 @@ static int sab_diamond_search(MpegEncContext * s, int *best, int dmin,
 
         key += (1<<(ME_MAP_MV_BITS-1)) + (1<<(2*ME_MAP_MV_BITS-1));
 
-        if((key&((-1)<<(2*ME_MAP_MV_BITS))) != map_generation) continue;
+        if ((key & (-(1 << (2 * ME_MAP_MV_BITS)))) != map_generation)
+            continue;
 
         minima[j].height= score_map[i];
         minima[j].x= key & ((1<<ME_MAP_MV_BITS)-1); key>>=ME_MAP_MV_BITS;

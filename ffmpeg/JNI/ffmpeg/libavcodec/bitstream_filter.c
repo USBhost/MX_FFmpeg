@@ -49,9 +49,17 @@ AVBitStreamFilterContext *av_bitstream_filter_init(const char *name)
         if (!strcmp(name, bsf->name)) {
             AVBitStreamFilterContext *bsfc =
                 av_mallocz(sizeof(AVBitStreamFilterContext));
+            if (!bsfc)
+                return NULL;
             bsfc->filter    = bsf;
-            bsfc->priv_data =
-                bsf->priv_data_size ? av_mallocz(bsf->priv_data_size) : NULL;
+            bsfc->priv_data = NULL;
+            if (bsf->priv_data_size) {
+                bsfc->priv_data = av_mallocz(bsf->priv_data_size);
+                if (!bsfc->priv_data) {
+                    av_freep(&bsfc);
+                    return NULL;
+                }
+            }
             return bsfc;
         }
     }
@@ -65,6 +73,7 @@ void av_bitstream_filter_close(AVBitStreamFilterContext *bsfc)
     if (bsfc->filter->close)
         bsfc->filter->close(bsfc);
     av_freep(&bsfc->priv_data);
+    av_freep(&bsfc->args);
     av_parser_close(bsfc->parser);
     av_free(bsfc);
 }
@@ -76,6 +85,6 @@ int av_bitstream_filter_filter(AVBitStreamFilterContext *bsfc,
 {
     *poutbuf      = (uint8_t *)buf;
     *poutbuf_size = buf_size;
-    return bsfc->filter->filter(bsfc, avctx, args, poutbuf, poutbuf_size,
-                                buf, buf_size, keyframe);
+    return bsfc->filter->filter(bsfc, avctx, args ? args : bsfc->args,
+                                poutbuf, poutbuf_size, buf, buf_size, keyframe);
 }

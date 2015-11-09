@@ -32,6 +32,7 @@
 #include <assert.h>
 
 #include "vdpau.h"
+#include "vdpau_compat.h"
 #include "vdpau_internal.h"
 
 /**
@@ -71,6 +72,46 @@ AVVDPAUContext *av_alloc_vdpaucontext(void)
 
 MAKE_ACCESSORS(AVVDPAUContext, vdpau_hwaccel, AVVDPAU_Render2, render2)
 
+int av_vdpau_get_surface_parameters(AVCodecContext *avctx,
+                                    VdpChromaType *type,
+                                    uint32_t *width, uint32_t *height)
+{
+    VdpChromaType t;
+    uint32_t w = avctx->coded_width;
+    uint32_t h = avctx->coded_height;
+
+    /* See <vdpau/vdpau.h> for per-type alignment constraints. */
+    switch (avctx->sw_pix_fmt) {
+    case AV_PIX_FMT_YUV420P:
+    case AV_PIX_FMT_YUVJ420P:
+        t = VDP_CHROMA_TYPE_420;
+        w = (w + 1) & ~1;
+        h = (h + 3) & ~3;
+        break;
+    case AV_PIX_FMT_YUV422P:
+    case AV_PIX_FMT_YUVJ422P:
+        t = VDP_CHROMA_TYPE_422;
+        w = (w + 1) & ~1;
+        h = (h + 1) & ~1;
+        break;
+    case AV_PIX_FMT_YUV444P:
+    case AV_PIX_FMT_YUVJ444P:
+        t = VDP_CHROMA_TYPE_444;
+        h = (h + 1) & ~1;
+        break;
+    default:
+        return AVERROR(ENOSYS);
+    }
+
+    if (type)
+        *type = t;
+    if (width)
+        *width = w;
+    if (height)
+        *height = h;
+    return 0;
+}
+
 int ff_vdpau_common_init(AVCodecContext *avctx, VdpDecoderProfile profile,
                          int level)
 {
@@ -83,9 +124,9 @@ int ff_vdpau_common_init(AVCodecContext *avctx, VdpDecoderProfile profile,
     VdpStatus status;
     VdpBool supported;
     uint32_t max_level, max_mb, max_width, max_height;
-    /* See vdpau/vdpau.h for alignment constraints. */
-    uint32_t width  = (avctx->coded_width + 1) & ~1;
-    uint32_t height = (avctx->coded_height + 3) & ~3;
+    VdpChromaType type;
+    uint32_t width;
+    uint32_t height;
 
     vdctx->width            = UINT32_MAX;
     vdctx->height           = UINT32_MAX;
@@ -112,6 +153,13 @@ int ff_vdpau_common_init(AVCodecContext *avctx, VdpDecoderProfile profile,
     else if (level < 0)
         return AVERROR(ENOTSUP);
 
+    if (av_vdpau_get_surface_parameters(avctx, &type, &width, &height))
+        return AVERROR(ENOSYS);
+
+    if (!(hwctx->flags & AV_HWACCEL_FLAG_ALLOW_HIGH_DEPTH) &&
+        type != VDP_CHROMA_TYPE_420)
+        return AVERROR(ENOSYS);
+
     status = vdctx->get_proc_address(vdctx->device,
                                      VDP_FUNC_ID_VIDEO_SURFACE_QUERY_CAPABILITIES,
                                      &func);
@@ -120,7 +168,7 @@ int ff_vdpau_common_init(AVCodecContext *avctx, VdpDecoderProfile profile,
     else
         surface_query_caps = func;
 
-    status = surface_query_caps(vdctx->device, VDP_CHROMA_TYPE_420, &supported,
+    status = surface_query_caps(vdctx->device, type, &supported,
                                 &max_width, &max_height);
     if (status != VDP_STATUS_OK)
         return vdpau_error(status);
@@ -138,6 +186,14 @@ int ff_vdpau_common_init(AVCodecContext *avctx, VdpDecoderProfile profile,
 
     status = decoder_query_caps(vdctx->device, profile, &supported, &max_level,
                                 &max_mb, &max_width, &max_height);
+#ifdef VDP_DECODER_PROFILE_H264_CONSTRAINED_BASELINE
+    if ((status != VDP_STATUS_OK || supported != VDP_TRUE) && profile == VDP_DECODER_PROFILE_H264_CONSTRAINED_BASELINE) {
+        profile = VDP_DECODER_PROFILE_H264_MAIN;
+        status = decoder_query_caps(vdctx->device, profile, &supported,
+                                    &max_level, &max_mb,
+                                    &max_width, &max_height);
+    }
+#endif
     if (status != VDP_STATUS_OK)
         return vdpau_error(status);
 
@@ -232,7 +288,8 @@ int ff_vdpau_common_end_frame(AVCodecContext *avctx, AVFrame *frame,
 
 #if FF_API_BUFS_VDPAU
 FF_DISABLE_DEPRECATION_WARNINGS
-    hwctx->info = pic_ctx->info;
+    av_assert0(sizeof(hwctx->info) <= sizeof(pic_ctx->info));
+    memcpy(&hwctx->info, &pic_ctx->info, sizeof(hwctx->info));
     hwctx->bitstream_buffers = pic_ctx->bitstream_buffers;
     hwctx->bitstream_buffers_used = pic_ctx->bitstream_buffers_used;
     hwctx->bitstream_buffers_allocated = pic_ctx->bitstream_buffers_allocated;
@@ -300,6 +357,25 @@ int ff_vdpau_add_buffer(struct vdpau_picture_context *pic_ctx,
 
 /* Obsolete non-hwaccel VDPAU support below... */
 
+#if FF_API_VDPAU
+void ff_vdpau_add_data_chunk(uint8_t *data, const uint8_t *buf, int buf_size)
+{
+    struct vdpau_render_state *render = (struct vdpau_render_state*)data;
+    assert(render);
+
+    render->bitstream_buffers= av_fast_realloc(
+        render->bitstream_buffers,
+        &render->bitstream_buffers_allocated,
+        sizeof(*render->bitstream_buffers)*(render->bitstream_buffers_used + 1)
+    );
+
+    render->bitstream_buffers[render->bitstream_buffers_used].struct_version  = VDP_BITSTREAM_BUFFER_VERSION;
+    render->bitstream_buffers[render->bitstream_buffers_used].bitstream       = buf;
+    render->bitstream_buffers[render->bitstream_buffers_used].bitstream_bytes = buf_size;
+    render->bitstream_buffers_used++;
+}
+
+#if CONFIG_H264_VDPAU_DECODER
 void ff_vdpau_h264_set_reference_frames(H264Context *h)
 {
     struct vdpau_render_state *render, *render_ref;
@@ -307,7 +383,7 @@ void ff_vdpau_h264_set_reference_frames(H264Context *h)
     H264Picture *pic;
     int i, list, pic_frame_idx;
 
-    render = (struct vdpau_render_state *)h->cur_pic_ptr->f.data[0];
+    render = (struct vdpau_render_state *)h->cur_pic_ptr->f->data[0];
     assert(render);
 
     rf = &render->info.h264.referenceFrames[0];
@@ -323,7 +399,7 @@ void ff_vdpau_h264_set_reference_frames(H264Context *h)
                 continue;
             pic_frame_idx = pic->long_ref ? pic->pic_id : pic->frame_num;
 
-            render_ref = (struct vdpau_render_state *)pic->f.data[0];
+            render_ref = (struct vdpau_render_state *)pic->f->data[0];
             assert(render_ref);
 
             rf2 = &render->info.h264.referenceFrames[0];
@@ -368,30 +444,12 @@ void ff_vdpau_h264_set_reference_frames(H264Context *h)
     }
 }
 
-void ff_vdpau_add_data_chunk(uint8_t *data, const uint8_t *buf, int buf_size)
-{
-    struct vdpau_render_state *render = (struct vdpau_render_state*)data;
-    assert(render);
-
-    render->bitstream_buffers= av_fast_realloc(
-        render->bitstream_buffers,
-        &render->bitstream_buffers_allocated,
-        sizeof(*render->bitstream_buffers)*(render->bitstream_buffers_used + 1)
-    );
-
-    render->bitstream_buffers[render->bitstream_buffers_used].struct_version  = VDP_BITSTREAM_BUFFER_VERSION;
-    render->bitstream_buffers[render->bitstream_buffers_used].bitstream       = buf;
-    render->bitstream_buffers[render->bitstream_buffers_used].bitstream_bytes = buf_size;
-    render->bitstream_buffers_used++;
-}
-
-#if CONFIG_H264_VDPAU_DECODER
 void ff_vdpau_h264_picture_start(H264Context *h)
 {
     struct vdpau_render_state *render;
     int i;
 
-    render = (struct vdpau_render_state *)h->cur_pic_ptr->f.data[0];
+    render = (struct vdpau_render_state *)h->cur_pic_ptr->f->data[0];
     assert(render);
 
     for (i = 0; i < 2; ++i) {
@@ -408,10 +466,10 @@ void ff_vdpau_h264_picture_complete(H264Context *h)
 {
     struct vdpau_render_state *render;
 
-    render = (struct vdpau_render_state *)h->cur_pic_ptr->f.data[0];
+    render = (struct vdpau_render_state *)h->cur_pic_ptr->f->data[0];
     assert(render);
 
-    render->info.h264.slice_count = h->slice_num;
+    render->info.h264.slice_count = h->current_slice;
     if (render->info.h264.slice_count < 1)
         return;
 
@@ -443,7 +501,7 @@ void ff_vdpau_h264_picture_complete(H264Context *h)
     memcpy(render->info.h264.scaling_lists_8x8[0], h->pps.scaling_matrix8[0], sizeof(render->info.h264.scaling_lists_8x8[0]));
     memcpy(render->info.h264.scaling_lists_8x8[1], h->pps.scaling_matrix8[3], sizeof(render->info.h264.scaling_lists_8x8[0]));
 
-    ff_h264_draw_horiz_band(h, 0, h->avctx->height);
+    ff_h264_draw_horiz_band(h, &h->slice_ctx[0], 0, h->avctx->height);
     render->bitstream_buffers_used = 0;
 }
 #endif /* CONFIG_H264_VDPAU_DECODER */
@@ -634,48 +692,53 @@ void ff_vdpau_mpeg4_decode_picture(Mpeg4DecContext *ctx, const uint8_t *buf,
     render->bitstream_buffers_used = 0;
 }
 #endif /* CONFIG_MPEG4_VDPAU_DECODER */
+#endif /* FF_API_VDPAU */
 
 int av_vdpau_get_profile(AVCodecContext *avctx, VdpDecoderProfile *profile)
 {
-#define PROFILE(prof)       \
-do {                        \
-    *profile = prof;        \
-    return 0;               \
+#define PROFILE(prof)                      \
+do {                                       \
+    *profile = VDP_DECODER_PROFILE_##prof; \
+    return 0;                              \
 } while (0)
 
     switch (avctx->codec_id) {
-    case AV_CODEC_ID_MPEG1VIDEO:               PROFILE(VDP_DECODER_PROFILE_MPEG1);
+    case AV_CODEC_ID_MPEG1VIDEO:               PROFILE(MPEG1);
     case AV_CODEC_ID_MPEG2VIDEO:
         switch (avctx->profile) {
-        case FF_PROFILE_MPEG2_MAIN:            PROFILE(VDP_DECODER_PROFILE_MPEG2_MAIN);
-        case FF_PROFILE_MPEG2_SIMPLE:          PROFILE(VDP_DECODER_PROFILE_MPEG2_SIMPLE);
+        case FF_PROFILE_MPEG2_MAIN:            PROFILE(MPEG2_MAIN);
+        case FF_PROFILE_MPEG2_SIMPLE:          PROFILE(MPEG2_SIMPLE);
         default:                               return AVERROR(EINVAL);
         }
-    case AV_CODEC_ID_H263:                     PROFILE(VDP_DECODER_PROFILE_MPEG4_PART2_ASP);
+    case AV_CODEC_ID_H263:                     PROFILE(MPEG4_PART2_ASP);
     case AV_CODEC_ID_MPEG4:
         switch (avctx->profile) {
-        case FF_PROFILE_MPEG4_SIMPLE:          PROFILE(VDP_DECODER_PROFILE_MPEG4_PART2_SP);
-        case FF_PROFILE_MPEG4_ADVANCED_SIMPLE: PROFILE(VDP_DECODER_PROFILE_MPEG4_PART2_ASP);
+        case FF_PROFILE_MPEG4_SIMPLE:          PROFILE(MPEG4_PART2_SP);
+        case FF_PROFILE_MPEG4_ADVANCED_SIMPLE: PROFILE(MPEG4_PART2_ASP);
         default:                               return AVERROR(EINVAL);
         }
     case AV_CODEC_ID_H264:
         switch (avctx->profile & ~FF_PROFILE_H264_INTRA) {
-        case FF_PROFILE_H264_BASELINE:         PROFILE(VDP_DECODER_PROFILE_H264_BASELINE);
+        case FF_PROFILE_H264_BASELINE:         PROFILE(H264_BASELINE);
         case FF_PROFILE_H264_CONSTRAINED_BASELINE:
-        case FF_PROFILE_H264_MAIN:             PROFILE(VDP_DECODER_PROFILE_H264_MAIN);
-        case FF_PROFILE_H264_HIGH:             PROFILE(VDP_DECODER_PROFILE_H264_HIGH);
+        case FF_PROFILE_H264_MAIN:             PROFILE(H264_MAIN);
+        case FF_PROFILE_H264_HIGH:             PROFILE(H264_HIGH);
+#ifdef VDP_DECODER_PROFILE_H264_EXTENDED
+        case FF_PROFILE_H264_EXTENDED:         PROFILE(H264_EXTENDED);
+#endif
         default:                               return AVERROR(EINVAL);
         }
     case AV_CODEC_ID_WMV3:
     case AV_CODEC_ID_VC1:
         switch (avctx->profile) {
-        case FF_PROFILE_VC1_SIMPLE:            PROFILE(VDP_DECODER_PROFILE_VC1_SIMPLE);
-        case FF_PROFILE_VC1_MAIN:              PROFILE(VDP_DECODER_PROFILE_VC1_MAIN);
-        case FF_PROFILE_VC1_ADVANCED:          PROFILE(VDP_DECODER_PROFILE_VC1_ADVANCED);
+        case FF_PROFILE_VC1_SIMPLE:            PROFILE(VC1_SIMPLE);
+        case FF_PROFILE_VC1_MAIN:              PROFILE(VC1_MAIN);
+        case FF_PROFILE_VC1_ADVANCED:          PROFILE(VC1_ADVANCED);
         default:                               return AVERROR(EINVAL);
         }
     }
     return AVERROR(EINVAL);
+#undef PROFILE
 }
 
 AVVDPAUContext *av_vdpau_alloc_context(void)
@@ -688,7 +751,7 @@ int av_vdpau_bind_context(AVCodecContext *avctx, VdpDevice device,
 {
     VDPAUHWContext *hwctx;
 
-    if (flags & ~AV_HWACCEL_FLAG_IGNORE_LEVEL)
+    if (flags & ~(AV_HWACCEL_FLAG_IGNORE_LEVEL|AV_HWACCEL_FLAG_ALLOW_HIGH_DEPTH))
         return AVERROR(EINVAL);
 
     if (av_reallocp(&avctx->hwaccel_context, sizeof(*hwctx)))

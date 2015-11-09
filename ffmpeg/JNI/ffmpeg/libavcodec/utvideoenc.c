@@ -48,7 +48,6 @@ static av_cold int utvideo_encode_close(AVCodecContext *avctx)
     UtvideoContext *c = avctx->priv_data;
     int i;
 
-    av_freep(&avctx->coded_frame);
     av_freep(&c->slice_bits);
     for (i = 0; i < 4; i++)
         av_freep(&c->slice_buffer[i]);
@@ -154,19 +153,11 @@ static av_cold int utvideo_encode_init(AVCodecContext *avctx)
         return AVERROR(EINVAL);
     }
 
-    avctx->coded_frame = av_frame_alloc();
-
-    if (!avctx->coded_frame) {
-        av_log(avctx, AV_LOG_ERROR, "Could not allocate frame.\n");
-        utvideo_encode_close(avctx);
-        return AVERROR(ENOMEM);
-    }
-
     /* extradata size is 4 * 32bit */
     avctx->extradata_size = 16;
 
     avctx->extradata = av_mallocz(avctx->extradata_size +
-                                  FF_INPUT_BUFFER_PADDING_SIZE);
+                                  AV_INPUT_BUFFER_PADDING_SIZE);
 
     if (!avctx->extradata) {
         av_log(avctx, AV_LOG_ERROR, "Could not allocate extradata.\n");
@@ -176,7 +167,7 @@ static av_cold int utvideo_encode_init(AVCodecContext *avctx)
 
     for (i = 0; i < c->planes; i++) {
         c->slice_buffer[i] = av_malloc(c->slice_stride * (avctx->height + 2) +
-                                       FF_INPUT_BUFFER_PADDING_SIZE);
+                                       AV_INPUT_BUFFER_PADDING_SIZE);
         if (!c->slice_buffer[i]) {
             av_log(avctx, AV_LOG_ERROR, "Cannot allocate temporary buffer 1.\n");
             utvideo_encode_close(avctx);
@@ -545,7 +536,7 @@ static int utvideo_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
 
     /* Allocate a new packet if needed, and set it to the pointer dst */
     ret = ff_alloc_packet2(avctx, pkt, (256 + 4 * c->slices + width * height) *
-                           c->planes + 4);
+                           c->planes + 4, 0);
 
     if (ret < 0)
         return ret;
@@ -622,8 +613,12 @@ static int utvideo_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
      * At least currently Ut Video is IDR only.
      * Set flags accordingly.
      */
+#if FF_API_CODED_FRAME
+FF_DISABLE_DEPRECATION_WARNINGS
     avctx->coded_frame->key_frame = 1;
     avctx->coded_frame->pict_type = AV_PICTURE_TYPE_I;
+FF_ENABLE_DEPRECATION_WARNINGS
+#endif
 
     pkt->size   = bytestream2_tell_p(&pb);
     pkt->flags |= AV_PKT_FLAG_KEY;
@@ -643,7 +638,7 @@ AVCodec ff_utvideo_encoder = {
     .init           = utvideo_encode_init,
     .encode2        = utvideo_encode_frame,
     .close          = utvideo_encode_close,
-    .capabilities   = CODEC_CAP_FRAME_THREADS | CODEC_CAP_INTRA_ONLY,
+    .capabilities   = AV_CODEC_CAP_FRAME_THREADS | AV_CODEC_CAP_INTRA_ONLY,
     .pix_fmts       = (const enum AVPixelFormat[]) {
                           AV_PIX_FMT_RGB24, AV_PIX_FMT_RGBA, AV_PIX_FMT_YUV422P,
                           AV_PIX_FMT_YUV420P, AV_PIX_FMT_NONE

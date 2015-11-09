@@ -62,6 +62,7 @@
 enum KeyType {
     KEY_NONE,
     KEY_AES_128,
+    KEY_SAMPLE_AES
 };
 
 struct segment {
@@ -72,6 +73,8 @@ struct segment {
     char *key;
     enum KeyType key_type;
     uint8_t iv[16];
+    /* associated Media Initialization Section, treated as a segment */
+    struct segment *init_section;
 };
 
 struct rendition;
@@ -109,6 +112,13 @@ struct playlist {
     int64_t cur_seg_offset;
     int64_t last_load_time;
 
+    /* Currently active Media Initialization Section */
+    struct segment *cur_init_section;
+    uint8_t *init_sec_buf;
+    unsigned int init_sec_buf_size;
+    unsigned int init_sec_data_len;
+    unsigned int init_sec_buf_read_offset;
+
     char key_url[MAX_URL_SIZE];
     uint8_t key[16];
 
@@ -134,6 +144,11 @@ struct playlist {
      * multiple (playlist-less) renditions associated with them. */
     int n_renditions;
     struct rendition **renditions;
+
+    /* Media Initialization Sections (EXT-X-MAP) associated with this
+     * playlist, if any. */
+    int n_init_sections;
+    struct segment **init_sections;
 };
 
 /*
@@ -164,6 +179,7 @@ struct variant {
 };
 
 typedef struct HLSContext {
+    AVClass *class;
     int n_variants;
     struct variant **variants;
     int n_playlists;
@@ -172,6 +188,7 @@ typedef struct HLSContext {
     struct rendition **renditions;
 
     int cur_seq_no;
+    int live_start_index;
     int first_packet;
     int64_t first_timestamp;
     int64_t cur_timestamp;
@@ -179,6 +196,12 @@ typedef struct HLSContext {
     char *user_agent;                    ///< holds HTTP user agent set as an AVOption to the HTTP protocol context
     char *cookies;                       ///< holds HTTP cookie values set in either the initial response or as an AVOption to the HTTP protocol context
     char *headers;                       ///< holds HTTP headers set as an AVOption to the HTTP protocol context
+    AVDictionary *avio_opts;
+    int strict_std_compliance;
+
+#ifdef MXTECHS
+    int8_t local_file_only;
+#endif
 } HLSContext;
 
 static int read_chomp_line(AVIOContext *s, char *buf, int maxlen)
@@ -201,16 +224,29 @@ static void free_segment_list(struct playlist *pls)
     pls->n_segments = 0;
 }
 
+static void free_init_section_list(struct playlist *pls)
+{
+    int i;
+    for (i = 0; i < pls->n_init_sections; i++) {
+        av_freep(&pls->init_sections[i]->url);
+        av_freep(&pls->init_sections[i]);
+    }
+    av_freep(&pls->init_sections);
+    pls->n_init_sections = 0;
+}
+
 static void free_playlist_list(HLSContext *c)
 {
     int i;
     for (i = 0; i < c->n_playlists; i++) {
         struct playlist *pls = c->playlists[i];
         free_segment_list(pls);
+        free_init_section_list(pls);
         av_freep(&pls->renditions);
         av_freep(&pls->id3_buf);
         av_dict_free(&pls->id3_initial);
         ff_id3v2_free_extra_meta(&pls->id3_deferred_extra);
+        av_freep(&pls->init_sec_buf);
         av_free_packet(&pls->pkt);
         av_freep(&pls->pb.buffer);
         if (pls->input)
@@ -329,7 +365,7 @@ static void handle_variant_args(struct variant_info *info, const char *key,
 
 struct key_info {
      char uri[MAX_URL_SIZE];
-     char method[10];
+     char method[11];
      char iv[35];
 };
 
@@ -345,6 +381,60 @@ static void handle_key_args(struct key_info *info, const char *key,
     } else if (!strncmp(key, "IV=", key_len)) {
         *dest     =        info->iv;
         *dest_len = sizeof(info->iv);
+    }
+}
+
+struct init_section_info {
+    char uri[MAX_URL_SIZE];
+    char byterange[32];
+};
+
+static struct segment *new_init_section(struct playlist *pls,
+                                        struct init_section_info *info,
+                                        const char *url_base)
+{
+    struct segment *sec;
+    char *ptr;
+    char tmp_str[MAX_URL_SIZE];
+
+    if (!info->uri[0])
+        return NULL;
+
+    sec = av_mallocz(sizeof(*sec));
+    if (!sec)
+        return NULL;
+
+    ff_make_absolute_url(tmp_str, sizeof(tmp_str), url_base, info->uri);
+    sec->url = av_strdup(tmp_str);
+    if (!sec->url) {
+        av_free(sec);
+        return NULL;
+    }
+
+    if (info->byterange[0]) {
+        sec->size = atoi(info->byterange);
+        ptr = strchr(info->byterange, '@');
+        if (ptr)
+            sec->url_offset = atoi(ptr+1);
+    } else {
+        /* the entire file is the init section */
+        sec->size = -1;
+    }
+
+    dynarray_add(&pls->init_sections, &pls->n_init_sections, sec);
+
+    return sec;
+}
+
+static void handle_init_section_args(struct init_section_info *info, const char *key,
+                                           int key_len, char **dest, int *dest_len)
+{
+    if (!strncmp(key, "URI=", key_len)) {
+        *dest     =        info->uri;
+        *dest_len = sizeof(info->uri);
+    } else if (!strncmp(key, "BYTERANGE=", key_len)) {
+        *dest     =        info->byterange;
+        *dest_len = sizeof(info->byterange);
     }
 }
 
@@ -388,8 +478,9 @@ static struct rendition *new_rendition(HLSContext *c, struct rendition_info *inf
         return NULL;
 
     /* TODO: handle subtitles (each segment has to parsed separately) */
-    if (type == AVMEDIA_TYPE_SUBTITLE)
-        return NULL;
+    if (c->strict_std_compliance > FF_COMPLIANCE_EXPERIMENTAL)
+        if (type == AVMEDIA_TYPE_SUBTITLE)
+            return NULL;
 
     rend = av_mallocz(sizeof(struct rendition));
     if (!rend)
@@ -478,7 +569,9 @@ static void handle_rendition_args(struct rendition_info *info, const char *key,
 /* used by parse_playlist to allocate a new variant+playlist when the
  * playlist is detected to be a Media Playlist (not Master Playlist)
  * and we have no parent Master Playlist (parsing of which would have
- * allocated the variant and playlist already) */
+ * allocated the variant and playlist already)
+ * *pls == NULL  => Master Playlist or parentless Media Playlist
+ * *pls != NULL => parented Media Playlist, playlist+variant allocated */
 static int ensure_playlist(HLSContext *c, struct playlist **pls, const char *url)
 {
     if (*pls)
@@ -489,8 +582,103 @@ static int ensure_playlist(HLSContext *c, struct playlist **pls, const char *url
     return 0;
 }
 
-/* pls = NULL  => Master Playlist or parentless Media Playlist
- * pls = !NULL => parented Media Playlist, playlist+variant allocated */
+static int url_connect(struct playlist *pls, AVDictionary *opts, AVDictionary *opts2)
+{
+    AVDictionary *tmp = NULL;
+    int ret;
+
+    av_dict_copy(&tmp, opts, 0);
+    av_dict_copy(&tmp, opts2, 0);
+
+    if ((ret = ffurl_connect(pls->input, &tmp)) < 0) {
+        ffurl_close(pls->input);
+        pls->input = NULL;
+    }
+
+    av_dict_free(&tmp);
+    return ret;
+}
+
+static void update_options(char **dest, const char *name, void *src)
+{
+    av_freep(dest);
+    av_opt_get(src, name, 0, (uint8_t**)dest);
+    if (*dest && !strlen(*dest))
+        av_freep(dest);
+}
+
+static int open_url(HLSContext *c, URLContext **uc, const char *url, AVDictionary *opts)
+{
+    AVDictionary *tmp = NULL;
+    int ret;
+
+    av_dict_copy(&tmp, c->avio_opts, 0);
+    av_dict_copy(&tmp, opts, 0);
+
+    ret = ffurl_open(uc, url, AVIO_FLAG_READ, c->interrupt_callback, &tmp);
+    if( ret >= 0) {
+        // update cookies on http response with setcookies.
+        URLContext *u = *uc;
+        update_options(&c->cookies, "cookies", u->priv_data);
+        av_dict_set(&opts, "cookies", c->cookies, 0);
+    }
+
+    av_dict_free(&tmp);
+
+    return ret;
+}
+
+#ifdef MXTECHS
+
+enum {
+	false = 0,
+	true = 1
+};
+
+static int8_t startsWith( const char* s, const char* prefix, int start )
+{
+	unsigned int c1, c2;
+
+	// advance start position.
+	while( start > 0 )
+	{
+		if( *s == '\0' )
+			return false;
+
+		--start;
+		++s;
+	}
+
+	// check prefix.
+	while( true )
+	{
+		c1 = *s++;
+		c2 = *prefix++;
+
+		if( c1 == '\0' )
+			break;
+
+		if( c1 == c2 )
+			continue;
+
+		break;
+	}
+
+	return c2 == '\0';
+}
+
+static int indexOf( const char* s, char ch )
+{
+	for( int i = 0; s[i]; ++i )
+	{
+		if( s[i] == ch )
+			return i;
+	}
+
+	return -1;
+}
+#endif // MXTECHS
+
 static int parse_playlist(HLSContext *c, const char *url,
                           struct playlist *pls, AVIOContext *in)
 {
@@ -508,8 +696,10 @@ static int parse_playlist(HLSContext *c, const char *url,
     uint8_t *new_url = NULL;
     struct variant_info variant_info;
     char tmp_str[MAX_URL_SIZE];
+    struct segment *cur_init_section = NULL;
 
     if (!in) {
+#if 1
         AVDictionary *opts = NULL;
         close_in = 1;
         /* Some HLS servers don't like being sent the range header */
@@ -525,6 +715,12 @@ static int parse_playlist(HLSContext *c, const char *url,
         av_dict_free(&opts);
         if (ret < 0)
             return ret;
+#else
+        ret = open_in(c, &in, url);
+        if (ret < 0)
+            return ret;
+        close_in = 1;
+#endif
     }
 
     if (av_opt_get(in, "location", AV_OPT_SEARCH_CHILDREN, &new_url) >= 0)
@@ -532,7 +728,7 @@ static int parse_playlist(HLSContext *c, const char *url,
 
     // 일반 .m3u 형식도 지원하도록 처리한다.
 #ifdef MXTECHS
-    int8_t isExtendedM3U = 0;
+    int8_t isExtendedM3U = false, firstLine = true;
     duration = -1 * AV_TIME_BASE;
 #else
     read_chomp_line(in, line, sizeof(line));
@@ -549,14 +745,21 @@ static int parse_playlist(HLSContext *c, const char *url,
     }
     while (!avio_feof(in)) {
         read_chomp_line(in, line, sizeof(line));
+
 #ifdef MXTECHS
-        if( strcmp(line, "#EXTM3U") == 0 )
+        if( firstLine )
         {
-        	isExtendedM3U = 1;
-        	duration = 0;
+        	firstLine = false;
+
+			if( strcmp(line, "#EXTM3U") == 0 )
+			{
+				isExtendedM3U = true;
+				duration = 0;
+				continue;
+			}
         }
-        else
 #endif
+
         if (av_strstart(line, "#EXT-X-STREAM-INF:", &ptr)) {
             is_variant = 1;
             memset(&variant_info, 0, sizeof(variant_info));
@@ -570,6 +773,8 @@ static int parse_playlist(HLSContext *c, const char *url,
             has_iv = 0;
             if (!strcmp(info.method, "AES-128"))
                 key_type = KEY_AES_128;
+            if (!strcmp(info.method, "SAMPLE-AES"))
+                key_type = KEY_SAMPLE_AES;
             if (!strncmp(info.iv, "0x", 2) || !strncmp(info.iv, "0X", 2)) {
                 ff_hex_to_data(iv, info.iv + 2);
                 has_iv = 1;
@@ -598,6 +803,14 @@ static int parse_playlist(HLSContext *c, const char *url,
                 pls->type = PLS_TYPE_EVENT;
             else if (!strcmp(ptr, "VOD"))
                 pls->type = PLS_TYPE_VOD;
+        } else if (av_strstart(line, "#EXT-X-MAP:", &ptr)) {
+            struct init_section_info info = {{0}};
+            ret = ensure_playlist(c, &pls, url);
+            if (ret < 0)
+                goto fail;
+            ff_parse_key_value(ptr, (ff_parse_key_val_cb) handle_init_section_args,
+                               &info);
+            cur_init_section = new_init_section(pls, &info, url);
         } else if (av_strstart(line, "#EXT-X-ENDLIST", &ptr)) {
             if (pls)
                 pls->finished = 1;
@@ -620,7 +833,7 @@ static int parse_playlist(HLSContext *c, const char *url,
                 is_variant = 0;
             }
 #ifdef MXTECHS
-            if( is_segment || isExtendedM3U == 0 ) {
+            if( is_segment || isExtendedM3U == false ) {
 #else
             if (is_segment) {
 #endif
@@ -680,6 +893,8 @@ static int parse_playlist(HLSContext *c, const char *url,
                     seg->url_offset = 0;
                     seg_offset = 0;
                 }
+
+                seg->init_section = cur_init_section;
             }
         }
     }
@@ -687,7 +902,7 @@ static int parse_playlist(HLSContext *c, const char *url,
         pls->last_load_time = av_gettime_relative();
 
 #ifdef MXTECHS
-    if( isExtendedM3U == 0 && pls )
+    if( isExtendedM3U == false && pls )
     	pls->finished = 1;
 #endif
 
@@ -698,17 +913,22 @@ fail:
     return ret;
 }
 
+static struct segment *current_segment(struct playlist *pls)
+{
+    return pls->segments[pls->cur_seq_no - pls->start_seq_no];
+}
+
 enum ReadFromURLMode {
     READ_NORMAL,
     READ_COMPLETE,
 };
 
 /* read from URLContext, limiting read to current segment */
-static int read_from_url(struct playlist *pls, uint8_t *buf, int buf_size,
+static int read_from_url(struct playlist *pls, struct segment *seg,
+                         uint8_t *buf, int buf_size,
                          enum ReadFromURLMode mode)
 {
     int ret;
-    struct segment *seg = pls->segments[pls->cur_seq_no - pls->start_seq_no];
 
      /* limit read if the segment was only a part of a file */
     if (seg->size >= 0)
@@ -770,7 +990,7 @@ static int id3_has_changed_values(struct playlist *pls, AVDictionary *metadata,
 
     if (apic) {
         int size = pls->ctx->streams[1]->attached_pic.size;
-        if (size != apic->buf->size - FF_INPUT_BUFFER_PADDING_SIZE)
+        if (size != apic->buf->size - AV_INPUT_BUFFER_PADDING_SIZE)
             return 1;
 
         if (memcmp(apic->buf->data, pls->ctx->streams[1]->attached_pic.data, size) != 0)
@@ -831,12 +1051,13 @@ static void intercept_id3(struct playlist *pls, uint8_t *buf,
     int bytes;
     int id3_buf_pos = 0;
     int fill_buf = 0;
+    struct segment *seg = current_segment(pls);
 
     /* gather all the id3 tags */
     while (1) {
         /* see if we can retrieve enough data for ID3 header */
         if (*len < ID3v2_HEADER_SIZE && buf_size >= ID3v2_HEADER_SIZE) {
-            bytes = read_from_url(pls, buf + *len, ID3v2_HEADER_SIZE - *len, READ_COMPLETE);
+            bytes = read_from_url(pls, seg, buf + *len, ID3v2_HEADER_SIZE - *len, READ_COMPLETE);
             if (bytes > 0) {
 
                 if (bytes == ID3v2_HEADER_SIZE - *len)
@@ -857,7 +1078,6 @@ static void intercept_id3(struct playlist *pls, uint8_t *buf,
             break;
 
         if (ff_id3v2_match(buf, ID3v2_DEFAULT_MAGIC)) {
-            struct segment *seg = pls->segments[pls->cur_seq_no - pls->start_seq_no];
             int64_t maxsize = seg->size >= 0 ? seg->size : 1024*1024;
             int taglen = ff_id3v2_tag_len(buf);
             int tag_got_bytes = FFMIN(taglen, *len);
@@ -889,7 +1109,7 @@ static void intercept_id3(struct playlist *pls, uint8_t *buf,
 
             if (remaining > 0) {
                 /* read the rest of the tag in */
-                if (read_from_url(pls, pls->id3_buf + id3_buf_pos, remaining, READ_COMPLETE) != remaining)
+                if (read_from_url(pls, seg, pls->id3_buf + id3_buf_pos, remaining, READ_COMPLETE) != remaining)
                     break;
                 id3_buf_pos += remaining;
                 av_log(pls->ctx, AV_LOG_DEBUG, "Stripped additional %d HLS ID3 bytes\n", remaining);
@@ -903,7 +1123,7 @@ static void intercept_id3(struct playlist *pls, uint8_t *buf,
 
     /* re-fill buffer for the caller unless EOF */
     if (*len >= 0 && (fill_buf || *len == 0)) {
-        bytes = read_from_url(pls, buf + *len, buf_size - *len, READ_NORMAL);
+        bytes = read_from_url(pls, seg, buf + *len, buf_size - *len, READ_NORMAL);
 
         /* ignore error if we already had some data */
         if (bytes >= 0)
@@ -923,21 +1143,16 @@ static void intercept_id3(struct playlist *pls, uint8_t *buf,
         pls->is_id3_timestamped = (pls->id3_mpegts_timestamp != AV_NOPTS_VALUE);
 }
 
-static int open_input(HLSContext *c, struct playlist *pls)
+static int open_input(HLSContext *c, struct playlist *pls, struct segment *seg)
 {
     AVDictionary *opts = NULL;
-    AVDictionary *opts2 = NULL;
     int ret;
-    struct segment *seg = pls->segments[pls->cur_seq_no - pls->start_seq_no];
 
     // broker prior HTTP options that should be consistent across requests
     av_dict_set(&opts, "user-agent", c->user_agent, 0);
     av_dict_set(&opts, "cookies", c->cookies, 0);
     av_dict_set(&opts, "headers", c->headers, 0);
     av_dict_set(&opts, "seekable", "0", 0);
-
-    // Same opts for key request (ffurl_open mutilates the opts so it cannot be used twice)
-    av_dict_copy(&opts2, opts, 0);
 
     if (seg->size >= 0) {
         /* try to restrict the HTTP request to the part we want
@@ -950,15 +1165,13 @@ static int open_input(HLSContext *c, struct playlist *pls)
            seg->url, seg->url_offset, pls->index);
 
     if (seg->key_type == KEY_NONE) {
-        ret = ffurl_open(&pls->input, seg->url, AVIO_FLAG_READ,
-                          &pls->parent->interrupt_callback, &opts);
-
+        ret = open_url(pls->parent->priv_data, &pls->input, seg->url, opts);
     } else if (seg->key_type == KEY_AES_128) {
+//         HLSContext *c = var->parent->priv_data;
         char iv[33], key[33], url[MAX_URL_SIZE];
         if (strcmp(seg->key, pls->key_url)) {
             URLContext *uc;
-            if (ffurl_open(&uc, seg->key, AVIO_FLAG_READ,
-                           &pls->parent->interrupt_callback, &opts2) == 0) {
+            if (open_url(pls->parent->priv_data, &uc, seg->key, opts) == 0) {
                 if (ffurl_read_complete(uc, pls->key, sizeof(pls->key))
                     != sizeof(pls->key)) {
                     av_log(NULL, AV_LOG_ERROR, "Unable to read key file %s\n",
@@ -978,18 +1191,21 @@ static int open_input(HLSContext *c, struct playlist *pls)
             snprintf(url, sizeof(url), "crypto+%s", seg->url);
         else
             snprintf(url, sizeof(url), "crypto:%s", seg->url);
+
         if ((ret = ffurl_alloc(&pls->input, url, AVIO_FLAG_READ,
                                &pls->parent->interrupt_callback)) < 0)
             goto cleanup;
         av_opt_set(pls->input->priv_data, "key", key, 0);
         av_opt_set(pls->input->priv_data, "iv", iv, 0);
 
-        if ((ret = ffurl_connect(pls->input, &opts)) < 0) {
-            ffurl_close(pls->input);
-            pls->input = NULL;
+        if ((ret = url_connect(pls, c->avio_opts, opts)) < 0) {
             goto cleanup;
         }
         ret = 0;
+    } else if (seg->key_type == KEY_SAMPLE_AES) {
+        av_log(pls->parent, AV_LOG_ERROR,
+               "SAMPLE-AES encryption is not supported yet\n");
+        ret = AVERROR_PATCHWELCOME;
     }
     else
       ret = AVERROR(ENOSYS);
@@ -997,7 +1213,7 @@ static int open_input(HLSContext *c, struct playlist *pls)
     /* Seek to the requested position. If this was a HTTP request, the offset
      * should already be where want it to, but this allows e.g. local testing
      * without a HTTP server. */
-    if (ret == 0 && seg->key_type == KEY_NONE) {
+    if (ret == 0 && seg->key_type == KEY_NONE && seg->url_offset) {
         int seekret = ffurl_seek(pls->input, seg->url_offset, SEEK_SET);
         if (seekret < 0) {
             av_log(pls->parent, AV_LOG_ERROR, "Unable to seek to offset %"PRId64" of HLS segment '%s'\n", seg->url_offset, seg->url);
@@ -1009,9 +1225,68 @@ static int open_input(HLSContext *c, struct playlist *pls)
 
 cleanup:
     av_dict_free(&opts);
-    av_dict_free(&opts2);
     pls->cur_seg_offset = 0;
     return ret;
+}
+
+static int update_init_section(struct playlist *pls, struct segment *seg)
+{
+    static const int max_init_section_size = 1024*1024;
+    HLSContext *c = pls->parent->priv_data;
+    int64_t sec_size;
+    int64_t urlsize;
+    int ret;
+
+    if (seg->init_section == pls->cur_init_section)
+        return 0;
+
+    pls->cur_init_section = NULL;
+
+    if (!seg->init_section)
+        return 0;
+
+    /* this will clobber playlist URLContext stuff, so this should be
+     * called between segments only */
+    ret = open_input(c, pls, seg->init_section);
+    if (ret < 0) {
+        av_log(pls->parent, AV_LOG_WARNING,
+               "Failed to open an initialization section in playlist %d\n",
+               pls->index);
+        return ret;
+    }
+
+    if (seg->init_section->size >= 0)
+        sec_size = seg->init_section->size;
+    else if ((urlsize = ffurl_size(pls->input)) >= 0)
+        sec_size = urlsize;
+    else
+        sec_size = max_init_section_size;
+
+    av_log(pls->parent, AV_LOG_DEBUG,
+           "Downloading an initialization section of size %"PRId64"\n",
+           sec_size);
+
+    sec_size = FFMIN(sec_size, max_init_section_size);
+
+    av_fast_malloc(&pls->init_sec_buf, &pls->init_sec_buf_size, sec_size);
+
+    ret = read_from_url(pls, seg->init_section, pls->init_sec_buf,
+                        pls->init_sec_buf_size, READ_COMPLETE);
+    ffurl_close(pls->input);
+    pls->input = NULL;
+
+    if (ret < 0)
+        return ret;
+
+    pls->cur_init_section = seg->init_section;
+    pls->init_sec_data_len = ret;
+    pls->init_sec_buf_read_offset = 0;
+
+    /* spec says audio elementary streams do not have media initialization
+     * sections, so there should be no ID3 timestamps */
+    pls->is_id3_timestamped = 0;
+
+    return 0;
 }
 
 static int64_t default_reload_interval(struct playlist *pls)
@@ -1034,6 +1309,7 @@ restart:
 
     if (!v->input) {
         int64_t reload_interval;
+        struct segment *seg;
 
         /* Check that the playlist is still needed before opening a new
          * segment. */
@@ -1087,16 +1363,34 @@ reload:
             goto reload;
         }
 
-        ret = open_input(c, v);
+        seg = current_segment(v);
+
+        /* load/update Media Initialization Section, if any */
+        ret = update_init_section(v, seg);
+        if (ret)
+            return ret;
+
+        ret = open_input(c, v, seg);
         if (ret < 0) {
+            if (ff_check_interrupt(c->interrupt_callback))
+                return AVERROR_EXIT;
             av_log(v->parent, AV_LOG_WARNING, "Failed to open segment of playlist %d\n",
                    v->index);
-            return ret;
+            v->cur_seq_no += 1;
+            goto reload;
         }
         just_opened = 1;
     }
 
-    ret = read_from_url(v, buf, buf_size, READ_NORMAL);
+    if (v->init_sec_buf_read_offset < v->init_sec_data_len) {
+        /* Push init section out first before first actual segment */
+        int copy_size = FFMIN(v->init_sec_data_len - v->init_sec_buf_read_offset, buf_size);
+        memcpy(buf, v->init_sec_buf, copy_size);
+        v->init_sec_buf_read_offset += copy_size;
+        return copy_size;
+    }
+
+    ret = read_from_url(v, current_segment(v), buf, buf_size, READ_NORMAL);
     if (ret > 0) {
         if (just_opened && v->is_id3_timestamped != 0) {
             /* Intercept ID3 tags here, elementary audio streams are required
@@ -1243,14 +1537,36 @@ static int select_cur_seq_no(HLSContext *c, struct playlist *pls)
              * require us to download a segment to inspect its timestamps. */
             return c->cur_seq_no;
 
-        /* If this is a live stream with more than 3 segments, start at the
-         * third last segment. */
-        if (pls->n_segments > 3)
-            return pls->start_seq_no + pls->n_segments - 3;
+        /* If this is a live stream, start live_start_index segments from the
+         * start or end */
+        if (c->live_start_index < 0)
+            return pls->start_seq_no + FFMAX(pls->n_segments + c->live_start_index, 0);
+        else
+            return pls->start_seq_no + FFMIN(c->live_start_index, pls->n_segments - 1);
     }
 
     /* Otherwise just start on the first segment. */
     return pls->start_seq_no;
+}
+
+static int save_avio_options(AVFormatContext *s)
+{
+    HLSContext *c = s->priv_data;
+    const char *opts[] = { "headers", "user_agent", "user-agent", "cookies", NULL }, **opt = opts;
+    uint8_t *buf;
+    int ret = 0;
+
+    while (*opt) {
+        if (av_opt_get(s->pb, *opt, AV_OPT_SEARCH_CHILDREN | AV_OPT_ALLOW_NULL, &buf) >= 0) {
+            ret = av_dict_set(&c->avio_opts, *opt, buf,
+                              AV_DICT_DONT_STRDUP_VAL);
+            if (ret < 0)
+                return ret;
+        }
+        opt++;
+    }
+
+    return ret;
 }
 
 static int hls_read_header(AVFormatContext *s)
@@ -1260,6 +1576,7 @@ static int hls_read_header(AVFormatContext *s)
     int ret = 0, i, j, stream_offset = 0;
 
     c->interrupt_callback = &s->interrupt_callback;
+    c->strict_std_compliance = s->strict_std_compliance;
 
     c->first_packet = 1;
     c->first_timestamp = AV_NOPTS_VALUE;
@@ -1268,26 +1585,23 @@ static int hls_read_header(AVFormatContext *s)
     // if the URL context is good, read important options we must broker later
     if (u && u->prot->priv_data_class) {
         // get the previous user agent & set back to null if string size is zero
-        av_freep(&c->user_agent);
-        av_opt_get(u->priv_data, "user-agent", 0, (uint8_t**)&(c->user_agent));
-        if (c->user_agent && !strlen(c->user_agent))
-            av_freep(&c->user_agent);
+        update_options(&c->user_agent, "user-agent", u->priv_data);
 
         // get the previous cookies & set back to null if string size is zero
-        av_freep(&c->cookies);
-        av_opt_get(u->priv_data, "cookies", 0, (uint8_t**)&(c->cookies));
-        if (c->cookies && !strlen(c->cookies))
-            av_freep(&c->cookies);
+        update_options(&c->cookies, "cookies", u->priv_data);
 
         // get the previous headers & set back to null if string size is zero
-        av_freep(&c->headers);
-        av_opt_get(u->priv_data, "headers", 0, (uint8_t**)&(c->headers));
-        if (c->headers && !strlen(c->headers))
-            av_freep(&c->headers);
+        update_options(&c->headers, "headers", u->priv_data);
     }
 
     if ((ret = parse_playlist(c, s->filename, NULL, s->pb)) < 0)
         goto fail;
+
+    if ((ret = save_avio_options(s)) < 0)
+        goto fail;
+
+    /* Some HLS servers don't like being sent the range header */
+    av_dict_set(&c->avio_opts, "seekable", "0", 0);
 
     if (c->n_variants == 0) {
         av_log(NULL, AV_LOG_WARNING, "Empty playlist\n");
@@ -1336,13 +1650,26 @@ static int hls_read_header(AVFormatContext *s)
         struct playlist *pls = c->playlists[i];
         AVInputFormat *in_fmt = NULL;
 
-        if (pls->n_segments == 0)
-            continue;
-
         if (!(pls->ctx = avformat_alloc_context())) {
             ret = AVERROR(ENOMEM);
             goto fail;
         }
+
+        if (pls->n_segments == 0)
+            continue;
+
+#ifdef MXTECHS
+		if( c->local_file_only )
+		{
+			char* url = pls->segments[0]->url;
+			if( indexOf(url, ':') > 0 && startsWith(url, "file:", 0) == false )
+			{
+				av_log(NULL, AV_LOG_WARNING, "Reject local-file-only playlist due to network url '%s'\n", url);
+				ret = AVERROR_EOF;
+				goto fail;
+			}
+		}
+#endif
 
         pls->index  = i;
         pls->needed = 1;
@@ -1350,6 +1677,12 @@ static int hls_read_header(AVFormatContext *s)
         pls->cur_seq_no = select_cur_seq_no(c, pls);
 
         pls->read_buffer = av_malloc(INITIAL_BUFFER_SIZE);
+        if (!pls->read_buffer){
+            ret = AVERROR(ENOMEM);
+            avformat_free_context(pls->ctx);
+            pls->ctx = NULL;
+            goto fail;
+        }
         ffio_init_context(&pls->pb, pls->read_buffer, INITIAL_BUFFER_SIZE, 0, pls,
                           read_data, NULL, NULL);
         pls->pb.seekable = 0;
@@ -1539,6 +1872,7 @@ static int hls_read_packet(AVFormatContext *s, AVPacket *pkt)
     int ret, i, minplaylist = -1;
 
     recheck_discard_flags(s, c->first_packet);
+    c->first_packet = 0;
 
     for (i = 0; i < c->n_playlists; i++) {
         struct playlist *pls = c->playlists[i];
@@ -1633,6 +1967,9 @@ static int hls_close(AVFormatContext *s)
     free_playlist_list(c);
     free_variant_list(c);
     free_rendition_list(c);
+
+    av_dict_free(&c->avio_opts);
+
     return 0;
 }
 
@@ -1729,9 +2066,29 @@ static int hls_probe(AVProbeData *p)
     return 0;
 }
 
+#define OFFSET(x) offsetof(HLSContext, x)
+#define FLAGS AV_OPT_FLAG_DECODING_PARAM
+static const AVOption hls_options[] = {
+    {"live_start_index", "segment index to start live streams at (negative values are from the end)",
+        OFFSET(live_start_index), AV_OPT_TYPE_INT, {.i64 = -3}, INT_MIN, INT_MAX, FLAGS},
+	// To reject creating from local file.
+#ifdef MXTECHS
+	{"local-file-only", "Reject.", OFFSET(local_file_only), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, AV_OPT_FLAG_DECODING_PARAM},
+#endif
+    {NULL}
+};
+
+static const AVClass hls_class = {
+    .class_name = "hls,applehttp",
+    .item_name  = av_default_item_name,
+    .option     = hls_options,
+    .version    = LIBAVUTIL_VERSION_INT,
+};
+
 AVInputFormat ff_hls_demuxer = {
     .name           = "hls,applehttp",
     .long_name      = NULL_IF_CONFIG_SMALL("Apple HTTP Live Streaming"),
+    .priv_class     = &hls_class,
     .priv_data_size = sizeof(HLSContext),
     .read_probe     = hls_probe,
     .read_header    = hls_read_header,

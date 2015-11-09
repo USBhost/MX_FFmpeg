@@ -40,18 +40,10 @@
         ls  = vec_perm(a, l2, c);\
         a = l2;\
     }
-#define  GET_VF(a, b, c,d) {\
-        a = vec_mergeh(c, d);\
-        b = vec_mergel(c, d);\
-    }
 #else
 #define  GET_LS(a,b,c,s) {\
         ls  = a;\
         a = vec_vsx_ld(((b) << 1)  + 16, s);\
-    }
-#define  GET_VF(a, b, c, d) {\
-        a = vec_mergel(d, c);\
-        b = vec_mergeh(d, c);\
     }
 #endif
 
@@ -61,7 +53,8 @@
         vector signed int   i1  = vec_mule(filter, ls);\
         vector signed int   i2  = vec_mulo(filter, ls);\
         vector signed int   vf1, vf2;\
-        GET_VF(vf1, vf2, i1, i2);\
+        vf1 = vec_mergeh(i1, i2);\
+        vf2 = vec_mergel(i1, i2);\
         d1 = vec_add(d1, vf1);\
         d2 = vec_add(d2, vf2);\
     } while (0)
@@ -90,7 +83,7 @@ static void yuv2planeX_16_altivec(const int16_t *filter, int filterSize,
                                   const uint8_t *dither, int offset, int x)
 {
     register int i, j;
-    DECLARE_ALIGNED(16, int, val)[16];
+    LOCAL_ALIGNED(16, int, val, [16]);
     vector signed int vo1, vo2, vo3, vo4;
     vector unsigned short vs1, vs2;
     vector unsigned char vf;
@@ -215,7 +208,7 @@ static void hScale_altivec_real(SwsContext *c, int16_t *dst, int dstW,
                                 const int32_t *filterPos, int filterSize)
 {
     register int i;
-    DECLARE_ALIGNED(16, int, tempo)[4];
+    LOCAL_ALIGNED(16, int, tempo, [4]);
 
     if (filterSize % 4) {
         for (i = 0; i < dstW; i++) {

@@ -7,7 +7,7 @@ all the encoders and decoders. In addition each codec may support
 so-called private options, which are specific for a given codec.
 
 Sometimes, a global option may only affect a specific kind of codec,
-and may be unsensical or ignored by another, so you need to be aware
+and may be nonsensical or ignored by another, so you need to be aware
 of the meaning of the specified options. Also some options are
 meant only for decoding or encoding.
 
@@ -72,7 +72,7 @@ Force low delay.
 Place global headers in extradata instead of every keyframe.
 @item bitexact
 Only write platform-, build- and time-independent data. (except (I)DCT).
-This ensures that file and data checksums are reproducable and match between
+This ensures that file and data checksums are reproducible and match between
 platforms. Its primary use is for regression testing.
 @item aic
 Apply H263 advanced intra coding / mpeg4 ac prediction.
@@ -129,7 +129,7 @@ should be @code{1 / frame_rate} and timestamp increments should be
 identically 1.
 
 @item g @var{integer} (@emph{encoding,video})
-Set the group of picture size. Default value is 12.
+Set the group of picture (GOP) size. Default value is 12.
 
 @item ar @var{integer} (@emph{decoding/encoding,audio})
 Set audio sampling rate (in Hz).
@@ -475,6 +475,9 @@ per-block quantization parameter (QP)
 motion vector
 @item dct_coeff
 
+@item green_metadata
+display complexity metadata for the upcoming frame, GoP or for a given duration.
+
 @item skip
 
 @item startcode
@@ -495,6 +498,8 @@ visualize block types
 picture buffer allocations
 @item thread_ops
 threading operations
+@item nomc
+skip motion compensation
 @end table
 
 @item vismv @var{integer} (@emph{decoding,video})
@@ -812,12 +817,16 @@ for codecs that support it. See also @file{doc/examples/export_mvs.c}.
 Deprecated, use mpegvideo private options instead.
 
 @item threads @var{integer} (@emph{decoding/encoding,video})
+Set the number of threads to be used, in case the selected codec
+implementation supports multi-threading.
 
 Possible values:
 @table @samp
-@item auto
-detect a good number of threads
+@item auto, 0
+automatically select the number of threads to set
 @end table
+
+Default value is @samp{auto}.
 
 @item me_threshold @var{integer} (@emph{encoding,video})
 Set motion estimation threshold.
@@ -862,6 +871,14 @@ Possible values:
 @item mpeg2_aac_low
 
 @item mpeg2_aac_he
+
+@item mpeg4_sp
+
+@item mpeg4_core
+
+@item mpeg4_main
+
+@item mpeg4_asp
 
 @item dts
 
@@ -1032,7 +1049,11 @@ Possible values:
 @item color_primaries @var{integer} (@emph{decoding/encoding,video})
 @item color_trc @var{integer} (@emph{decoding/encoding,video})
 @item colorspace @var{integer} (@emph{decoding/encoding,video})
+
 @item color_range @var{integer} (@emph{decoding/encoding,video})
+If used as input parameter, it serves as a hint to the decoder, which
+color_range the input has.
+
 @item chroma_sample_location @var{integer} (@emph{decoding/encoding,video})
 
 @item log_level_offset @var{integer}

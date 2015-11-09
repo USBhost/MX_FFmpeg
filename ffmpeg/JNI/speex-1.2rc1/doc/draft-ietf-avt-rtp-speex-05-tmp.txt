@@ -1,0 +1,1288 @@
+
+
+
+AVT                                                           G. Herlein
+Internet-Draft
+Intended status: Standards Track                                J. Valin
+Expires: August 19, 2008                                           CSIRO
+                                                            A. Heggestad
+                                                             Creytiv.com
+                                                              A. Moizard
+                                                                 Antisip
+                                                       February 16, 2008
+
+
+                 RTP Payload Format for the Speex Codec
+                      draft-ietf-avt-rtp-speex-05
+
+Status of this Memo
+
+   By submitting this Internet-Draft, each author represents that any
+   applicable patent or other IPR claims of which he or she is aware
+   have been or will be disclosed, and any of which he or she becomes
+   aware will be disclosed, in accordance with Section 6 of BCP 79.
+
+   Internet-Drafts are working documents of the Internet Engineering
+   Task Force (IETF), its areas, and its working groups.  Note that
+   other groups may also distribute working documents as Internet-
+   Drafts.
+
+   Internet-Drafts are draft documents valid for a maximum of six months
+   and may be updated, replaced, or obsoleted by other documents at any
+   time.  It is inappropriate to use Internet-Drafts as reference
+   material or to cite them other than as "work in progress."
+
+   The list of current Internet-Drafts can be accessed at
+   http://www.ietf.org/ietf/1id-abstracts.txt.
+
+   The list of Internet-Draft Shadow Directories can be accessed at
+   http://www.ietf.org/shadow.html.
+
+   This Internet-Draft will expire on August 19, 2008.
+
+Copyright Notice
+
+   Copyright (C) The IETF Trust (2008).
+
+
+
+
+
+
+
+
+
+Herlein, et al.          Expires August 19, 2008                [Page 1]
+
+Internet-Draft                    Speex                    February 2008
+
+
+Abstract
+
+   Speex is an open-source voice codec suitable for use in Voice over IP
+   (VoIP) type applications.  This document describes the payload format
+   for Speex generated bit streams within an RTP packet.  Also included
+   here are the necessary details for the use of Speex with the Session
+   Description Protocol (SDP).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Herlein, et al.          Expires August 19, 2008                [Page 2]
+
+Internet-Draft                    Speex                    February 2008
+
+
+Editors Note
+
+   All references to RFC XXXX are to be replaced by references to the
+   RFC number of this memo, when published.
+
+
+Table of Contents
+
+   1.  Introduction . . . . . . . . . . . . . . . . . . . . . . . . .  4
+   2.  Terminology  . . . . . . . . . . . . . . . . . . . . . . . . .  5
+   3.  RTP usage for Speex  . . . . . . . . . . . . . . . . . . . . .  6
+     3.1.  RTP Speex Header Fields  . . . . . . . . . . . . . . . . .  6
+     3.2.  RTP payload format for Speex . . . . . . . . . . . . . . .  6
+     3.3.  Speex payload  . . . . . . . . . . . . . . . . . . . . . .  6
+     3.4.  Example Speex packet . . . . . . . . . . . . . . . . . . .  7
+     3.5.  Multiple Speex frames in a RTP packet  . . . . . . . . . .  7
+   4.  IANA Considerations  . . . . . . . . . . . . . . . . . . . . .  9
+     4.1.  Media Type Registration  . . . . . . . . . . . . . . . . .  9
+       4.1.1.  Registration of media type audio/speex . . . . . . . .  9
+   5.  SDP usage of Speex . . . . . . . . . . . . . . . . . . . . . . 12
+     5.1.  Example supporting all modes, prefer mode 4  . . . . . . . 15
+     5.2.  Example supporting only mode 3 and 5 . . . . . . . . . . . 15
+     5.3.  Example with Variable Bit Rate and Comfort Noise . . . . . 15
+     5.4.  Example with Voice Activity Detection  . . . . . . . . . . 15
+     5.5.  Example with Multiple sampling rates . . . . . . . . . . . 15
+     5.6.  Example with ptime and Multiple Speex frames . . . . . . . 16
+     5.7.  Example with Complete Offer/Answer exchange  . . . . . . . 16
+   6.  Implementation Guidelines  . . . . . . . . . . . . . . . . . . 17
+   7.  Security Considerations  . . . . . . . . . . . . . . . . . . . 18
+   8.  Acknowledgements . . . . . . . . . . . . . . . . . . . . . . . 19
+   9.  Copying conditions . . . . . . . . . . . . . . . . . . . . . . 20
+   10. References . . . . . . . . . . . . . . . . . . . . . . . . . . 21
+     10.1. Normative References . . . . . . . . . . . . . . . . . . . 21
+     10.2. Informative References . . . . . . . . . . . . . . . . . . 21
+   Authors' Addresses . . . . . . . . . . . . . . . . . . . . . . . . 22
+   Intellectual Property and Copyright Statements . . . . . . . . . . 23
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Herlein, et al.          Expires August 19, 2008                [Page 3]
+
+Internet-Draft                    Speex                    February 2008
+
+
+1.  Introduction
+
+   Speex is based on the CELP [CELP] encoding technique with support for
+   either narrowband (nominal 8kHz), wideband (nominal 16kHz) or ultra-
+   wideband (nominal 32kHz).  The main characteristics can be summarized
+   as follows:
+
+   o  Free software/open-source
+
+   o  Integration of wideband and narrowband in the same bit-stream
+
+   o  Wide range of bit-rates available
+
+   o  Dynamic bit-rate switching and variable bit-rate (VBR)
+
+   o  Voice Activity Detection (VAD, integrated with VBR)
+
+   o  Variable complexity
+
+   The Speex codec supports a wide range of bit-rates from 2.15 kbit/s
+   to 44 kbit/s.  In some cases however, it may not be possible for an
+   implementation to include support for all rates (e.g. because of
+   bandwidth, RAM or CPU constraints).  In those cases, to be compliant
+   with this specification, implementations MUST support at least
+   narrowband (8 kHz) encoding and decoding at 8 kbit/s bit-rate
+   (narrowband mode 3).  Support for narrowband at 15 kbit/s (narrowband
+   mode 5) is RECOMMENDED and support for wideband at 27.8 kbit/s
+   (wideband mode 8) is also RECOMMENDED.  The sampling rate MUST be 8,
+   16 or 32 kHz.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Herlein, et al.          Expires August 19, 2008                [Page 4]
+
+Internet-Draft                    Speex                    February 2008
+
+
+2.  Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC2119 [RFC2119] and
+   indicate requirement levels for compliant RTP implementations.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Herlein, et al.          Expires August 19, 2008                [Page 5]
+
+Internet-Draft                    Speex                    February 2008
+
+
+3.  RTP usage for Speex
+
+3.1.  RTP Speex Header Fields
+
+   The RTP header is defined in the RTP specification [RFC3550].  This
+   section defines how fields in the RTP header are used.
+
+      Payload Type (PT): The assignment of an RTP payload type for this
+      packet format is outside the scope of this document; it is
+      specified by the RTP profile under which this payload format is
+      used, or signaled dynamically out-of-band (e.g., using SDP).
+
+      Marker (M) bit: The M bit is set to one on the first packet sent
+      after a silence period, during which packets have not been
+      transmitted contiguously.
+
+      Extension (X) bit: Defined by the RTP profile used.
+
+      Timestamp: A 32-bit word that corresponds to the sampling instant
+      for the first frame in the RTP packet.
+
+3.2.  RTP payload format for Speex
+
+   The RTP payload for Speex has the format shown in Figure 1.  No
+   additional header fields specific to this payload format are
+   required.  For RTP based transportation of Speex encoded audio the
+   standard RTP header [RFC3550] is followed by one or more payload data
+   blocks.  An optional padding terminator may also be used.
+
+        0                   1                   2                   3
+        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                         RTP Header                            |
+       +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+       |                 one or more frames of Speex ....              |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |        one or more frames of Speex ....       |    padding    |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+                     Figure 1: RTP payload for Speex
+
+3.3.  Speex payload
+
+   For the purposes of packetizing the bit stream in RTP, it is only
+   necessary to consider the sequence of bits as output by the Speex
+   encoder [speex_manual], and present the same sequence to the decoder.
+   The payload format described here maintains this sequence.
+
+
+
+
+Herlein, et al.          Expires August 19, 2008                [Page 6]
+
+Internet-Draft                    Speex                    February 2008
+
+
+   A typical Speex frame, encoded at the maximum bitrate, is approx. 110
+   octets and the total number of Speex frames SHOULD be kept less than
+   the path MTU to prevent fragmentation.  Speex frames MUST NOT be
+   fragmented across multiple RTP packets,
+
+   An RTP packet MAY contain Speex frames of the same bit rate or of
+   varying bit rates, since the bit-rate for a frame is conveyed in band
+   with the signal.
+
+   The encoding and decoding algorithm can change the bit rate at any 20
+   msec frame boundary, with the bit rate change notification provided
+   in-band with the bit stream.  Each frame contains both sampling rate
+   (narrowband, wideband or ultra-wideband) and "mode" (bit-rate)
+   information in the bit stream.  No out-of-band notification is
+   required for the decoder to process changes in the bit rate sent by
+   the encoder.
+
+   The sampling rate MUST be either 8000 Hz, 16000 Hz, or 32000 Hz.
+
+   The RTP payload MUST be padded to provide an integer number of octets
+   as the payload length.  These padding bits are LSB aligned in network
+   octet order and consist of a 0 followed by all ones (until the end of
+   the octet).  This padding is only required for the last frame in the
+   packet, and only to ensure the packet contents ends on an octet
+   boundary.
+
+3.4.  Example Speex packet
+
+   In the example below we have a single Speex frame with 5 bits of
+   padding to ensure the packet size falls on an octet boundary.
+
+       0                   1                   2                   3
+       0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      |                      RTP Header                               |
+      +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+      |                        ..speex data..                         |
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      |                        ..speex data..               |0 1 1 1 1|
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+3.5.  Multiple Speex frames in a RTP packet
+
+   Below is an example of two Speex frames contained within one RTP
+   packet.  The Speex frame length in this example fall on an octet
+   boundary so there is no padding.
+
+   The Speex decoder [speex_manual] can detect the bitrate from the
+
+
+
+Herlein, et al.          Expires August 19, 2008                [Page 7]
+
+Internet-Draft                    Speex                    February 2008
+
+
+   payload and is responsible for detecting the 20 msec boundaries
+   between each frame.
+
+       0                   1                   2                   3
+       0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      |                      RTP Header                               |
+      +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+      |                     ..speex frame 1..                         |
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      |       ..speex frame 1..       |      ..speex frame 2..        |
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      |                      ..speex frame 2..                        |
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Herlein, et al.          Expires August 19, 2008                [Page 8]
+
+Internet-Draft                    Speex                    February 2008
+
+
+4.  IANA Considerations
+
+   This document defines the Speex media type.
+
+4.1.  Media Type Registration
+
+   This section describes the media types and names associated with this
+   payload format.  The section registers the media types, as per
+   RFC4288 [RFC4288]
+
+4.1.1.  Registration of media type audio/speex
+
+   Media type name: audio
+
+   Media subtype name: speex
+
+   Required parameters:
+
+      rate: RTP timestamp clock rate, which is equal to the sampling
+      rate in Hz.  The sampling rate MUST be either 8000, 16000, or
+      32000.
+
+   Optional parameters:
+
+      ptime: SHOULD be a multiple of 20 msec [RFC4566]
+
+      maxptime: SHOULD be a multiple of 20 msec [RFC4566]
+
+      vbr: variable bit rate - either 'on' 'off' or 'vad' (defaults to
+      off).  If on, variable bit rate is enabled.  If off, disabled.  If
+      set to 'vad' then constant bit rate is used but silence will be
+      encoded with special short frames to indicate a lack of voice for
+      that period.
+
+
+      cng: comfort noise generation - either 'on' or 'off'.  If off then
+      silence frames will be silent; if 'on' then those frames will be
+      filled with comfort noise.
+
+
+      mode: List supported Speex decoding modes.  The valid modes are
+      different for narrowband and wideband, and are defined as follows:
+
+      *  {1,2,3,4,5,6,7,8,any} for narrowband
+
+      *  {0,1,2,3,4,5,6,7,8,9,10,any} for wideband and ultra-wideband
+
+      Several 'mode' parameters can be provided.  In this case, the
+
+
+
+Herlein, et al.          Expires August 19, 2008                [Page 9]
+
+Internet-Draft                    Speex                    February 2008
+
+
+      remote party SHOULD configure its encoder using the first
+      supported mode provided.  When 'any' is used, the offerer
+      indicates that it supports all decoding modes.  If the 'mode'
+      parameter is not provided, the mode value is considered to be
+      equivalent to 'mode=3;mode=any' in narrowband and
+      'mode=8;mode=any' in wideband and ultra-wideband.  Note that each
+      Speex frame does contains the mode (or bit-rate) that should be
+      used to decode it.  Thus application MUST be able to decode any
+      Speex frame unless the SDP clearly specify that some modes are not
+      supported. (e.g., by not including 'mode=any')
+
+   Encoding considerations:
+
+      This media type is framed and binary, see section 4.8 in
+      [RFC4288].
+
+   Security considerations: See Section 6
+
+   Interoperability considerations:
+
+      None.
+
+   Published specification:
+
+      RFC XXXX [RFC Editor: please replace by the RFC number of this
+      memo, when published]
+
+   Applications which use this media type:
+
+      Audio streaming and conferencing applications.
+
+   Additional information: none
+
+   Person and email address to contact for further information :
+
+      Alfred E. Heggestad: aeh@db.org
+
+   Intended usage: COMMON
+
+   Restrictions on usage:
+
+      This media type depends on RTP framing, and hence is only defined
+      for transfer via RTP [RFC3550].  Transport within other framing
+      protocols is not defined at this time.
+
+   Author: Alfred E. Heggestad
+
+   Change controller:
+
+
+
+Herlein, et al.          Expires August 19, 2008               [Page 10]
+
+Internet-Draft                    Speex                    February 2008
+
+
+      IETF Audio/Video Transport working group delegated from the IESG.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Herlein, et al.          Expires August 19, 2008               [Page 11]
+
+Internet-Draft                    Speex                    February 2008
+
+
+5.  SDP usage of Speex
+
+   The information carried in the media type specification has a
+   specific mapping to fields in the Session Description Protocol (SDP)
+   [RFC4566], which is commonly used to describe RTP sessions.  When SDP
+   is used to specify sessions employing the Speex codec, the mapping is
+   as follows:
+
+   o  The media type ("audio") goes in SDP "m=" as the media name.
+
+   o  The media subtype ("speex") goes in SDP "a=rtpmap" as the encoding
+      name.  The required parameter "rate" also goes in "a=rtpmap" as
+      the clock rate.
+
+   o  The parameters "ptime" and "maxptime" go in the SDP "a=ptime" and
+      "a=maxptime" attributes, respectively.
+
+   o  Any remaining parameters go in the SDP "a=fmtp" attribute by
+      copying them directly from the media type string as a semicolon
+      separated list of parameter=value pairs.
+
+   The tables below include the equivalence between modes and bitrates
+   for narrowband, wideband and ultra-wideband.  Also, the corresponding
+   "Speex quality" setting (see SPEEX_SET_QUALITY in The Speex Codec
+   Manual [speex_manual]) is included as an indication.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Herlein, et al.          Expires August 19, 2008               [Page 12]
+
+Internet-Draft                    Speex                    February 2008
+
+
+                  +------+---------------+-------------+
+                  | mode | Speex quality |   bitrate   |
+                  +------+---------------+-------------+
+                  |   1  |       0       | 2.15 kbit/s |
+                  |      |               |             |
+                  |   2  |       2       | 5.95 kbit/s |
+                  |      |               |             |
+                  |   3  |     3 or 4    | 8.00 kbit/s |
+                  |      |               |             |
+                  |   4  |     5 or 6    | 11.0 kbit/s |
+                  |      |               |             |
+                  |   5  |     7 or 8    | 15.0 kbit/s |
+                  |      |               |             |
+                  |   6  |       9       | 18.2 kbit/s |
+                  |      |               |             |
+                  |   7  |       10      | 24.6 kbit/s |
+                  |      |               |             |
+                  |   8  |       1       | 3.95 kbit/s |
+                  +------+---------------+-------------+
+
+                   Mode vs Bitrate table for narrowband
+
+                                  Table 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Herlein, et al.          Expires August 19, 2008               [Page 13]
+
+Internet-Draft                    Speex                    February 2008
+
+
+   +------+---------------+------------------+------------------------+
+   | mode | Speex quality | wideband bitrate | ultra wideband bitrate |
+   +------+---------------+------------------+------------------------+
+   |   0  |       0       |    3.95 kbit/s   |       5.75 kbit/s      |
+   |      |               |                  |                        |
+   |   1  |       1       |    5.75 kbit/s   |       7.55 kbit/s      |
+   |      |               |                  |                        |
+   |   2  |       2       |    7.75 kbit/s   |       9.55 kbit/s      |
+   |      |               |                  |                        |
+   |   3  |       3       |    9.80 kbit/s   |       11.6 kbit/s      |
+   |      |               |                  |                        |
+   |   4  |       4       |    12.8 kbit/s   |       14.6 kbit/s      |
+   |      |               |                  |                        |
+   |   5  |       5       |    16.8 kbit/s   |       18.6 kbit/s      |
+   |      |               |                  |                        |
+   |   6  |       6       |    20.6 kbit/s   |       22.4 kbit/s      |
+   |      |               |                  |                        |
+   |   7  |       7       |    23.8 kbit/s   |       25.6 kbit/s      |
+   |      |               |                  |                        |
+   |   8  |       8       |    27.8 kbit/s   |       29.6 kbit/s      |
+   |      |               |                  |                        |
+   |   9  |       9       |    34.2 kbit/s   |       36.0 kbit/s      |
+   |      |               |                  |                        |
+   |  10  |       10      |    42.2 kbit/s   |       44.0 kbit/s      |
+   +------+---------------+------------------+------------------------+
+
+           Mode vs Bitrate table for wideband and ultra-wideband
+
+                                  Table 2
+
+   The Speex parameters indicate the decoding capabilities of the agent,
+   and what the agent prefers to receive.
+
+   The Speex parameters in an SDP Offer/Answer exchange are completely
+   orthogonal, and there is no relationship between the SDP Offer and
+   the Answer.
+
+   Several Speex specific parameters can be given in a single a=fmtp
+   line provided that they are separated by a semi-colon:
+
+             a=fmtp:97 mode=1;mode=any;vbr=on
+
+   Some example SDP session descriptions utilizing Speex encodings
+   follow.
+
+
+
+
+
+
+
+Herlein, et al.          Expires August 19, 2008               [Page 14]
+
+Internet-Draft                    Speex                    February 2008
+
+
+5.1.  Example supporting all modes, prefer mode 4
+
+   The offerer indicates that it wishes to receive a Speex stream at
+   8000Hz, and wishes to receive Speex 'mode 4'.  It is important to
+   understand that any other mode might still be sent by remote party:
+   the device might have bandwidth limitation or might only be able to
+   send 'mode=3'.  Thus, application that support all decoding modes
+   SHOULD include 'mode=any' as shown in the example below:
+
+             m=audio 8088 RTP/AVP 97
+             a=rtpmap:97 speex/8000
+             a=fmtp:97 mode=4;mode=any
+
+5.2.  Example supporting only mode 3 and 5
+
+   The offerer indicates the mode he wishes to receive (Speex 'mode 3').
+   This offer indicates mode 3 and mode 5 are supported and that no
+   other modes are supported.  The remote party MUST NOT configure its
+   encoder using another Speex mode.
+
+             m=audio 8088 RTP/AVP 97
+             a=rtmap:97 speex/8000
+             a=fmtp:97 mode=3;mode=5
+
+5.3.  Example with Variable Bit Rate and Comfort Noise
+
+   The offerer indicates that it wishes to receive variable bit rate
+   frames with comfort noise:
+
+             m=audio 8088 RTP/AVP 97
+             a=rtmap:97 speex/8000
+             a=fmtp:97 vbr=on;cng=on
+
+5.4.  Example with Voice Activity Detection
+
+   The offerer indicates that it wishes to use silence suppression.  In
+   this case vbr=vad parameter will be used:
+
+             m=audio 8088 RTP/AVP 97
+             a=rtmap:97 speex/8000
+             a=fmtp:97 vbr=vad
+
+5.5.  Example with Multiple sampling rates
+
+   The offerer indicates that it wishes to receive Speex audio at 16000
+   Hz with mode 10 (42.2 kbit/s), alternatively Speex audio at 8000 Hz
+   with mode 7 (24.6 kbit/s).  The offerer supports decoding all modes.
+
+
+
+
+Herlein, et al.          Expires August 19, 2008               [Page 15]
+
+Internet-Draft                    Speex                    February 2008
+
+
+             m=audio 8088 RTP/AVP 97 98
+             a=rtmap:97 speex/16000
+             a=fmtp:97 mode=10;mode=any
+             a=rtmap:98 speex/8000
+             a=fmtp:98 mode=7;mode=any
+
+5.6.  Example with ptime and Multiple Speex frames
+
+   The "ptime" attribute is used to denote the packetization interval
+   (ie, how many milliseconds of audio is encoded in a single RTP
+   packet).  Since Speex uses 20 msec frames, ptime values of multiples
+   of 20 denote multiple Speex frames per packet.  Values of ptime which
+   are not multiples of 20 MUST be rounded up to the first multiple of
+   20 above the ptime value.
+
+   In the example below the ptime value is set to 40, indicating that
+   there are 2 frames in each packet.
+
+             m=audio 8088 RTP/AVP 97
+             a=rtpmap:97 speex/8000
+             a=ptime:40
+
+   Note that the ptime parameter applies to all payloads listed in the
+   media line and is not used as part of an a=fmtp directive.
+
+   Care must be taken when setting the value of ptime so that the RTP
+   packet size does not exceed the path MTU.
+
+5.7.  Example with Complete Offer/Answer exchange
+
+   The offerer indicates that it wishes to receive Speex audio at 16000
+   Hz, alternatively Speex audio at 8000 Hz.  The offerer does support
+   ALL modes because no mode is specified.
+
+             m=audio 8088 RTP/AVP 97 98
+             a=rtmap:97 speex/16000
+             a=rtmap:98 speex/8000
+
+   The answerer indicates that it wishes to receive Speex audio at 8000
+   Hz, which is the only sampling rate it supports.  The answerer does
+   support ALL modes because no mode is specified.
+
+             m=audio 8088 RTP/AVP 99
+             a=rtmap:99 speex/8000
+
+
+
+
+
+
+
+Herlein, et al.          Expires August 19, 2008               [Page 16]
+
+Internet-Draft                    Speex                    February 2008
+
+
+6.  Implementation Guidelines
+
+   Implementations that supports Speex are responsible for correctly
+   decoding incoming Speex frames.
+
+   Each Speex frame does contains all needed informations to decode
+   itself.  In particular, the 'mode' and 'ptime' values proposed in the
+   SDP contents MUST NOT be used for decoding: those values are not
+   needed to properly decode a RTP Speex stream.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Herlein, et al.          Expires August 19, 2008               [Page 17]
+
+Internet-Draft                    Speex                    February 2008
+
+
+7.  Security Considerations
+
+   RTP packets using the payload format defined in this specification
+   are subject to the security considerations discussed in the RTP
+   specification [RFC3550], and any appropriate RTP profile.  This
+   implies that confidentiality of the media streams is achieved by
+   encryption.  Because the data compression used with this payload
+   format is applied end-to-end, encryption may be performed after
+   compression so there is no conflict between the two operations.
+
+   A potential denial-of-service threat exists for data encodings using
+   compression techniques that have non-uniform receiver-end
+   computational load.  The attacker can inject pathological datagrams
+   into the stream which are complex to decode and cause the receiver to
+   be overloaded.  However, this encoding does not exhibit any
+   significant non-uniformity.
+
+   As with any IP-based protocol, in some circumstances a receiver may
+   be overloaded simply by the receipt of too many packets, either
+   desired or undesired.  Network-layer authentication may be used to
+   discard packets from undesired sources, but the processing cost of
+   the authentication itself may be too high.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Herlein, et al.          Expires August 19, 2008               [Page 18]
+
+Internet-Draft                    Speex                    February 2008
+
+
+8.  Acknowledgements
+
+   The authors would like to thank Equivalence Pty Ltd of Australia for
+   their assistance in attempting to standardize the use of Speex in
+   H.323 applications, and for implementing Speex in their open source
+   OpenH323 stack.  The authors would also like to thank Brian C. Wiles
+   <brian@streamcomm.com> of StreamComm for his assistance in developing
+   the proposed standard for Speex use in H.323 applications.
+
+   The authors would also like to thank the following members of the
+   Speex and AVT communities for their input: Ross Finlayson, Federico
+   Montesino Pouzols, Henning Schulzrinne, Magnus Westerlund, Colin
+   Perkins, Ivo Emanuel Goncalves.
+
+   Thanks to former authors of this document; Simon Morlat, Roger
+   Hardiman, Phil Kerr.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Herlein, et al.          Expires August 19, 2008               [Page 19]
+
+Internet-Draft                    Speex                    February 2008
+
+
+9.  Copying conditions
+
+   The authors agree to grant third parties the irrevocable right to
+   copy, use and distribute the work, with or without modification, in
+   any medium, without royalty, provided that, unless separate
+   permission is granted, redistributed modified works do not contain
+   misleading author, version, name of work, or endorsement information.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Herlein, et al.          Expires August 19, 2008               [Page 20]
+
+Internet-Draft                    Speex                    February 2008
+
+
+10.  References
+
+10.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC3550]  Schulzrinne, H., Casner, S., Frederick, R., and V.
+              Jacobson, "RTP: A Transport Protocol for Real-Time
+              Applications", STD 64, RFC 3550, July 2003.
+
+   [RFC4566]  Handley, M., Jacobson, V., and C. Perkins, "SDP: Session
+              Description Protocol", RFC 4566, July 2006.
+
+10.2.  Informative References
+
+   [CELP]     "CELP, U.S. Federal Standard 1016.", National Technical
+              Information Service (NTIS) website http://www.ntis.gov/.
+
+   [RFC4288]  Freed, N. and J. Klensin, "Media Type Specifications and
+              Registration Procedures", BCP 13, RFC 4288, December 2005.
+
+   [speex_manual]
+              Valin, J., "The Speex Codec Manual", Speex
+              website http://www.speex.org/docs/.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Herlein, et al.          Expires August 19, 2008               [Page 21]
+
+Internet-Draft                    Speex                    February 2008
+
+
+Authors' Addresses
+
+   Greg Herlein
+   2034 Filbert Street
+   San Francisco, California  94123
+   United States
+
+   Email: gherlein@herlein.com
+
+
+   Jean-Marc Valin
+   CSIRO
+   PO Box 76
+   Epping, NSW  1710
+   Australia
+
+   Email: jean-marc.valin@usherbrooke.ca
+
+
+   Alfred E. Heggestad
+   Creytiv.com
+   Biskop J. Nilssonsgt. 20a
+   Oslo  0659
+   Norway
+
+   Email: aeh@db.org
+
+
+   Aymeric Moizard
+   Antisip
+   4 Quai Perrache
+   Lyon  69002
+   France
+
+   Email: jack@atosc.org
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Herlein, et al.          Expires August 19, 2008               [Page 22]
+
+Internet-Draft                    Speex                    February 2008
+
+
+Full Copyright Statement
+
+   Copyright (C) The IETF Trust (2008).
+
+   This document is subject to the rights, licenses and restrictions
+   contained in BCP 78, and except as set forth therein, the authors
+   retain all their rights.
+
+   This document and the information contained herein are provided on an
+   "AS IS" basis and THE CONTRIBUTOR, THE ORGANIZATION HE/SHE REPRESENTS
+   OR IS SPONSORED BY (IF ANY), THE INTERNET SOCIETY, THE IETF TRUST AND
+   THE INTERNET ENGINEERING TASK FORCE DISCLAIM ALL WARRANTIES, EXPRESS
+   OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF
+   THE INFORMATION HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED
+   WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+
+Intellectual Property
+
+   The IETF takes no position regarding the validity or scope of any
+   Intellectual Property Rights or other rights that might be claimed to
+   pertain to the implementation or use of the technology described in
+   this document or the extent to which any license under such rights
+   might or might not be available; nor does it represent that it has
+   made any independent effort to identify any such rights.  Information
+   on the procedures with respect to rights in RFC documents can be
+   found in BCP 78 and BCP 79.
+
+   Copies of IPR disclosures made to the IETF Secretariat and any
+   assurances of licenses to be made available, or the result of an
+   attempt made to obtain a general license or permission for the use of
+   such proprietary rights by implementers or users of this
+   specification can be obtained from the IETF on-line IPR repository at
+   http://www.ietf.org/ipr.
+
+   The IETF invites any interested party to bring to its attention any
+   copyrights, patents or patent applications, or other proprietary
+   rights that may cover technology that may be required to implement
+   this standard.  Please address the information to the IETF at
+   ietf-ipr@ietf.org.
+
+
+Acknowledgment
+
+   Funding for the RFC Editor function is provided by the IETF
+   Administrative Support Activity (IASA).
+
+
+
+
+
+Herlein, et al.          Expires August 19, 2008               [Page 23]
+

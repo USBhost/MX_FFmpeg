@@ -36,6 +36,7 @@
 #include "libavutil/internal.h"
 #include "libavutil/opt.h"
 #include "avcodec.h"
+#include "internal.h"
 #include "me_cmp.h"
 #include "put_bits.h"
 #include "audiodsp.h"
@@ -1182,7 +1183,7 @@ static inline int asym_quant(int c, int e, int qbits)
 {
     int m;
 
-    c = (((c << e) >> (24 - qbits)) + 1) >> 1;
+    c = (((c * (1<<e)) >> (24 - qbits)) + 1) >> 1;
     m = (1 << (qbits-1));
     if (c >= m)
         c = m - 1;
@@ -1687,43 +1688,43 @@ static void dprint_options(AC3EncodeContext *s)
     case 16:  av_strlcpy(strbuf, "E-AC-3 (enhanced)",       32); break;
     default: snprintf(strbuf, 32, "ERROR");
     }
-    av_dlog(avctx, "bitstream_id: %s (%d)\n", strbuf, s->bitstream_id);
-    av_dlog(avctx, "sample_fmt: %s\n", av_get_sample_fmt_name(avctx->sample_fmt));
+    ff_dlog(avctx, "bitstream_id: %s (%d)\n", strbuf, s->bitstream_id);
+    ff_dlog(avctx, "sample_fmt: %s\n", av_get_sample_fmt_name(avctx->sample_fmt));
     av_get_channel_layout_string(strbuf, 32, s->channels, avctx->channel_layout);
-    av_dlog(avctx, "channel_layout: %s\n", strbuf);
-    av_dlog(avctx, "sample_rate: %d\n", s->sample_rate);
-    av_dlog(avctx, "bit_rate: %d\n", s->bit_rate);
-    av_dlog(avctx, "blocks/frame: %d (code=%d)\n", s->num_blocks, s->num_blks_code);
+    ff_dlog(avctx, "channel_layout: %s\n", strbuf);
+    ff_dlog(avctx, "sample_rate: %d\n", s->sample_rate);
+    ff_dlog(avctx, "bit_rate: %d\n", s->bit_rate);
+    ff_dlog(avctx, "blocks/frame: %d (code=%d)\n", s->num_blocks, s->num_blks_code);
     if (s->cutoff)
-        av_dlog(avctx, "cutoff: %d\n", s->cutoff);
+        ff_dlog(avctx, "cutoff: %d\n", s->cutoff);
 
-    av_dlog(avctx, "per_frame_metadata: %s\n",
+    ff_dlog(avctx, "per_frame_metadata: %s\n",
             opt->allow_per_frame_metadata?"on":"off");
     if (s->has_center)
-        av_dlog(avctx, "center_mixlev: %0.3f (%d)\n", opt->center_mix_level,
+        ff_dlog(avctx, "center_mixlev: %0.3f (%d)\n", opt->center_mix_level,
                 s->center_mix_level);
     else
-        av_dlog(avctx, "center_mixlev: {not written}\n");
+        ff_dlog(avctx, "center_mixlev: {not written}\n");
     if (s->has_surround)
-        av_dlog(avctx, "surround_mixlev: %0.3f (%d)\n", opt->surround_mix_level,
+        ff_dlog(avctx, "surround_mixlev: %0.3f (%d)\n", opt->surround_mix_level,
                 s->surround_mix_level);
     else
-        av_dlog(avctx, "surround_mixlev: {not written}\n");
+        ff_dlog(avctx, "surround_mixlev: {not written}\n");
     if (opt->audio_production_info) {
-        av_dlog(avctx, "mixing_level: %ddB\n", opt->mixing_level);
+        ff_dlog(avctx, "mixing_level: %ddB\n", opt->mixing_level);
         switch (opt->room_type) {
         case AC3ENC_OPT_NOT_INDICATED: av_strlcpy(strbuf, "notindicated", 32); break;
         case AC3ENC_OPT_LARGE_ROOM:    av_strlcpy(strbuf, "large", 32);        break;
         case AC3ENC_OPT_SMALL_ROOM:    av_strlcpy(strbuf, "small", 32);        break;
         default: snprintf(strbuf, 32, "ERROR (%d)", opt->room_type);
         }
-        av_dlog(avctx, "room_type: %s\n", strbuf);
+        ff_dlog(avctx, "room_type: %s\n", strbuf);
     } else {
-        av_dlog(avctx, "mixing_level: {not written}\n");
-        av_dlog(avctx, "room_type: {not written}\n");
+        ff_dlog(avctx, "mixing_level: {not written}\n");
+        ff_dlog(avctx, "room_type: {not written}\n");
     }
-    av_dlog(avctx, "copyright: %s\n", opt->copyright?"on":"off");
-    av_dlog(avctx, "dialnorm: %ddB\n", opt->dialogue_level);
+    ff_dlog(avctx, "copyright: %s\n", opt->copyright?"on":"off");
+    ff_dlog(avctx, "dialnorm: %ddB\n", opt->dialogue_level);
     if (s->channel_mode == AC3_CHMODE_STEREO) {
         switch (opt->dolby_surround_mode) {
         case AC3ENC_OPT_NOT_INDICATED: av_strlcpy(strbuf, "notindicated", 32); break;
@@ -1731,11 +1732,11 @@ static void dprint_options(AC3EncodeContext *s)
         case AC3ENC_OPT_MODE_OFF:      av_strlcpy(strbuf, "off", 32);          break;
         default: snprintf(strbuf, 32, "ERROR (%d)", opt->dolby_surround_mode);
         }
-        av_dlog(avctx, "dsur_mode: %s\n", strbuf);
+        ff_dlog(avctx, "dsur_mode: %s\n", strbuf);
     } else {
-        av_dlog(avctx, "dsur_mode: {not written}\n");
+        ff_dlog(avctx, "dsur_mode: {not written}\n");
     }
-    av_dlog(avctx, "original: %s\n", opt->original?"on":"off");
+    ff_dlog(avctx, "original: %s\n", opt->original?"on":"off");
 
     if (s->bitstream_id == 6) {
         if (opt->extended_bsi_1) {
@@ -1745,17 +1746,17 @@ static void dprint_options(AC3EncodeContext *s)
             case AC3ENC_OPT_DOWNMIX_LORO:  av_strlcpy(strbuf, "loro", 32);         break;
             default: snprintf(strbuf, 32, "ERROR (%d)", opt->preferred_stereo_downmix);
             }
-            av_dlog(avctx, "dmix_mode: %s\n", strbuf);
-            av_dlog(avctx, "ltrt_cmixlev: %0.3f (%d)\n",
+            ff_dlog(avctx, "dmix_mode: %s\n", strbuf);
+            ff_dlog(avctx, "ltrt_cmixlev: %0.3f (%d)\n",
                     opt->ltrt_center_mix_level, s->ltrt_center_mix_level);
-            av_dlog(avctx, "ltrt_surmixlev: %0.3f (%d)\n",
+            ff_dlog(avctx, "ltrt_surmixlev: %0.3f (%d)\n",
                     opt->ltrt_surround_mix_level, s->ltrt_surround_mix_level);
-            av_dlog(avctx, "loro_cmixlev: %0.3f (%d)\n",
+            ff_dlog(avctx, "loro_cmixlev: %0.3f (%d)\n",
                     opt->loro_center_mix_level, s->loro_center_mix_level);
-            av_dlog(avctx, "loro_surmixlev: %0.3f (%d)\n",
+            ff_dlog(avctx, "loro_surmixlev: %0.3f (%d)\n",
                     opt->loro_surround_mix_level, s->loro_surround_mix_level);
         } else {
-            av_dlog(avctx, "extended bitstream info 1: {not written}\n");
+            ff_dlog(avctx, "extended bitstream info 1: {not written}\n");
         }
         if (opt->extended_bsi_2) {
             switch (opt->dolby_surround_ex_mode) {
@@ -1764,23 +1765,23 @@ static void dprint_options(AC3EncodeContext *s)
             case AC3ENC_OPT_MODE_OFF:      av_strlcpy(strbuf, "off", 32);          break;
             default: snprintf(strbuf, 32, "ERROR (%d)", opt->dolby_surround_ex_mode);
             }
-            av_dlog(avctx, "dsurex_mode: %s\n", strbuf);
+            ff_dlog(avctx, "dsurex_mode: %s\n", strbuf);
             switch (opt->dolby_headphone_mode) {
             case AC3ENC_OPT_NOT_INDICATED: av_strlcpy(strbuf, "notindicated", 32); break;
             case AC3ENC_OPT_MODE_ON:       av_strlcpy(strbuf, "on", 32);           break;
             case AC3ENC_OPT_MODE_OFF:      av_strlcpy(strbuf, "off", 32);          break;
             default: snprintf(strbuf, 32, "ERROR (%d)", opt->dolby_headphone_mode);
             }
-            av_dlog(avctx, "dheadphone_mode: %s\n", strbuf);
+            ff_dlog(avctx, "dheadphone_mode: %s\n", strbuf);
 
             switch (opt->ad_converter_type) {
             case AC3ENC_OPT_ADCONV_STANDARD: av_strlcpy(strbuf, "standard", 32); break;
             case AC3ENC_OPT_ADCONV_HDCD:     av_strlcpy(strbuf, "hdcd", 32);     break;
             default: snprintf(strbuf, 32, "ERROR (%d)", opt->ad_converter_type);
             }
-            av_dlog(avctx, "ad_conv_type: %s\n", strbuf);
+            ff_dlog(avctx, "ad_conv_type: %s\n", strbuf);
         } else {
-            av_dlog(avctx, "extended bitstream info 2: {not written}\n");
+            ff_dlog(avctx, "extended bitstream info 2: {not written}\n");
         }
     }
 #endif
@@ -2035,6 +2036,7 @@ av_cold int ff_ac3_encode_close(AVCodecContext *avctx)
     av_freep(&s->qmant_buffer);
     av_freep(&s->cpl_coord_exp_buffer);
     av_freep(&s->cpl_coord_mant_buffer);
+    av_freep(&s->fdsp);
     for (blk = 0; blk < s->num_blocks; blk++) {
         AC3Block *block = &s->blocks[blk];
         av_freep(&block->mdct_coef);
@@ -2151,8 +2153,9 @@ static av_cold int validate_options(AC3EncodeContext *s)
 
     /* validate bit rate */
     if (s->eac3) {
-        int max_br, min_br, wpf, min_br_dist, min_br_code;
+        int max_br, min_br, wpf, min_br_code;
         int num_blks_code, num_blocks, frame_samples;
+        long long min_br_dist;
 
         /* calculate min/max bitrate */
         /* TODO: More testing with 3 and 2 blocks. All E-AC-3 samples I've
@@ -2182,9 +2185,9 @@ static av_cold int validate_options(AC3EncodeContext *s)
            this is needed for lookup tables for bandwidth and coupling
            parameter selection */
         min_br_code = -1;
-        min_br_dist = INT_MAX;
+        min_br_dist = INT64_MAX;
         for (i = 0; i < 19; i++) {
-            int br_dist = abs(ff_ac3_bitrate_tab[i] * 1000 - avctx->bit_rate);
+            long long br_dist = llabs(ff_ac3_bitrate_tab[i] * 1000 - avctx->bit_rate);
             if (br_dist < min_br_dist) {
                 min_br_dist = br_dist;
                 min_br_code = i;
@@ -2197,10 +2200,11 @@ static av_cold int validate_options(AC3EncodeContext *s)
             wpf--;
         s->frame_size_min = 2 * wpf;
     } else {
-        int best_br = 0, best_code = 0, best_diff = INT_MAX;
+        int best_br = 0, best_code = 0;
+        long long best_diff = INT64_MAX;
         for (i = 0; i < 19; i++) {
             int br   = (ff_ac3_bitrate_tab[i] >> s->bit_alloc.sr_shift) * 1000;
-            int diff = abs(br - avctx->bit_rate);
+            long long diff = llabs(br - avctx->bit_rate);
             if (diff < best_diff) {
                 best_br   = br;
                 best_code = i;
@@ -2482,7 +2486,7 @@ av_cold int ff_ac3_encode_init(AVCodecContext *avctx)
 
     ff_audiodsp_init(&s->adsp);
     ff_me_cmp_init(&s->mecc, avctx);
-    ff_ac3dsp_init(&s->ac3dsp, avctx->flags & CODEC_FLAG_BITEXACT);
+    ff_ac3dsp_init(&s->ac3dsp, avctx->flags & AV_CODEC_FLAG_BITEXACT);
 
     dprint_options(s);
 

@@ -5,7 +5,8 @@ NAME = swscale
 HEADERS = swscale.h                                                     \
           version.h                                                     \
 
-OBJS = hscale_fast_bilinear.o                           \
+OBJS = alphablend.o                                     \
+       hscale_fast_bilinear.o                           \
        input.o                                          \
        options.o                                        \
        output.o                                         \
@@ -14,6 +15,10 @@ OBJS = hscale_fast_bilinear.o                           \
        swscale_unscaled.o                               \
        utils.o                                          \
        yuv2rgb.o                                        \
+       slice.o                                          \
+       hscale.o                                         \
+       vscale.o                                         \
+       gamma.o                                          \
 
 OBJS-$(CONFIG_SHARED)        += log2_tab.o
 

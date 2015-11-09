@@ -164,6 +164,7 @@ static void ac3_downmix_c_fixed16(int16_t **samples, int16_t (*matrix)[2],
     }
 }
 
+#include "eac3dec.c"
 #include "ac3dec.c"
 
 static const AVOption options[] = {
@@ -187,7 +188,7 @@ AVCodec ff_ac3_fixed_decoder = {
     .init           = ac3_decode_init,
     .close          = ac3_decode_end,
     .decode         = ac3_decode_frame,
-    .capabilities   = CODEC_CAP_DR1,
+    .capabilities   = AV_CODEC_CAP_DR1,
     .long_name      = NULL_IF_CONFIG_SMALL("ATSC A/52A (AC-3)"),
     .sample_fmts    = (const enum AVSampleFormat[]) { AV_SAMPLE_FMT_S16P,
                                                       AV_SAMPLE_FMT_NONE },

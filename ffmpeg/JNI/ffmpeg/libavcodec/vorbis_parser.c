@@ -184,7 +184,7 @@ bad_header:
 static int vorbis_parse_init(AVVorbisParseContext *s,
                              const uint8_t *extradata, int extradata_size)
 {
-    uint8_t *header_start[3];
+    const uint8_t *header_start[3];
     int header_len[3];
     int ret;
 
@@ -229,6 +229,8 @@ int av_vorbis_parse_frame_flags(AVVorbisParseContext *s, const uint8_t *buf,
                 *flags |= VORBIS_FLAG_HEADER;
             else if (buf[0] == 3)
                 *flags |= VORBIS_FLAG_COMMENT;
+            else if (buf[0] == 5)
+                *flags |= VORBIS_FLAG_SETUP;
             else
                 goto bad_packet;
 
@@ -293,27 +295,6 @@ AVVorbisParseContext *av_vorbis_parse_init(const uint8_t *extradata,
 
     return s;
 }
-
-#if LIBAVCODEC_VERSION_MAJOR < 57
-int avpriv_vorbis_parse_extradata(AVCodecContext *avctx, AVVorbisParseContext *s)
-{
-    return vorbis_parse_init(s, avctx->extradata, avctx->extradata_size);
-}
-void avpriv_vorbis_parse_reset(AVVorbisParseContext *s)
-{
-    av_vorbis_parse_reset(s);
-}
-int avpriv_vorbis_parse_frame(AVVorbisParseContext *s, const uint8_t *buf,
-                              int buf_size)
-{
-    return av_vorbis_parse_frame(s, buf, buf_size);
-}
-int avpriv_vorbis_parse_frame_flags(AVVorbisParseContext *s, const uint8_t *buf,
-                                    int buf_size, int *flags)
-{
-    return av_vorbis_parse_frame_flags(s, buf, buf_size, flags);
-}
-#endif
 
 #if CONFIG_VORBIS_PARSER
 

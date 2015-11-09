@@ -379,18 +379,9 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *frame)
 
 static int request_frame(AVFilterLink *outlink)
 {
-    AVFilterContext *ctx = outlink->src;
-    SelectContext *select = ctx->priv;
     AVFilterLink *inlink = outlink->src->inputs[0];
-    int out_no = FF_OUTLINK_IDX(outlink);
-
-    do {
-        int ret = ff_request_frame(inlink);
-        if (ret < 0)
-            return ret;
-    } while (select->select_out != out_no);
-
-    return 0;
+    int ret = ff_request_frame(inlink);
+    return ret;
 }
 
 static av_cold void uninit(AVFilterContext *ctx)
@@ -416,11 +407,18 @@ static int query_formats(AVFilterContext *ctx)
     if (!select->do_scene_detect) {
         return ff_default_query_formats(ctx);
     } else {
+        int ret;
         static const enum AVPixelFormat pix_fmts[] = {
             AV_PIX_FMT_RGB24, AV_PIX_FMT_BGR24,
             AV_PIX_FMT_NONE
         };
-        ff_set_common_formats(ctx, ff_make_format_list(pix_fmts));
+        AVFilterFormats *fmts_list = ff_make_format_list(pix_fmts);
+
+        if (!fmts_list)
+            return AVERROR(ENOMEM);
+        ret = ff_set_common_formats(ctx, fmts_list);
+        if (ret < 0)
+            return ret;
     }
     return 0;
 }

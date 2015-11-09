@@ -87,6 +87,7 @@ enum {
 };
 
 #define PSY_3GPP_BITS_TO_PE(bits) ((bits) * 1.18f)
+#define PSY_3GPP_PE_TO_BITS(bits) ((bits) / 1.18f)
 
 /* LAME psy model constants */
 #define PSY_LAME_FIR_LEN 21         ///< LAME psy model FIR order
@@ -157,12 +158,13 @@ typedef struct AacPsyContext{
     } pe;
     AacPsyCoeffs psy_coef[2][64];
     AacPsyChannel *ch;
+    float global_quality; ///< normalized global quality taken from avctx
 }AacPsyContext;
 
 /**
  * LAME psy model preset struct
  */
-typedef struct {
+typedef struct PsyLamePreset {
     int   quality;  ///< Quality to map the rest of the vaules to.
      /* This is overloaded to be both kbps per channel in ABR mode, and
       * requested quality in constant quality mode.
@@ -262,7 +264,7 @@ static av_cold void lame_window_init(AacPsyContext *ctx, AVCodecContext *avctx)
     for (i = 0; i < avctx->channels; i++) {
         AacPsyChannel *pch = &ctx->ch[i];
 
-        if (avctx->flags & CODEC_FLAG_QSCALE)
+        if (avctx->flags & AV_CODEC_FLAG_QSCALE)
             pch->attack_threshold = psy_vbr_map[avctx->global_quality / FF_QP2LAMBDA].st_lrm;
         else
             pch->attack_threshold = lame_calc_attack_threshold(avctx->bit_rate / avctx->channels / 1000);
@@ -299,21 +301,30 @@ static av_cold int psy_3gpp_init(FFPsyContext *ctx) {
     float bark;
     int i, j, g, start;
     float prev, minscale, minath, minsnr, pe_min;
-    const int chan_bitrate = ctx->avctx->bit_rate / ctx->avctx->channels;
+    int chan_bitrate = ctx->avctx->bit_rate / ((ctx->avctx->flags & CODEC_FLAG_QSCALE) ? 2.0f : ctx->avctx->channels);
+
     const int bandwidth    = ctx->avctx->cutoff ? ctx->avctx->cutoff : AAC_CUTOFF(ctx->avctx);
     const float num_bark   = calc_bark((float)bandwidth);
 
     ctx->model_priv_data = av_mallocz(sizeof(AacPsyContext));
+    if (!ctx->model_priv_data)
+        return AVERROR(ENOMEM);
     pctx = (AacPsyContext*) ctx->model_priv_data;
+    pctx->global_quality = (ctx->avctx->global_quality ? ctx->avctx->global_quality : 120) * 0.01f;
+
+    if (ctx->avctx->flags & CODEC_FLAG_QSCALE) {
+        /* Use the target average bitrate to compute spread parameters */
+        chan_bitrate = (int)(chan_bitrate / 120.0 * (ctx->avctx->global_quality ? ctx->avctx->global_quality : 120));
+    }
 
     pctx->chan_bitrate = chan_bitrate;
-    pctx->frame_bits   = chan_bitrate * AAC_BLOCK_SIZE_LONG / ctx->avctx->sample_rate;
+    pctx->frame_bits   = FFMIN(2560, chan_bitrate * AAC_BLOCK_SIZE_LONG / ctx->avctx->sample_rate);
     pctx->pe.min       =  8.0f * AAC_BLOCK_SIZE_LONG * bandwidth / (ctx->avctx->sample_rate * 2.0f);
     pctx->pe.max       = 12.0f * AAC_BLOCK_SIZE_LONG * bandwidth / (ctx->avctx->sample_rate * 2.0f);
     ctx->bitres.size   = 6144 - pctx->frame_bits;
     ctx->bitres.size  -= ctx->bitres.size % 8;
     pctx->fill_level   = ctx->bitres.size;
-    minath = ath(3410, ATH_ADD);
+    minath = ath(3410 - 0.733 * ATH_ADD, ATH_ADD);
     for (j = 0; j < 2; j++) {
         AacPsyCoeffs *coeffs = pctx->psy_coef[j];
         const uint8_t *band_sizes = ctx->bands[j];
@@ -355,6 +366,10 @@ static av_cold int psy_3gpp_init(FFPsyContext *ctx) {
     }
 
     pctx->ch = av_mallocz_array(ctx->avctx->channels, sizeof(AacPsyChannel));
+    if (!pctx->ch) {
+        av_freep(&ctx->model_priv_data);
+        return AVERROR(ENOMEM);
+    }
 
     lame_window_init(pctx, ctx->avctx);
 
@@ -391,7 +406,7 @@ static av_unused FFPsyWindowInfo psy_3gpp_window(FFPsyContext *ctx,
                                                  int channel, int prev_type)
 {
     int i, j;
-    int br               = ctx->avctx->bit_rate / ctx->avctx->channels;
+    int br               = ((AacPsyContext*)ctx->model_priv_data)->chan_bitrate;
     int attack_ratio     = br <= 16000 ? 18 : 10;
     AacPsyContext *pctx = (AacPsyContext*) ctx->model_priv_data;
     AacPsyChannel *pch  = &pctx->ch[channel];
@@ -501,7 +516,12 @@ static int calc_bit_demand(AacPsyContext *ctx, float pe, int bits, int size,
     ctx->pe.max = FFMAX(pe, ctx->pe.max);
     ctx->pe.min = FFMIN(pe, ctx->pe.min);
 
-    return FFMIN(ctx->frame_bits * bit_factor, ctx->frame_bits + size - bits);
+    /* NOTE: allocate a minimum of 1/8th average frame bits, to avoid
+     *   reservoir starvation from producing zero-bit frames
+     */
+    return FFMIN(
+        ctx->frame_bits * bit_factor,
+        FFMAX(ctx->frame_bits + size - bits, ctx->frame_bits / 8));
 }
 
 static float calc_pe_3gpp(AacPsyBand *band)
@@ -671,16 +691,36 @@ static void psy_3gpp_analyze_channel(FFPsyContext *ctx, int channel,
 
     /* 5.6.1.3.2 "Calculation of the desired perceptual entropy" */
     ctx->ch[channel].entropy = pe;
-    desired_bits = calc_bit_demand(pctx, pe, ctx->bitres.bits, ctx->bitres.size, wi->num_windows == 8);
-    desired_pe = PSY_3GPP_BITS_TO_PE(desired_bits);
-    /* NOTE: PE correction is kept simple. During initial testing it had very
-     *       little effect on the final bitrate. Probably a good idea to come
-     *       back and do more testing later.
-     */
-    if (ctx->bitres.bits > 0)
-        desired_pe *= av_clipf(pctx->pe.previous / PSY_3GPP_BITS_TO_PE(ctx->bitres.bits),
-                               0.85f, 1.15f);
+    if (ctx->avctx->flags & CODEC_FLAG_QSCALE) {
+        /* (2.5 * 120) achieves almost transparent rate, and we want to give
+         * ample room downwards, so we make that equivalent to QSCALE=2.4
+         */
+        desired_pe = pe * (ctx->avctx->global_quality ? ctx->avctx->global_quality : 120) / (2 * 2.5f * 120.0f);
+        desired_bits = FFMIN(2560, PSY_3GPP_PE_TO_BITS(desired_pe));
+        desired_pe = PSY_3GPP_BITS_TO_PE(desired_bits); // reflect clipping
+
+        /* PE slope smoothing */
+        if (ctx->bitres.bits > 0) {
+            desired_bits = FFMIN(2560, PSY_3GPP_PE_TO_BITS(desired_pe));
+            desired_pe = PSY_3GPP_BITS_TO_PE(desired_bits); // reflect clipping
+        }
+
+        pctx->pe.max = FFMAX(pe, pctx->pe.max);
+        pctx->pe.min = FFMIN(pe, pctx->pe.min);
+    } else {
+        desired_bits = calc_bit_demand(pctx, pe, ctx->bitres.bits, ctx->bitres.size, wi->num_windows == 8);
+        desired_pe = PSY_3GPP_BITS_TO_PE(desired_bits);
+
+        /* NOTE: PE correction is kept simple. During initial testing it had very
+         *       little effect on the final bitrate. Probably a good idea to come
+         *       back and do more testing later.
+         */
+        if (ctx->bitres.bits > 0)
+            desired_pe *= av_clipf(pctx->pe.previous / PSY_3GPP_BITS_TO_PE(ctx->bitres.bits),
+                                   0.85f, 1.15f);
+    }
     pctx->pe.previous = PSY_3GPP_BITS_TO_PE(desired_bits);
+    ctx->bitres.alloc = desired_bits;
 
     if (desired_pe < pe) {
         /* 5.6.1.3.4 "First Estimation of the reduction value" */
@@ -717,7 +757,7 @@ static void psy_3gpp_analyze_channel(FFPsyContext *ctx, int channel,
             }
             desired_pe_no_ah = FFMAX(desired_pe - (pe - pe_no_ah), 0.0f);
             if (active_lines > 0.0f)
-                reduction += calc_reduction_3gpp(a, desired_pe_no_ah, pe_no_ah, active_lines);
+                reduction = calc_reduction_3gpp(a, desired_pe_no_ah, pe_no_ah, active_lines);
 
             pe = 0.0f;
             for (w = 0; w < wi->num_windows*16; w += 16) {
@@ -727,7 +767,10 @@ static void psy_3gpp_analyze_channel(FFPsyContext *ctx, int channel,
                     if (active_lines > 0.0f)
                         band->thr = calc_reduced_thr_3gpp(band, coeffs[g].min_snr, reduction);
                     pe += calc_pe_3gpp(band);
-                    band->norm_fac = band->active_lines / band->thr;
+                    if (band->thr > 0.0f)
+                        band->norm_fac = band->active_lines / band->thr;
+                    else
+                        band->norm_fac = 0.0f;
                     norm_fac += band->norm_fac;
                 }
             }
@@ -778,6 +821,8 @@ static void psy_3gpp_analyze_channel(FFPsyContext *ctx, int channel,
 
             psy_band->threshold = band->thr;
             psy_band->energy    = band->energy;
+            psy_band->spread    = band->active_lines * 2.0f / band_sizes[g];
+            psy_band->bits      = PSY_3GPP_PE_TO_BITS(band->pe);
         }
     }
 
@@ -827,6 +872,7 @@ static FFPsyWindowInfo psy_lame_window(FFPsyContext *ctx, const float *audio,
     int grouping     = 0;
     int uselongblock = 1;
     int attacks[AAC_NUM_BLOCKS_SHORT + 1] = { 0 };
+    float clippings[AAC_NUM_BLOCKS_SHORT];
     int i;
     FFPsyWindowInfo wi = { { 0 } };
 
@@ -916,14 +962,35 @@ static FFPsyWindowInfo psy_lame_window(FFPsyContext *ctx, const float *audio,
 
     lame_apply_block_type(pch, &wi, uselongblock);
 
+    /* Calculate input sample maximums and evaluate clipping risk */
+    if (audio) {
+        for (i = 0; i < AAC_NUM_BLOCKS_SHORT; i++) {
+            const float *wbuf = audio + i * AAC_BLOCK_SIZE_SHORT;
+            float max = 0;
+            int j;
+            for (j = 0; j < AAC_BLOCK_SIZE_SHORT; j++)
+                max = FFMAX(max, fabsf(wbuf[j]));
+            clippings[i] = max;
+        }
+    } else {
+        for (i = 0; i < 8; i++)
+            clippings[i] = 0;
+    }
+
     wi.window_type[1] = prev_type;
     if (wi.window_type[0] != EIGHT_SHORT_SEQUENCE) {
+        float clipping = 0.0f;
+
         wi.num_windows  = 1;
         wi.grouping[0]  = 1;
         if (wi.window_type[0] == LONG_START_SEQUENCE)
             wi.window_shape = 0;
         else
             wi.window_shape = 1;
+
+        for (i = 0; i < 8; i++)
+            clipping = FFMAX(clipping, clippings[i]);
+        wi.clipping[0] = clipping;
     } else {
         int lastgrp = 0;
 
@@ -933,6 +1000,14 @@ static FFPsyWindowInfo psy_lame_window(FFPsyContext *ctx, const float *audio,
             if (!((pch->next_grouping >> i) & 1))
                 lastgrp = i;
             wi.grouping[lastgrp]++;
+        }
+
+        for (i = 0; i < 8; i += wi.grouping[i]) {
+            int w;
+            float clipping = 0.0f;
+            for (w = 0; w < wi.grouping[i] && !clipping; w++)
+                clipping = FFMAX(clipping, clippings[i+w]);
+            wi.clipping[i] = clipping;
         }
     }
 

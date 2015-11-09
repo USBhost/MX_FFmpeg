@@ -166,9 +166,9 @@ static int decode_rle(AVCodecContext *avctx, AVSubtitleRect *rect,
 
     rle_bitmap_end = buf + buf_size;
 
-    rect->pict.data[0] = av_malloc(rect->w * rect->h);
+    rect->data[0] = av_malloc_array(rect->w, rect->h);
 
-    if (!rect->pict.data[0])
+    if (!rect->data[0])
         return AVERROR(ENOMEM);
 
     pixel_count = 0;
@@ -190,7 +190,7 @@ static int decode_rle(AVCodecContext *avctx, AVSubtitleRect *rect,
         }
 
         if (run > 0 && pixel_count + run <= rect->w * rect->h) {
-            memset(rect->pict.data[0] + pixel_count, color, run);
+            memset(rect->data[0] + pixel_count, color, run);
             pixel_count += run;
         } else if (!run) {
             /*
@@ -213,7 +213,7 @@ static int decode_rle(AVCodecContext *avctx, AVSubtitleRect *rect,
         return AVERROR_INVALIDDATA;
     }
 
-    av_dlog(avctx, "Pixel Count = %d, Area = %d\n", pixel_count, rect->w * rect->h);
+    ff_dlog(avctx, "Pixel Count = %d, Area = %d\n", pixel_count, rect->w * rect->h);
 
     return 0;
 }
@@ -357,7 +357,7 @@ static int parse_palette_segment(AVCodecContext *avctx,
         YUV_TO_RGB1(cb, cr);
         YUV_TO_RGB2(r, g, b, y);
 
-        av_dlog(avctx, "Color %d := (%d,%d,%d,%d)\n", color_id, r, g, b, alpha);
+        ff_dlog(avctx, "Color %d := (%d,%d,%d,%d)\n", color_id, r, g, b, alpha);
 
         /* Store color in palette */
         palette->clut[color_id] = RGBA(r,g,b,alpha);
@@ -390,7 +390,7 @@ static int parse_presentation_segment(AVCodecContext *avctx,
 
     ctx->presentation.pts = pts;
 
-    av_dlog(avctx, "Video Dimensions %dx%d\n",
+    ff_dlog(avctx, "Video Dimensions %dx%d\n",
             w, h);
     ret = ff_set_dimensions(avctx, w, h);
     if (ret < 0)
@@ -456,7 +456,7 @@ static int parse_presentation_segment(AVCodecContext *avctx,
             ctx->presentation.objects[i].crop_h = bytestream_get_be16(&buf);
         }
 
-        av_dlog(avctx, "Subtitle Placement x=%d, y=%d\n",
+        ff_dlog(avctx, "Subtitle Placement x=%d, y=%d\n",
                 ctx->presentation.objects[i].x, ctx->presentation.objects[i].y);
 
         if (ctx->presentation.objects[i].x > avctx->width ||
@@ -509,7 +509,7 @@ static int display_end_segment(AVCodecContext *avctx, void *data,
     // Blank if last object_count was 0.
     if (!ctx->presentation.object_count)
         return 1;
-    sub->rects = av_mallocz(sizeof(*sub->rects) * ctx->presentation.object_count);
+    sub->rects = av_mallocz_array(ctx->presentation.object_count, sizeof(*sub->rects));
     if (!sub->rects) {
         return AVERROR(ENOMEM);
     }
@@ -523,6 +523,8 @@ static int display_end_segment(AVCodecContext *avctx, void *data,
     }
     for (i = 0; i < ctx->presentation.object_count; i++) {
         PGSSubObject *object;
+        AVSubtitleRect *rect;
+        int j;
 
         sub->rects[i]  = av_mallocz(sizeof(*sub->rects[0]));
         if (!sub->rects[i]) {
@@ -553,7 +555,7 @@ static int display_end_segment(AVCodecContext *avctx, void *data,
         sub->rects[i]->w    = object->w;
         sub->rects[i]->h    = object->h;
 
-        sub->rects[i]->pict.linesize[0] = object->w;
+        sub->rects[i]->linesize[0] = object->w;
 
         if (object->rle) {
             if (object->rle_remaining_len) {
@@ -578,15 +580,24 @@ static int display_end_segment(AVCodecContext *avctx, void *data,
         }
         /* Allocate memory for colors */
         sub->rects[i]->nb_colors    = 256;
-        sub->rects[i]->pict.data[1] = av_mallocz(AVPALETTE_SIZE);
-        if (!sub->rects[i]->pict.data[1]) {
+        sub->rects[i]->data[1] = av_mallocz(AVPALETTE_SIZE);
+        if (!sub->rects[i]->data[1]) {
             avsubtitle_free(sub);
             return AVERROR(ENOMEM);
         }
 
         if (!ctx->forced_subs_only || ctx->presentation.objects[i].composition_flag & 0x40)
-        memcpy(sub->rects[i]->pict.data[1], palette->clut, sub->rects[i]->nb_colors * sizeof(uint32_t));
+        memcpy(sub->rects[i]->data[1], palette->clut, sub->rects[i]->nb_colors * sizeof(uint32_t));
 
+#if FF_API_AVPICTURE
+FF_DISABLE_DEPRECATION_WARNINGS
+        rect = sub->rects[i];
+        for (j = 0; j < 4; j++) {
+            rect->pict.data[j] = rect->data[j];
+            rect->pict.linesize[j] = rect->linesize[j];
+        }
+FF_ENABLE_DEPRECATION_WARNINGS
+#endif
     }
     return 1;
 }
@@ -602,16 +613,16 @@ static int decode(AVCodecContext *avctx, void *data, int *data_size,
     int           segment_length;
     int i, ret;
 
-    av_dlog(avctx, "PGS sub packet:\n");
+    ff_dlog(avctx, "PGS sub packet:\n");
 
     for (i = 0; i < buf_size; i++) {
-        av_dlog(avctx, "%02x ", buf[i]);
+        ff_dlog(avctx, "%02x ", buf[i]);
         if (i % 16 == 15)
-            av_dlog(avctx, "\n");
+            ff_dlog(avctx, "\n");
     }
 
     if (i & 15)
-        av_dlog(avctx, "\n");
+        ff_dlog(avctx, "\n");
 
     *data_size = 0;
 
@@ -626,7 +637,7 @@ static int decode(AVCodecContext *avctx, void *data, int *data_size,
         segment_type   = bytestream_get_byte(&buf);
         segment_length = bytestream_get_be16(&buf);
 
-        av_dlog(avctx, "Segment Length %d, Segment Type %x\n", segment_length, segment_type);
+        ff_dlog(avctx, "Segment Length %d, Segment Type %x\n", segment_length, segment_type);
 
         if (segment_type != DISPLAY_SEGMENT && segment_length > buf_end - buf)
             break;
@@ -675,7 +686,7 @@ static int decode(AVCodecContext *avctx, void *data, int *data_size,
 #define OFFSET(x) offsetof(PGSSubContext, x)
 #define SD AV_OPT_FLAG_SUBTITLE_PARAM | AV_OPT_FLAG_DECODING_PARAM
 static const AVOption options[] = {
-    {"forced_subs_only", "Only show forced subtitles", OFFSET(forced_subs_only), AV_OPT_TYPE_INT, {.i64 = 0}, 0, 1, SD},
+    {"forced_subs_only", "Only show forced subtitles", OFFSET(forced_subs_only), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, SD},
     { NULL },
 };
 

@@ -40,6 +40,8 @@ const AVCodecTag ff_nut_data_tags[] = {
 };
 
 const AVCodecTag ff_nut_video_tags[] = {
+    { AV_CODEC_ID_GIF,              MKTAG('G', 'I', 'F',  0 ) },
+    { AV_CODEC_ID_XFACE,            MKTAG('X', 'F', 'A', 'C') },
     { AV_CODEC_ID_VP9,              MKTAG('V', 'P', '9', '0') },
     { AV_CODEC_ID_RAWVIDEO,         MKTAG('R', 'G', 'B', 15 ) },
     { AV_CODEC_ID_RAWVIDEO,         MKTAG('B', 'G', 'R', 15 ) },
@@ -181,6 +183,7 @@ const AVCodecTag ff_nut_audio_extra_tags[] = {
     { AV_CODEC_ID_PCM_ALAW,         MKTAG('A', 'L', 'A', 'W') },
     { AV_CODEC_ID_PCM_MULAW,        MKTAG('U', 'L', 'A', 'W') },
     { AV_CODEC_ID_MP3,              MKTAG('M', 'P', '3', ' ') },
+    { AV_CODEC_ID_WAVPACK,          MKTAG('w', 'v', 'p', 'k') },
     { AV_CODEC_ID_NONE,             0                         }
 };
 
@@ -234,14 +237,16 @@ int64_t ff_lsb2full(StreamContext *stream, int64_t lsb)
     return ((lsb - delta) & mask) + delta;
 }
 
-int ff_nut_sp_pos_cmp(const Syncpoint *a, const Syncpoint *b)
+int ff_nut_sp_pos_cmp(const void *a, const void *b)
 {
-    return ((a->pos - b->pos) >> 32) - ((b->pos - a->pos) >> 32);
+    const Syncpoint *va = a, *vb = b;
+    return ((va->pos - vb->pos) >> 32) - ((vb->pos - va->pos) >> 32);
 }
 
-int ff_nut_sp_pts_cmp(const Syncpoint *a, const Syncpoint *b)
+int ff_nut_sp_pts_cmp(const void *a, const void *b)
 {
-    return ((a->ts - b->ts) >> 32) - ((b->ts - a->ts) >> 32);
+    const Syncpoint *va = a, *vb = b;
+    return ((va->ts - vb->ts) >> 32) - ((vb->ts - va->ts) >> 32);
 }
 
 int ff_nut_add_sp(NUTContext *nut, int64_t pos, int64_t back_ptr, int64_t ts)
@@ -260,7 +265,7 @@ int ff_nut_add_sp(NUTContext *nut, int64_t pos, int64_t back_ptr, int64_t ts)
     sp->pos      = pos;
     sp->back_ptr = back_ptr;
     sp->ts       = ts;
-    av_tree_insert(&nut->syncpoints, sp, (void *) ff_nut_sp_pos_cmp, &node);
+    av_tree_insert(&nut->syncpoints, sp, ff_nut_sp_pos_cmp, &node);
     if (node) {
         av_free(sp);
         av_free(node);

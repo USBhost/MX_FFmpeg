@@ -33,14 +33,14 @@
 
 #define JV_PREAMBLE_SIZE 5
 
-typedef struct {
+typedef struct JVFrame {
     int audio_size;    /**< audio packet size (bytes) */
     int video_size;    /**< video packet size (bytes) */
     int palette_size;  /**< palette size (bytes) */
     int video_type;    /**< per-frame video compression type */
 } JVFrame;
 
-typedef struct {
+typedef struct JVDemuxContext {
     JVFrame *frames;
     enum {
         JV_AUDIO = 0,
@@ -196,7 +196,7 @@ static int read_packet(AVFormatContext *s, AVPacket *pkt)
                     return ret;
                 if (ret < size) {
                     memset(pkt->data + JV_PREAMBLE_SIZE + ret, 0,
-                           FF_INPUT_BUFFER_PADDING_SIZE);
+                           AV_INPUT_BUFFER_PADDING_SIZE);
                     pkt->flags |= AV_PKT_FLAG_CORRUPT;
                 }
                 pkt->size         = ret + JV_PREAMBLE_SIZE;

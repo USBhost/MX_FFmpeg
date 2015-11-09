@@ -67,6 +67,9 @@ static int rv30_parse_slice_header(RV34DecContext *r, GetBitContext *gb, SliceIn
 
         w = r->s.avctx->extradata[6 + rpr*2] << 2;
         h = r->s.avctx->extradata[7 + rpr*2] << 2;
+    } else {
+        w = r->orig_width;
+        h = r->orig_height;
     }
     si->width  = w;
     si->height = h;
@@ -259,13 +262,16 @@ static av_cold int rv30_decode_init(AVCodecContext *avctx)
     RV34DecContext *r = avctx->priv_data;
     int ret;
 
+    r->orig_width  = avctx->coded_width;
+    r->orig_height = avctx->coded_height;
+
+    if (avctx->extradata_size < 2) {
+        av_log(avctx, AV_LOG_ERROR, "Extradata is too small.\n");
+        return AVERROR(EINVAL);
+    }
     r->rv30 = 1;
     if ((ret = ff_rv34_decode_init(avctx)) < 0)
         return ret;
-    if(avctx->extradata_size < 2){
-        av_log(avctx, AV_LOG_ERROR, "Extradata is too small.\n");
-        return -1;
-    }
 
     r->max_rpr = avctx->extradata[1] & 7;
     if(avctx->extradata_size < 2*r->max_rpr + 8){
@@ -291,8 +297,8 @@ AVCodec ff_rv30_decoder = {
     .init                  = rv30_decode_init,
     .close                 = ff_rv34_decode_end,
     .decode                = ff_rv34_decode_frame,
-    .capabilities          = CODEC_CAP_DR1 | CODEC_CAP_DELAY |
-                             CODEC_CAP_FRAME_THREADS,
+    .capabilities          = AV_CODEC_CAP_DR1 | AV_CODEC_CAP_DELAY |
+                             AV_CODEC_CAP_FRAME_THREADS,
     .flush                 = ff_mpeg_flush,
     .pix_fmts              = (const enum AVPixelFormat[]) {
         AV_PIX_FMT_YUV420P,

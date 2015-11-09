@@ -25,6 +25,15 @@
 
 SECTION .text
 
+%macro PMACSDQL 5
+%if cpuflag(xop)
+    pmacsdql %1, %2, %3, %1
+%else
+    pmuldq   %2, %3
+    paddq    %1, %2
+%endif
+%endmacro
+
 %macro LPC_32 1
 INIT_XMM %1
 cglobal flac_lpc_32, 5,6,5, decoded, coeffs, pred_order, qlevel, len, j
@@ -80,14 +89,10 @@ LPC_32 sse4
 ;----------------------------------------------------------------------------------
 %macro FLAC_DECORRELATE_16 3-4
 cglobal flac_decorrelate_%1_16, 2, 4, 4, out, in0, in1, len
-%if ARCH_X86_32 || WIN64
-    movd       m3, r4m
 %if ARCH_X86_32
     mov      lend, lenm
 %endif
-%else ; UNIX64
-    movd       m3, r4d
-%endif
+    movd       m3, r4m
     shl      lend, 2
     mov      in1q, [in0q + gprsize]
     mov      in0q, [in0q]
@@ -129,14 +134,10 @@ FLAC_DECORRELATE_16 ms, 2, 0, add
 ;----------------------------------------------------------------------------------
 %macro FLAC_DECORRELATE_32 5
 cglobal flac_decorrelate_%1_32, 2, 4, 4, out, in0, in1, len
-%if ARCH_X86_32 || WIN64
-    movd       m3, r4m
 %if ARCH_X86_32
     mov      lend, lenm
 %endif
-%else ; UNIX64
-    movd       m3, r4d
-%endif
+    movd       m3, r4m
     mov      in1q, [in0q + gprsize]
     mov      in0q, [in0q]
     mov      outq, [outq]
@@ -175,19 +176,6 @@ FLAC_DECORRELATE_32 ms, 2, 0, 1, add
 ;void ff_flac_decorrelate_indep<ch>_<bps>_<opt>(uint8_t **out, int32_t **in, int channels,
 ;                                            int len, int shift);
 ;-----------------------------------------------------------------------------------------
-%macro TRANSPOSE8x4D 9
-    SBUTTERFLY dq,  %1, %2, %9
-    SBUTTERFLY dq,  %3, %4, %9
-    SBUTTERFLY dq,  %5, %6, %9
-    SBUTTERFLY dq,  %7, %8, %9
-    SBUTTERFLY qdq, %1, %3, %9
-    SBUTTERFLY qdq, %2, %4, %9
-    SBUTTERFLY qdq, %5, %7, %9
-    SBUTTERFLY qdq, %6, %8, %9
-    SWAP %2, %5
-    SWAP %4, %7
-%endmacro
-
 ;%1 = bps
 ;%2 = channels
 ;%3 = last xmm reg used
@@ -196,18 +184,14 @@ FLAC_DECORRELATE_32 ms, 2, 0, 1, add
 %define REPCOUNT %2/(32/%1) ; 16bits = channels / 2; 32bits = channels
 cglobal flac_decorrelate_indep%2_%1, 2, %2+2, %3+1, out, in0, in1, len, in2, in3, in4, in5, in6, in7
 %if ARCH_X86_32
-    movd      m%3, r4m
 %if %2 == 6
     DEFINE_ARGS out, in0, in1, in2, in3, in4, in5
     %define  lend  dword r3m
 %else
     mov      lend, lenm
 %endif
-%elif WIN64
-    movd      m%3, r4m
-%else ; UNIX64
-    movd      m%3, r4d
 %endif
+    movd      m%3, r4m
 
 %assign %%i 1
 %rep %2-1

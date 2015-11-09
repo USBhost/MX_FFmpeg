@@ -62,12 +62,12 @@ int av_parse_ratio(AVRational *q, const char *str, int max,
     return 0;
 }
 
-typedef struct {
+typedef struct VideoSizeAbbr {
     const char *abbr;
     int width, height;
 } VideoSizeAbbr;
 
-typedef struct {
+typedef struct VideoRateAbbr {
     const char *abbr;
     AVRational rate;
 } VideoRateAbbr;
@@ -111,9 +111,11 @@ static const VideoSizeAbbr video_size_abbrs[] = {
     { "hd720",    1280, 720 },
     { "hd1080",   1920,1080 },
     { "2k",       2048,1080 }, /* Digital Cinema System Specification */
+    { "2kdci",    2048,1080 },
     { "2kflat",   1998,1080 },
     { "2kscope",  2048, 858 },
     { "4k",       4096,2160 }, /* Digital Cinema System Specification */
+    { "4kdci",    4096,2160 },
     { "4kflat",   3996,2160 },
     { "4kscope",  4096,1716 },
     { "nhd",       640,360  },
@@ -122,6 +124,8 @@ static const VideoSizeAbbr video_size_abbrs[] = {
     { "fwqvga",    432,240  },
     { "hvga",      480,320  },
     { "qhd",       960,540  },
+    { "uhd2160",  3840,2160 },
+    { "uhd4320",  7680,4320 },
 };
 
 static const VideoRateAbbr video_rate_abbrs[]= {
@@ -186,7 +190,7 @@ int av_parse_video_rate(AVRational *rate, const char *arg)
     return 0;
 }
 
-typedef struct {
+typedef struct ColorEntry {
     const char *name;            ///< a string representing the name of the color
     uint8_t     rgb_color[3];    ///< RGB values for the color
 } ColorEntry;
@@ -465,68 +469,71 @@ char *av_small_strptime(const char *p, const char *fmt, struct tm *dt)
 {
     int c, val;
 
-    for(;;) {
-        /* consume time string until a non whitespace char is found */
-        while (av_isspace(*fmt)) {
-            while (av_isspace(*p))
-                p++;
-            fmt++;
+    while((c = *fmt++)) {
+        if (c != '%') {
+            if (av_isspace(c))
+                for (; *p && av_isspace(*p); p++);
+            else if (*p != c)
+                return NULL;
+            else p++;
+            continue;
         }
+
         c = *fmt++;
-        if (c == '\0') {
-            return (char *)p;
-        } else if (c == '%') {
-            c = *fmt++;
-            switch(c) {
-            case 'H':
-            case 'J':
-                val = date_get_num(&p, 0, c == 'H' ? 23 : INT_MAX, 2);
-                if (val == -1)
-                    return NULL;
-                dt->tm_hour = val;
-                break;
-            case 'M':
-                val = date_get_num(&p, 0, 59, 2);
-                if (val == -1)
-                    return NULL;
-                dt->tm_min = val;
-                break;
-            case 'S':
-                val = date_get_num(&p, 0, 59, 2);
-                if (val == -1)
-                    return NULL;
-                dt->tm_sec = val;
-                break;
-            case 'Y':
-                val = date_get_num(&p, 0, 9999, 4);
-                if (val == -1)
-                    return NULL;
-                dt->tm_year = val - 1900;
-                break;
-            case 'm':
-                val = date_get_num(&p, 1, 12, 2);
-                if (val == -1)
-                    return NULL;
-                dt->tm_mon = val - 1;
-                break;
-            case 'd':
-                val = date_get_num(&p, 1, 31, 2);
-                if (val == -1)
-                    return NULL;
-                dt->tm_mday = val;
-                break;
-            case '%':
-                goto match;
-            default:
+        switch(c) {
+        case 'H':
+        case 'J':
+            val = date_get_num(&p, 0, c == 'H' ? 23 : INT_MAX, 2);
+
+            if (val == -1)
                 return NULL;
-            }
-        } else {
-        match:
-            if (c != *p)
+            dt->tm_hour = val;
+            break;
+        case 'M':
+            val = date_get_num(&p, 0, 59, 2);
+            if (val == -1)
                 return NULL;
-            p++;
+            dt->tm_min = val;
+            break;
+        case 'S':
+            val = date_get_num(&p, 0, 59, 2);
+            if (val == -1)
+                return NULL;
+            dt->tm_sec = val;
+            break;
+        case 'Y':
+            val = date_get_num(&p, 0, 9999, 4);
+            if (val == -1)
+                return NULL;
+            dt->tm_year = val - 1900;
+            break;
+        case 'm':
+            val = date_get_num(&p, 1, 12, 2);
+            if (val == -1)
+                return NULL;
+            dt->tm_mon = val - 1;
+            break;
+        case 'd':
+            val = date_get_num(&p, 1, 31, 2);
+            if (val == -1)
+                return NULL;
+            dt->tm_mday = val;
+            break;
+        case 'T':
+            p = av_small_strptime(p, "%H:%M:%S", dt);
+            if (!p)
+                return NULL;
+            break;
+        case '%':
+            if (*p++ != '%')
+                return NULL;
+            break;
+        default:
+            return NULL;
         }
     }
+
+    return (char*)p;
 }
 
 time_t av_timegm(struct tm *tm)

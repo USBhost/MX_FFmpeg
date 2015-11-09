@@ -694,6 +694,11 @@ static int decode_entropy_coded_image(WebPContext *s, enum ImageRole role,
                 length = offset + get_bits(&s->gb, extra_bits) + 1;
             }
             prefix_code = huff_reader_get_symbol(&hg[HUFF_IDX_DIST], &s->gb);
+            if (prefix_code > 39) {
+                av_log(s->avctx, AV_LOG_ERROR,
+                       "distance prefix code too large: %d\n", prefix_code);
+                return AVERROR_INVALIDDATA;
+            }
             if (prefix_code < 4) {
                 distance = prefix_code + 1;
             } else {
@@ -1099,14 +1104,14 @@ static int vp8_lossless_decode_frame(AVCodecContext *avctx, AVFrame *p,
                                      unsigned int data_size, int is_alpha_chunk)
 {
     WebPContext *s = avctx->priv_data;
-    int w, h, ret, i;
+    int w, h, ret, i, used;
 
     if (!is_alpha_chunk) {
         s->lossless = 1;
         avctx->pix_fmt = AV_PIX_FMT_ARGB;
     }
 
-    ret = init_get_bits(&s->gb, data_start, data_size * 8);
+    ret = init_get_bits8(&s->gb, data_start, data_size);
     if (ret < 0)
         return ret;
 
@@ -1149,8 +1154,16 @@ static int vp8_lossless_decode_frame(AVCodecContext *avctx, AVFrame *p,
     /* parse transformations */
     s->nb_transforms = 0;
     s->reduced_width = 0;
+    used = 0;
     while (get_bits1(&s->gb)) {
         enum TransformType transform = get_bits(&s->gb, 2);
+        if (used & (1 << transform)) {
+            av_log(avctx, AV_LOG_ERROR, "Transform %d used more than once\n",
+                   transform);
+            ret = AVERROR_INVALIDDATA;
+            goto free_and_return;
+        }
+        used |= (1 << transform);
         s->transforms[s->nb_transforms++] = transform;
         switch (transform) {
         case PREDICTOR_TRANSFORM:
@@ -1374,7 +1387,7 @@ static int webp_decode_frame(AVCodecContext *avctx, void *data, int *got_frame,
     }
 
     av_dict_free(&s->exif_metadata);
-    while (bytestream2_get_bytes_left(&gb) > 0) {
+    while (bytestream2_get_bytes_left(&gb) > 8) {
         char chunk_str[5] = { 0 };
 
         chunk_type = bytestream2_get_le32(&gb);
@@ -1404,6 +1417,7 @@ static int webp_decode_frame(AVCodecContext *avctx, void *data, int *got_frame,
                                                 chunk_size, 0);
                 if (ret < 0)
                     return ret;
+                avctx->properties |= FF_CODEC_PROPERTY_LOSSLESS;
             }
             bytestream2_skip(&gb, chunk_size);
             break;
@@ -1526,5 +1540,5 @@ AVCodec ff_webp_decoder = {
     .priv_data_size = sizeof(WebPContext),
     .decode         = webp_decode_frame,
     .close          = webp_decode_close,
-    .capabilities   = CODEC_CAP_DR1 | CODEC_CAP_FRAME_THREADS,
+    .capabilities   = AV_CODEC_CAP_DR1 | AV_CODEC_CAP_FRAME_THREADS,
 };

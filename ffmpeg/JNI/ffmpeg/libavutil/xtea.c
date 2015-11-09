@@ -31,7 +31,13 @@
 #include "avutil.h"
 #include "common.h"
 #include "intreadwrite.h"
+#include "mem.h"
 #include "xtea.h"
+
+AVXTEA *av_xtea_alloc(void)
+{
+    return av_mallocz(sizeof(struct AVXTEA));
+}
 
 void av_xtea_init(AVXTEA *ctx, const uint8_t key[16])
 {

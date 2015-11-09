@@ -132,11 +132,6 @@ static int yop_read_packet(AVFormatContext *s, AVPacket *pkt)
         *pkt                   =  yop->video_packet;
         yop->video_packet.data =  NULL;
         yop->video_packet.buf  =  NULL;
-#if FF_API_DESTRUCT_PACKET
-FF_DISABLE_DEPRECATION_WARNINGS
-        yop->video_packet.destruct = NULL;
-FF_ENABLE_DEPRECATION_WARNINGS
-#endif
         yop->video_packet.size =  0;
         pkt->data[0]           =  yop->odd_frame;
         pkt->flags             |= AV_PKT_FLAG_KEY;
@@ -199,7 +194,7 @@ static int yop_read_seek(AVFormatContext *s, int stream_index,
     if (!stream_index)
         return -1;
 
-    pos_min        = s->data_offset;
+    pos_min        = s->internal->data_offset;
     pos_max        = avio_size(s->pb) - yop->frame_size;
     frame_count    = (pos_max - pos_min) / yop->frame_size;
 

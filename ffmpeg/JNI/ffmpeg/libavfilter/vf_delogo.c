@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2002 Jindrich Makovicka <makovick@gmail.com>
  * Copyright (c) 2011 Stefano Sabatini
- * Copyright (c) 2013 Jean Delvare <khali@linux-fr.org>
+ * Copyright (c) 2013, 2015 Jean Delvare <jdelvare@suse.com>
  *
  * This file is part of FFmpeg.
  *
@@ -101,6 +101,12 @@ static void apply_delogo(uint8_t *dst, int dst_linesize,
              xdst = dst+logo_x1+1,
              xsrc = src+logo_x1+1; x < logo_x2-1; x++, xdst++, xsrc++) {
 
+            if (show && (y == logo_y+1 || y == logo_y+logo_h-2 ||
+                         x == logo_x+1 || x == logo_x+logo_w-2)) {
+                *xdst = 0;
+                continue;
+            }
+
             /* Weighted interpolation based on relative distances, taking SAR into account */
             weightl = (uint64_t)              (logo_x2-1-x) * (y-logo_y1) * (logo_y2-1-y) * sar.den;
             weightr = (uint64_t)(x-logo_x1)                 * (y-logo_y1) * (logo_y2-1-y) * sar.den;
@@ -138,8 +144,6 @@ static void apply_delogo(uint8_t *dst, int dst_linesize,
                     dist = FFMAX(dist, y-(logo_y+logo_h-1-band));
 
                 *xdst = (*xsrc*dist + interp*(band-dist))/band;
-                if (show && (dist == band-1))
-                    *xdst = 0;
             }
         }
 
@@ -161,9 +165,12 @@ static const AVOption delogo_options[]= {
     { "y",    "set logo y position",       OFFSET(y),    AV_OPT_TYPE_INT, { .i64 = -1 }, -1, INT_MAX, FLAGS },
     { "w",    "set logo width",            OFFSET(w),    AV_OPT_TYPE_INT, { .i64 = -1 }, -1, INT_MAX, FLAGS },
     { "h",    "set logo height",           OFFSET(h),    AV_OPT_TYPE_INT, { .i64 = -1 }, -1, INT_MAX, FLAGS },
-    { "band", "set delogo area band size", OFFSET(band), AV_OPT_TYPE_INT, { .i64 =  4 },  1, INT_MAX, FLAGS },
-    { "t",    "set delogo area band size", OFFSET(band), AV_OPT_TYPE_INT, { .i64 =  4 },  1, INT_MAX, FLAGS },
-    { "show", "show delogo area",          OFFSET(show), AV_OPT_TYPE_INT, { .i64 =  0 },  0, 1,       FLAGS },
+#if LIBAVFILTER_VERSION_MAJOR < 7
+    /* Actual default value for band/t is 1, set in init */
+    { "band", "set delogo area band size", OFFSET(band), AV_OPT_TYPE_INT, { .i64 =  0 },  0, INT_MAX, FLAGS },
+    { "t",    "set delogo area band size", OFFSET(band), AV_OPT_TYPE_INT, { .i64 =  0 },  0, INT_MAX, FLAGS },
+#endif
+    { "show", "show delogo area",          OFFSET(show), AV_OPT_TYPE_BOOL,{ .i64 =  0 },  0, 1,       FLAGS },
     { NULL }
 };
 
@@ -177,9 +184,10 @@ static int query_formats(AVFilterContext *ctx)
         AV_PIX_FMT_YUVA420P, AV_PIX_FMT_GRAY8,
         AV_PIX_FMT_NONE
     };
-
-    ff_set_common_formats(ctx, ff_make_format_list(pix_fmts));
-    return 0;
+    AVFilterFormats *fmts_list = ff_make_format_list(pix_fmts);
+    if (!fmts_list)
+        return AVERROR(ENOMEM);
+    return ff_set_common_formats(ctx, fmts_list);
 }
 
 static av_cold int init(AVFilterContext *ctx)
@@ -196,6 +204,16 @@ static av_cold int init(AVFilterContext *ctx)
     CHECK_UNSET_OPT(w);
     CHECK_UNSET_OPT(h);
 
+#if LIBAVFILTER_VERSION_MAJOR < 7
+    if (s->band == 0) { /* Unset, use default */
+        av_log(ctx, AV_LOG_WARNING, "Note: default band value was changed from 4 to 1.\n");
+        s->band = 1;
+    } else if (s->band != 1) {
+        av_log(ctx, AV_LOG_WARNING, "Option band is deprecated.\n");
+    }
+#else
+    s->band = 1;
+#endif
     av_log(ctx, AV_LOG_VERBOSE, "x:%d y:%d, w:%d h:%d band:%d show:%d\n",
            s->x, s->y, s->w, s->h, s->band, s->show);
 

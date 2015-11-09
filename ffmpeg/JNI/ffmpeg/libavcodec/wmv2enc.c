@@ -62,9 +62,10 @@ static av_cold int wmv2_encode_init(AVCodecContext *avctx)
     ff_wmv2_common_init(w);
 
     avctx->extradata_size = 4;
-    avctx->extradata      = av_mallocz(avctx->extradata_size + FF_INPUT_BUFFER_PADDING_SIZE);
+    avctx->extradata      = av_mallocz(avctx->extradata_size + AV_INPUT_BUFFER_PADDING_SIZE);
     if (!avctx->extradata)
         return AVERROR(ENOMEM);
+
     encode_ext_header(w);
 
     return 0;
@@ -111,16 +112,7 @@ int ff_wmv2_encode_picture_header(MpegEncContext *s, int picture_number)
         put_bits(&s->pb, 2, SKIP_TYPE_NONE);
 
         ff_msmpeg4_code012(&s->pb, cbp_index = 0);
-        if (s->qscale <= 10) {
-            int map[3]         = { 0, 2, 1 };
-            w->cbp_table_index = map[cbp_index];
-        } else if (s->qscale <= 20) {
-            int map[3]         = { 1, 0, 2 };
-            w->cbp_table_index = map[cbp_index];
-        } else {
-            int map[3]         = { 2, 1, 0 };
-            w->cbp_table_index = map[cbp_index];
-        }
+        w->cbp_table_index = wmv2_get_cbp_table_index(s, cbp_index);
 
         if (w->mspel_bit)
             put_bits(&s->pb, 1, s->mspel);
@@ -222,7 +214,12 @@ void ff_wmv2_encode_mb(MpegEncContext *s, int16_t block[6][64],
         s->p_tex_bits += get_bits_diff(s);
 }
 
-FF_MPV_GENERIC_CLASS(wmv2)
+static const AVClass wmv2_class = {
+    .class_name = "wmv2 encoder",
+    .item_name  = av_default_item_name,
+    .option     = ff_mpv_generic_options,
+    .version    = LIBAVUTIL_VERSION_INT,
+};
 
 AVCodec ff_wmv2_encoder = {
     .name           = "wmv2",
@@ -230,10 +227,10 @@ AVCodec ff_wmv2_encoder = {
     .type           = AVMEDIA_TYPE_VIDEO,
     .id             = AV_CODEC_ID_WMV2,
     .priv_data_size = sizeof(Wmv2Context),
+    .priv_class     = &wmv2_class,
     .init           = wmv2_encode_init,
     .encode2        = ff_mpv_encode_picture,
     .close          = ff_mpv_encode_end,
     .pix_fmts       = (const enum AVPixelFormat[]) { AV_PIX_FMT_YUV420P,
                                                      AV_PIX_FMT_NONE },
-    .priv_class     = &wmv2_class,
 };

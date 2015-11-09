@@ -13,8 +13,7 @@ LOCAL_CFLAGS += \
 -fpredictive-commoning \
 -fgcse-after-reload \
 -ftree-vectorize \
--fipa-cp-clone \
--Wno-psabi
+-fipa-cp-clone
 
 ifeq ($(APP_OPTIM),debug)
 LOCAL_CFLAGS += -DDEBUG

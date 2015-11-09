@@ -87,6 +87,7 @@ typedef struct FFV1Context {
     int transparency;
     int flags;
     int picture_number;
+    int key_frame;
     ThreadFrame picture, last_picture;
     struct FFV1Context *fsrc;
 
@@ -117,6 +118,7 @@ typedef struct FFV1Context {
 
     struct FFV1Context *slice_context[MAX_SLICES];
     int slice_count;
+    int max_slice_count;
     int num_v_slices;
     int num_h_slices;
     int slice_width;
@@ -129,13 +131,13 @@ typedef struct FFV1Context {
     int slice_rct_ry_coef;
 } FFV1Context;
 
-int ffv1_common_init(AVCodecContext *avctx);
-int ffv1_init_slice_state(FFV1Context *f, FFV1Context *fs);
-int ffv1_init_slices_state(FFV1Context *f);
-int ffv1_init_slice_contexts(FFV1Context *f);
-int ffv1_allocate_initial_states(FFV1Context *f);
-void ffv1_clear_slice_state(FFV1Context *f, FFV1Context *fs);
-int ffv1_close(AVCodecContext *avctx);
+int ff_ffv1_common_init(AVCodecContext *avctx);
+int ff_ffv1_init_slice_state(FFV1Context *f, FFV1Context *fs);
+int ff_ffv1_init_slices_state(FFV1Context *f);
+int ff_ffv1_init_slice_contexts(FFV1Context *f);
+int ff_ffv1_allocate_initial_states(FFV1Context *f);
+void ff_ffv1_clear_slice_state(FFV1Context *f, FFV1Context *fs);
+int ff_ffv1_close(AVCodecContext *avctx);
 
 static av_always_inline int fold(int diff, int bits)
 {
@@ -143,7 +145,7 @@ static av_always_inline int fold(int diff, int bits)
         diff = (int8_t)diff;
     else {
         diff +=  1 << (bits  - 1);
-        diff &= (1 <<  bits) - 1;
+        diff  = av_mod_uintp2(diff, bits);
         diff -=  1 << (bits  - 1);
     }
 

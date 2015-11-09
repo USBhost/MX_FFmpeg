@@ -129,19 +129,18 @@ static int allocate_buffers(ShortenContext *s)
             av_log(s->avctx, AV_LOG_ERROR, "nmean too large\n");
             return AVERROR_INVALIDDATA;
         }
-        if (s->blocksize + s->nwrap >= UINT_MAX / sizeof(int32_t) ||
-            s->blocksize + s->nwrap <= (unsigned)s->nwrap) {
+        if (s->blocksize + (uint64_t)s->nwrap >= UINT_MAX / sizeof(int32_t)) {
             av_log(s->avctx, AV_LOG_ERROR,
                    "s->blocksize + s->nwrap too large\n");
             return AVERROR_INVALIDDATA;
         }
 
-        if ((err = av_reallocp(&s->offset[chan],
-                               sizeof(int32_t) *
+        if ((err = av_reallocp_array(&s->offset[chan],
+                               sizeof(int32_t),
                                FFMAX(1, s->nmean))) < 0)
             return err;
 
-        if ((err = av_reallocp(&s->decoded_base[chan], (s->blocksize + s->nwrap) *
+        if ((err = av_reallocp_array(&s->decoded_base[chan], (s->blocksize + s->nwrap),
                                sizeof(s->decoded_base[0][0]))) < 0)
             return err;
         for (i = 0; i < s->nwrap; i++)
@@ -149,7 +148,7 @@ static int allocate_buffers(ShortenContext *s)
         s->decoded[chan] = s->decoded_base[chan] + s->nwrap;
     }
 
-    if ((err = av_reallocp(&s->coeffs, s->nwrap * sizeof(*s->coeffs))) < 0)
+    if ((err = av_reallocp_array(&s->coeffs, s->nwrap, sizeof(*s->coeffs))) < 0)
         return err;
 
     return 0;
@@ -278,7 +277,7 @@ static int decode_subframe_lpc(ShortenContext *s, int command, int channel,
     if (command == FN_QLPC) {
         /* read/validate prediction order */
         pred_order = get_ur_golomb_shorten(&s->gb, LPCQSIZE);
-        if (pred_order > s->nwrap) {
+        if ((unsigned)pred_order > s->nwrap) {
             av_log(s->avctx, AV_LOG_ERROR, "invalid pred_order %d\n",
                    pred_order);
             return AVERROR(EINVAL);
@@ -370,6 +369,11 @@ static int read_header(ShortenContext *s)
         s->nmean = get_uint(s, 0);
 
         skip_bytes = get_uint(s, NSKIPSIZE);
+        if ((unsigned)skip_bytes > get_bits_left(&s->gb)/8) {
+            av_log(s->avctx, AV_LOG_ERROR, "invalid skip_bytes: %d\n", skip_bytes);
+            return AVERROR_INVALIDDATA;
+        }
+
         for (i = 0; i < skip_bytes; i++)
             skip_bits(&s->gb, 8);
     }
@@ -427,7 +431,7 @@ static int shorten_decode_frame(AVCodecContext *avctx, void *data,
         void *tmp_ptr;
         s->max_framesize = 8192; // should hopefully be enough for the first header
         tmp_ptr = av_fast_realloc(s->bitstream, &s->allocated_bitstream_size,
-                                  s->max_framesize + FF_INPUT_BUFFER_PADDING_SIZE);
+                                  s->max_framesize + AV_INPUT_BUFFER_PADDING_SIZE);
         if (!tmp_ptr) {
             av_log(avctx, AV_LOG_ERROR, "error allocating bitstream buffer\n");
             return AVERROR(ENOMEM);
@@ -441,7 +445,7 @@ static int shorten_decode_frame(AVCodecContext *avctx, void *data,
         buf_size       = FFMIN(buf_size, s->max_framesize - s->bitstream_size);
         input_buf_size = buf_size;
 
-        if (s->bitstream_index + s->bitstream_size + buf_size + FF_INPUT_BUFFER_PADDING_SIZE >
+        if (s->bitstream_index + s->bitstream_size + buf_size + AV_INPUT_BUFFER_PADDING_SIZE >
             s->allocated_bitstream_size) {
             memmove(s->bitstream, &s->bitstream[s->bitstream_index],
                     s->bitstream_size);
@@ -462,7 +466,8 @@ static int shorten_decode_frame(AVCodecContext *avctx, void *data,
         }
     }
     /* init and position bitstream reader */
-    init_get_bits(&s->gb, buf, buf_size * 8);
+    if ((ret = init_get_bits8(&s->gb, buf, buf_size)) < 0)
+        return ret;
     skip_bits(&s->gb, s->bitindex);
 
     /* process header or next subblock */
@@ -675,7 +680,7 @@ AVCodec ff_shorten_decoder = {
     .init           = shorten_decode_init,
     .close          = shorten_decode_close,
     .decode         = shorten_decode_frame,
-    .capabilities   = CODEC_CAP_DELAY | CODEC_CAP_DR1,
+    .capabilities   = AV_CODEC_CAP_DELAY | AV_CODEC_CAP_DR1,
     .sample_fmts    = (const enum AVSampleFormat[]) { AV_SAMPLE_FMT_S16P,
                                                       AV_SAMPLE_FMT_U8P,
                                                       AV_SAMPLE_FMT_NONE },

@@ -197,7 +197,7 @@ static int check_diff(FFTSample *tab1, FFTSample *tab2, int n, double scale)
     double error = 0, max = 0;
 
     for (i = 0; i < n; i++) {
-        double e = fabsf(tab1[i] - (tab2[i] / scale)) / RANGE;
+        double e = fabs(tab1[i] - (tab2[i] / scale)) / RANGE;
         if (e >= 1e-3) {
             av_log(NULL, AV_LOG_ERROR, "ERROR %5d: "FMT" "FMT"\n",
                    i, tab1[i], tab2[i]);
@@ -285,7 +285,7 @@ int main(int argc, char **argv)
             break;
         case 'c':
         {
-            int cpuflags = av_get_cpu_flags();
+            unsigned cpuflags = av_get_cpu_flags();
 
             if (av_parse_cpu_caps(&cpuflags, optarg) < 0)
                 return 1;

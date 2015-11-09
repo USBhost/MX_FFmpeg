@@ -31,7 +31,6 @@
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavfilter/avfiltergraph.h>
-#include <libavfilter/avcodec.h>
 #include <libavfilter/buffersink.h>
 #include <libavfilter/buffersrc.h>
 #include <libavutil/opt.h>
@@ -116,6 +115,10 @@ static int open_output_file(const char *filename)
                 || dec_ctx->codec_type == AVMEDIA_TYPE_AUDIO) {
             /* in this example, we choose transcoding to same codec */
             encoder = avcodec_find_encoder(dec_ctx->codec_id);
+            if (!encoder) {
+                av_log(NULL, AV_LOG_FATAL, "Necessary encoder not found\n");
+                return AVERROR_INVALIDDATA;
+            }
 
             /* In this example, we transcode to same properties (picture size,
              * sample rate etc.). These properties can be changed for output
@@ -157,7 +160,7 @@ static int open_output_file(const char *filename)
         }
 
         if (ofmt_ctx->oformat->flags & AVFMT_GLOBALHEADER)
-            enc_ctx->flags |= CODEC_FLAG_GLOBAL_HEADER;
+            enc_ctx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
 
     }
     av_dump_format(ofmt_ctx, 0, filename, 1);
@@ -445,7 +448,7 @@ static int flush_encoder(unsigned int stream_index)
     int got_frame;
 
     if (!(ofmt_ctx->streams[stream_index]->codec->codec->capabilities &
-                CODEC_CAP_DELAY))
+                AV_CODEC_CAP_DELAY))
         return 0;
 
     while (1) {
@@ -569,7 +572,7 @@ end:
     av_free(filter_ctx);
     avformat_close_input(&ifmt_ctx);
     if (ofmt_ctx && !(ofmt_ctx->oformat->flags & AVFMT_NOFILE))
-        avio_close(ofmt_ctx->pb);
+        avio_closep(&ofmt_ctx->pb);
     avformat_free_context(ofmt_ctx);
 
     if (ret < 0)

@@ -118,7 +118,9 @@ void av_pkt_dump_log2(void *avcl, int level, const AVPacket *pkt, int dump_paylo
 static void print_fps(double d, const char *postfix)
 {
     uint64_t v = lrintf(d * 100);
-    if (v % 100)
+    if (!v)
+        av_log(NULL, AV_LOG_INFO, "%1.4f %s", d, postfix);
+    else if (v % 100)
         av_log(NULL, AV_LOG_INFO, "%3.2f %s", d, postfix);
     else if (v % (100 * 1000))
         av_log(NULL, AV_LOG_INFO, "%1.0f %s", d, postfix);
@@ -291,6 +293,49 @@ static void dump_stereo3d(void *ctx, AVPacketSideData *sd)
         av_log(ctx, AV_LOG_INFO, " (inverted)");
 }
 
+static void dump_audioservicetype(void *ctx, AVPacketSideData *sd)
+{
+    enum AVAudioServiceType *ast = (enum AVAudioServiceType *)sd->data;
+
+    if (sd->size < sizeof(*ast)) {
+        av_log(ctx, AV_LOG_INFO, "invalid data");
+        return;
+    }
+
+    switch (*ast) {
+    case AV_AUDIO_SERVICE_TYPE_MAIN:
+        av_log(ctx, AV_LOG_INFO, "main");
+        break;
+    case AV_AUDIO_SERVICE_TYPE_EFFECTS:
+        av_log(ctx, AV_LOG_INFO, "effects");
+        break;
+    case AV_AUDIO_SERVICE_TYPE_VISUALLY_IMPAIRED:
+        av_log(ctx, AV_LOG_INFO, "visually impaired");
+        break;
+    case AV_AUDIO_SERVICE_TYPE_HEARING_IMPAIRED:
+        av_log(ctx, AV_LOG_INFO, "hearing impaired");
+        break;
+    case AV_AUDIO_SERVICE_TYPE_DIALOGUE:
+        av_log(ctx, AV_LOG_INFO, "dialogue");
+        break;
+    case AV_AUDIO_SERVICE_TYPE_COMMENTARY:
+        av_log(ctx, AV_LOG_INFO, "comentary");
+        break;
+    case AV_AUDIO_SERVICE_TYPE_EMERGENCY:
+        av_log(ctx, AV_LOG_INFO, "emergency");
+        break;
+    case AV_AUDIO_SERVICE_TYPE_VOICE_OVER:
+        av_log(ctx, AV_LOG_INFO, "voice over");
+        break;
+    case AV_AUDIO_SERVICE_TYPE_KARAOKE:
+        av_log(ctx, AV_LOG_INFO, "karaoke");
+        break;
+    default:
+        av_log(ctx, AV_LOG_WARNING, "unknown");
+        break;
+    }
+}
+
 static void dump_sidedata(void *ctx, AVStream *st, const char *indent)
 {
     int i;
@@ -327,6 +372,13 @@ static void dump_sidedata(void *ctx, AVStream *st, const char *indent)
         case AV_PKT_DATA_STEREO3D:
             av_log(ctx, AV_LOG_INFO, "stereo3d: ");
             dump_stereo3d(ctx, &sd);
+            break;
+        case AV_PKT_DATA_AUDIO_SERVICE_TYPE:
+            av_log(ctx, AV_LOG_INFO, "audio service type: ");
+            dump_audioservicetype(ctx, &sd);
+            break;
+        case AV_PKT_DATA_QUALITY_STATS:
+            av_log(ctx, AV_LOG_INFO, "quality factor: %d, pict_type: %c", AV_RL32(sd.data), av_get_picture_type_char(sd.data[4]));
             break;
         default:
             av_log(ctx, AV_LOG_WARNING,
@@ -371,8 +423,8 @@ static void dump_stream_format(AVFormatContext *ic, int i,
         av_cmp_q(st->sample_aspect_ratio, st->codec->sample_aspect_ratio)) {
         AVRational display_aspect_ratio;
         av_reduce(&display_aspect_ratio.num, &display_aspect_ratio.den,
-                  st->codec->width  * st->sample_aspect_ratio.num,
-                  st->codec->height * st->sample_aspect_ratio.den,
+                  st->codec->width  * (int64_t)st->sample_aspect_ratio.num,
+                  st->codec->height * (int64_t)st->sample_aspect_ratio.den,
                   1024 * 1024);
         av_log(NULL, AV_LOG_INFO, ", SAR %d:%d DAR %d:%d",
                st->sample_aspect_ratio.num, st->sample_aspect_ratio.den,
@@ -460,13 +512,13 @@ void av_dump_format(AVFormatContext *ic, int index,
             int secs, us;
             av_log(NULL, AV_LOG_INFO, ", start: ");
             secs = ic->start_time / AV_TIME_BASE;
-            us   = abs(ic->start_time % AV_TIME_BASE);
+            us   = llabs(ic->start_time % AV_TIME_BASE);
             av_log(NULL, AV_LOG_INFO, "%d.%06d",
                    secs, (int) av_rescale(us, 1000000, AV_TIME_BASE));
         }
         av_log(NULL, AV_LOG_INFO, ", bitrate: ");
         if (ic->bit_rate)
-            av_log(NULL, AV_LOG_INFO, "%d kb/s", ic->bit_rate / 1000);
+            av_log(NULL, AV_LOG_INFO, "%"PRId64" kb/s", (int64_t)ic->bit_rate / 1000);
         else
             av_log(NULL, AV_LOG_INFO, "N/A");
         av_log(NULL, AV_LOG_INFO, "\n");

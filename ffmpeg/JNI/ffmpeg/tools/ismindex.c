@@ -230,10 +230,12 @@ fail:
 static int64_t read_trun_duration(AVIOContext *in, int default_duration,
                                   int64_t end)
 {
-    int64_t ret = 0;
+    int64_t dts = 0;
     int64_t pos;
     int flags, i;
     int entries;
+    int64_t first_pts = 0;
+    int64_t max_pts = 0;
     avio_r8(in); /* version */
     flags = avio_rb24(in);
     if (default_duration <= 0 && !(flags & MOV_TRUN_SAMPLE_DURATION)) {
@@ -248,19 +250,23 @@ static int64_t read_trun_duration(AVIOContext *in, int default_duration,
     pos = avio_tell(in);
     for (i = 0; i < entries && pos < end; i++) {
         int sample_duration = default_duration;
+        int64_t pts = dts;
         if (flags & MOV_TRUN_SAMPLE_DURATION) sample_duration = avio_rb32(in);
         if (flags & MOV_TRUN_SAMPLE_SIZE)     avio_rb32(in);
         if (flags & MOV_TRUN_SAMPLE_FLAGS)    avio_rb32(in);
-        if (flags & MOV_TRUN_SAMPLE_CTS)      avio_rb32(in);
+        if (flags & MOV_TRUN_SAMPLE_CTS)      pts += avio_rb32(in);
         if (sample_duration < 0) {
             fprintf(stderr, "Negative sample duration %d\n", sample_duration);
             return -1;
         }
-        ret += sample_duration;
+        if (i == 0)
+            first_pts = pts;
+        max_pts = FFMAX(max_pts, pts + sample_duration);
+        dts += sample_duration;
         pos = avio_tell(in);
     }
 
-    return ret;
+    return max_pts - first_pts;
 }
 
 static int64_t read_moof_duration(AVIOContext *in, int64_t offset)
@@ -340,6 +346,7 @@ static int read_tfra(struct Tracks *tracks, int start_index, AVIOContext *f)
     track->chunks  = avio_rb32(f);
     track->offsets = av_mallocz_array(track->chunks, sizeof(*track->offsets));
     if (!track->offsets) {
+        track->chunks = 0;
         ret = AVERROR(ENOMEM);
         goto fail;
     }
@@ -371,7 +378,7 @@ static int read_tfra(struct Tracks *tracks, int start_index, AVIOContext *f)
     // Now try and read the actual durations from the trun sample data.
     for (i = 0; i < track->chunks; i++) {
         int64_t duration = read_moof_duration(f, track->offsets[i].offset);
-        if (duration > 0 && abs(duration - track->offsets[i].duration) > 3) {
+        if (duration > 0 && llabs(duration - track->offsets[i].duration) > 3) {
             // 3 allows for integer duration to drift a few units,
             // e.g., for 1/3 durations
             track->offsets[i].duration = duration;
@@ -448,10 +455,11 @@ fail:
 
 static int get_private_data(struct Track *track, AVCodecContext *codec)
 {
-    track->codec_private_size = codec->extradata_size;
+    track->codec_private_size = 0;
     track->codec_private      = av_mallocz(codec->extradata_size);
     if (!track->codec_private)
         return AVERROR(ENOMEM);
+    track->codec_private_size = codec->extradata_size;
     memcpy(track->codec_private, codec->extradata, codec->extradata_size);
     return 0;
 }
@@ -530,8 +538,9 @@ static int handle_file(struct Tracks *tracks, const char *file, int split,
             err = AVERROR(ENOMEM);
             goto fail;
         }
-        temp = av_realloc(tracks->tracks,
-                          sizeof(*tracks->tracks) * (tracks->nb_tracks + 1));
+        temp = av_realloc_array(tracks->tracks,
+                                tracks->nb_tracks + 1,
+                                sizeof(*tracks->tracks));
         if (!temp) {
             av_free(track);
             err = AVERROR(ENOMEM);

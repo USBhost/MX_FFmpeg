@@ -166,7 +166,7 @@ INF: while(<$inf>) {
         if ($ended =~ /^(?:ifset|ifclear|ignore|menu|iftex|ifhtml|ifnothtml)$/) {
             $skipping = pop @skstack;
             next;
-        } elsif ($ended =~ /^(?:example|smallexample|display)$/) {
+        } elsif ($ended =~ /^(?:example|smallexample|verbatim|display)$/) {
             $shift = "";
             $_ = "";        # need a paragraph break
         } elsif ($ended =~ /^(?:itemize|enumerate|(?:multi|[fv])?table)$/) {
@@ -290,7 +290,7 @@ INF: while(<$inf>) {
         $_ = "\n=over 4\n";
     };
 
-    /^\@((?:small)?example|display)/ and do {
+    /^\@((?:small)?example|verbatim|display)/ and do {
         push @endwstack, $endw;
         $endw = $1;
         $shift = "\t";
@@ -384,7 +384,7 @@ sub postprocess
     # @* is also impossible in .pod; we discard it and any newline that
     # follows it.  Similarly, our macro @gol must be discarded.
 
-    s/\@anchor{(?:[^\}]*)\}//g;
+    s/\@anchor\{(?:[^\}]*)\}//g;
     s/\(?\@xref\{(?:[^\}]*)\}(?:[^.<]|(?:<[^<>]*>))*\.\)?//g;
     s/\s+\(\@pxref\{(?:[^\}]*)\}\)//g;
     s/;\s+\@pxref\{(?:[^\}]*)\}//g;

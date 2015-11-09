@@ -116,7 +116,7 @@ static const uint16_t dv_iweight_720_y[64] = {
      96,  98,  96,  88,  96,  98, 202, 196,
     196, 202, 208, 218, 208, 232, 232, 246,
 };
-const uint16_t dv_iweight_720_c[64] = {
+static const uint16_t dv_iweight_720_c[64] = {
     128,  24,  24,  26,  26,  26,  36,  36,
      36,  36,  36,  36,  38,  36,  36,  38,
      38,  38,  38,  38,  38,  84,  76,  80,
@@ -222,7 +222,7 @@ static void dv_decode_ac(GetBitContext *gb, BlockInfo *mb, int16_t *block)
 
     /* get the AC coefficients until last_index is reached */
     for (;;) {
-        av_dlog(NULL, "%2d: bits=%04x index=%d\n", pos, SHOW_UBITS(re, gb, 16),
+        ff_dlog(NULL, "%2d: bits=%04x index=%d\n", pos, SHOW_UBITS(re, gb, 16),
                 re_index);
         /* our own optimized GET_RL_VLC */
         index   = NEG_USR32(re_cache, TEX_VLC_BITS);
@@ -245,7 +245,7 @@ static void dv_decode_ac(GetBitContext *gb, BlockInfo *mb, int16_t *block)
         }
         re_index += vlc_len;
 
-        av_dlog(NULL, "run=%d level=%d\n", run, level);
+        ff_dlog(NULL, "run=%d level=%d\n", run, level);
         pos += run;
         if (pos >= 64)
             break;
@@ -287,13 +287,19 @@ static int dv_decode_video_segment(AVCodecContext *avctx, void *arg)
     GetBitContext gb;
     BlockInfo mb_data[5 * DV_MAX_BPM], *mb, *mb1;
     LOCAL_ALIGNED_16(int16_t, sblock, [5 * DV_MAX_BPM], [64]);
-    LOCAL_ALIGNED_16(uint8_t, mb_bit_buffer, [80     + FF_INPUT_BUFFER_PADDING_SIZE]); /* allow some slack */
-    LOCAL_ALIGNED_16(uint8_t, vs_bit_buffer, [80 * 5 + FF_INPUT_BUFFER_PADDING_SIZE]); /* allow some slack */
+    LOCAL_ALIGNED_16(uint8_t, mb_bit_buffer, [80     + AV_INPUT_BUFFER_PADDING_SIZE]); /* allow some slack */
+    LOCAL_ALIGNED_16(uint8_t, vs_bit_buffer, [80 * 5 + AV_INPUT_BUFFER_PADDING_SIZE]); /* allow some slack */
     const int log2_blocksize = 3-s->avctx->lowres;
     int is_field_mode[5];
+    int vs_bit_buffer_damaged = 0;
+    int mb_bit_buffer_damaged[5] = {0};
+    int retried = 0;
+    int sta;
 
     av_assert1((((int) mb_bit_buffer) & 7) == 0);
     av_assert1((((int) vs_bit_buffer) & 7) == 0);
+
+retry:
 
     memset(sblock, 0, 5 * DV_MAX_BPM * sizeof(*sblock));
 
@@ -305,6 +311,14 @@ static int dv_decode_video_segment(AVCodecContext *avctx, void *arg)
     for (mb_index = 0; mb_index < 5; mb_index++, mb1 += s->sys->bpm, block1 += s->sys->bpm * 64) {
         /* skip header */
         quant    = buf_ptr[3] & 0x0f;
+        if (avctx->error_concealment) {
+            if ((buf_ptr[3] >> 4) == 0x0E)
+                vs_bit_buffer_damaged = 1;
+            if (!mb_index) {
+                sta = buf_ptr[3] >> 4;
+            } else if (sta != (buf_ptr[3] >> 4))
+                vs_bit_buffer_damaged = 1;
+        }
         buf_ptr += 4;
         init_put_bits(&pb, mb_bit_buffer, 80);
         mb    = mb1;
@@ -342,20 +356,25 @@ static int dv_decode_video_segment(AVCodecContext *avctx, void *arg)
             mb->pos               = 0;
             mb->partial_bit_count = 0;
 
-            av_dlog(avctx, "MB block: %d, %d ", mb_index, j);
+            ff_dlog(avctx, "MB block: %d, %d ", mb_index, j);
             dv_decode_ac(&gb, mb, block);
 
             /* write the remaining bits in a new buffer only if the
              * block is finished */
             if (mb->pos >= 64)
                 bit_copy(&pb, &gb);
+            if (mb->pos >= 64 && mb->pos < 127)
+                vs_bit_buffer_damaged = mb_bit_buffer_damaged[mb_index] = 1;
 
             block += 64;
             mb++;
         }
 
+        if (mb_bit_buffer_damaged[mb_index] > 0)
+            continue;
+
         /* pass 2: we can do it just after */
-        av_dlog(avctx, "***pass 2 size=%d MB#=%d\n", put_bits_count(&pb), mb_index);
+        ff_dlog(avctx, "***pass 2 size=%d MB#=%d\n", put_bits_count(&pb), mb_index);
         block = block1;
         mb    = mb1;
         init_get_bits(&gb, mb_bit_buffer, put_bits_count(&pb));
@@ -367,6 +386,8 @@ static int dv_decode_video_segment(AVCodecContext *avctx, void *arg)
                 /* if still not finished, no need to parse other blocks */
                 if (mb->pos < 64)
                     break;
+                if (mb->pos < 127)
+                    vs_bit_buffer_damaged = mb_bit_buffer_damaged[mb_index] = 1;
             }
         }
         /* all blocks are finished, so the extra bytes can be used at
@@ -376,7 +397,7 @@ static int dv_decode_video_segment(AVCodecContext *avctx, void *arg)
     }
 
     /* we need a pass over the whole video segment */
-    av_dlog(avctx, "***pass 3 size=%d\n", put_bits_count(&vs_pb));
+    ff_dlog(avctx, "***pass 3 size=%d\n", put_bits_count(&vs_pb));
     block = &sblock[0][0];
     mb    = mb_data;
     init_get_bits(&gb, vs_bit_buffer, put_bits_count(&vs_pb));
@@ -384,16 +405,24 @@ static int dv_decode_video_segment(AVCodecContext *avctx, void *arg)
     flush_put_bits(&vs_pb);
     for (mb_index = 0; mb_index < 5; mb_index++) {
         for (j = 0; j < s->sys->bpm; j++) {
-            if (mb->pos < 64 && get_bits_left(&gb) > 0) {
-                av_dlog(avctx, "start %d:%d\n", mb_index, j);
+            if (mb->pos < 64 && get_bits_left(&gb) > 0 && !vs_bit_buffer_damaged) {
+                ff_dlog(avctx, "start %d:%d\n", mb_index, j);
                 dv_decode_ac(&gb, mb, block);
             }
-            if (mb->pos >= 64 && mb->pos < 127)
+
+            if (mb->pos >= 64 && mb->pos < 127) {
                 av_log(avctx, AV_LOG_ERROR,
                        "AC EOB marker is absent pos=%d\n", mb->pos);
+                vs_bit_buffer_damaged = 1;
+            }
             block += 64;
             mb++;
         }
+    }
+    if (vs_bit_buffer_damaged && !retried) {
+        av_log(avctx, AV_LOG_ERROR, "Concealing bitstream errors\n");
+        retried = 1;
+        goto retry;
     }
 
     /* compute idct and place blocks */
@@ -470,6 +499,7 @@ static int dvvideo_decode_frame(AVCodecContext *avctx, void *data,
     uint8_t *buf = avpkt->data;
     int buf_size = avpkt->size;
     DVVideoContext *s = avctx->priv_data;
+    AVFrame *frame = data;
     const uint8_t *vsc_pack;
     int apt, is16_9, ret;
     const AVDVProfile *sys;
@@ -490,9 +520,9 @@ static int dvvideo_decode_frame(AVCodecContext *avctx, void *data,
         s->sys = sys;
     }
 
-    s->frame            = data;
-    s->frame->key_frame = 1;
-    s->frame->pict_type = AV_PICTURE_TYPE_I;
+    s->frame            = frame;
+    frame->key_frame    = 1;
+    frame->pict_type    = AV_PICTURE_TYPE_I;
     avctx->pix_fmt      = s->sys->pix_fmt;
     avctx->framerate    = av_inv_q(s->sys->time_base);
 
@@ -509,14 +539,14 @@ static int dvvideo_decode_frame(AVCodecContext *avctx, void *data,
         ff_set_sar(avctx, s->sys->sar[is16_9]);
     }
 
-    if ((ret = ff_get_buffer(avctx, s->frame, 0)) < 0)
+    if ((ret = ff_get_buffer(avctx, frame, 0)) < 0)
         return ret;
-    s->frame->interlaced_frame = 1;
-    s->frame->top_field_first  = 0;
+    frame->interlaced_frame = 1;
+    frame->top_field_first  = 0;
 
     /* Determine the codec's field order from the packet */
     if ( *vsc_pack == dv_video_control ) {
-        s->frame->top_field_first = !(vsc_pack[3] & 0x40);
+        frame->top_field_first = !(vsc_pack[3] & 0x40);
     }
 
     s->buf = buf;
@@ -539,6 +569,6 @@ AVCodec ff_dvvideo_decoder = {
     .priv_data_size = sizeof(DVVideoContext),
     .init           = dvvideo_decode_init,
     .decode         = dvvideo_decode_frame,
-    .capabilities   = CODEC_CAP_DR1 | CODEC_CAP_SLICE_THREADS,
+    .capabilities   = AV_CODEC_CAP_DR1 | AV_CODEC_CAP_SLICE_THREADS,
     .max_lowres     = 3,
 };

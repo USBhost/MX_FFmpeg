@@ -18,8 +18,8 @@ LOCAL_CFLAGS += \
 -ffunction-sections \
 -Wno-psabi
 
-ifeq ($(TUNE),atom)
-LOCAL_CFLAGS += -mtune=atom -msse3 -mssse3
+ifeq ($(ARCH),atom)
+LOCAL_CFLAGS += -msse3 -mssse3
 else
 LOCAL_CFLAGS += -msse2 -mno-sse3 -mno-ssse3
 endif

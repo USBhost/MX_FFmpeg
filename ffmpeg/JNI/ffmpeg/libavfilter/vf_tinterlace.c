@@ -35,6 +35,7 @@
 #define OFFSET(x) offsetof(TInterlaceContext, x)
 #define FLAGS AV_OPT_FLAG_FILTERING_PARAM|AV_OPT_FLAG_VIDEO_PARAM
 #define TINTERLACE_FLAG_VLPF 01
+#define TINTERLACE_FLAG_EXACT_TB 2
 
 static const AVOption tinterlace_options[] = {
     {"mode",              "select interlace mode", OFFSET(mode), AV_OPT_TYPE_INT, {.i64=MODE_MERGE}, 0, MODE_NB-1, FLAGS, "mode"},
@@ -45,10 +46,12 @@ static const AVOption tinterlace_options[] = {
     {"interleave_top",    "interleave top and bottom fields",             0, AV_OPT_TYPE_CONST, {.i64=MODE_INTERLEAVE_TOP},    INT_MIN, INT_MAX, FLAGS, "mode"},
     {"interleave_bottom", "interleave bottom and top fields",             0, AV_OPT_TYPE_CONST, {.i64=MODE_INTERLEAVE_BOTTOM}, INT_MIN, INT_MAX, FLAGS, "mode"},
     {"interlacex2",       "interlace fields from two consecutive frames", 0, AV_OPT_TYPE_CONST, {.i64=MODE_INTERLACEX2},       INT_MIN, INT_MAX, FLAGS, "mode"},
+    {"mergex2",           "merge fields keeping same frame rate",         0, AV_OPT_TYPE_CONST, {.i64=MODE_MERGEX2},           INT_MIN, INT_MAX, FLAGS, "mode"},
 
     {"flags",             "set flags", OFFSET(flags), AV_OPT_TYPE_FLAGS, {.i64 = 0}, 0, INT_MAX, 0, "flags" },
     {"low_pass_filter",   "enable vertical low-pass filter",              0, AV_OPT_TYPE_CONST, {.i64 = TINTERLACE_FLAG_VLPF}, INT_MIN, INT_MAX, FLAGS, "flags" },
     {"vlpf",              "enable vertical low-pass filter",              0, AV_OPT_TYPE_CONST, {.i64 = TINTERLACE_FLAG_VLPF}, INT_MIN, INT_MAX, FLAGS, "flags" },
+    {"exact_tb",          "force a timebase which can represent timestamps exactly", 0, AV_OPT_TYPE_CONST, {.i64 = TINTERLACE_FLAG_EXACT_TB}, INT_MIN, INT_MAX, FLAGS, "flags" },
 
     {NULL}
 };
@@ -62,6 +65,12 @@ static const enum AVPixelFormat full_scale_yuvj_pix_fmts[] = {
     FULL_SCALE_YUVJ_FORMATS, AV_PIX_FMT_NONE
 };
 
+static const AVRational standard_tbs[] = {
+    {1, 25},
+    {1, 30},
+    {1001, 30000},
+};
+
 static int query_formats(AVFilterContext *ctx)
 {
     static const enum AVPixelFormat pix_fmts[] = {
@@ -73,8 +82,10 @@ static int query_formats(AVFilterContext *ctx)
         AV_PIX_FMT_NONE
     };
 
-    ff_set_common_formats(ctx, ff_make_format_list(pix_fmts));
-    return 0;
+    AVFilterFormats *fmts_list = ff_make_format_list(pix_fmts);
+    if (!fmts_list)
+        return AVERROR(ENOMEM);
+    return ff_set_common_formats(ctx, fmts_list);
 }
 
 static void lowpass_line_c(uint8_t *dstp, ptrdiff_t width, const uint8_t *srcp,
@@ -104,12 +115,15 @@ static int config_out_props(AVFilterLink *outlink)
     AVFilterLink *inlink = outlink->src->inputs[0];
     const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(outlink->format);
     TInterlaceContext *tinterlace = ctx->priv;
+    int i;
 
     tinterlace->vsub = desc->log2_chroma_h;
-    outlink->flags |= FF_LINK_FLAG_REQUEST_LOOP;
     outlink->w = inlink->w;
-    outlink->h = tinterlace->mode == MODE_MERGE || tinterlace->mode == MODE_PAD ?
+    outlink->h = tinterlace->mode == MODE_MERGE || tinterlace->mode == MODE_PAD || tinterlace->mode == MODE_MERGEX2?
         inlink->h*2 : inlink->h;
+    if (tinterlace->mode == MODE_MERGE || tinterlace->mode == MODE_PAD || tinterlace->mode == MODE_MERGEX2)
+        outlink->sample_aspect_ratio = av_mul_q(inlink->sample_aspect_ratio,
+                                                av_make_q(2, 1));
 
     if (tinterlace->mode == MODE_PAD) {
         uint8_t black[4] = { 16, 128, 128, 16 };
@@ -135,13 +149,26 @@ static int config_out_props(AVFilterLink *outlink)
                 tinterlace->mode);
         tinterlace->flags &= ~TINTERLACE_FLAG_VLPF;
     }
+    tinterlace->preout_time_base = inlink->time_base;
     if (tinterlace->mode == MODE_INTERLACEX2) {
-        outlink->time_base.num = inlink->time_base.num;
-        outlink->time_base.den = inlink->time_base.den * 2;
+        tinterlace->preout_time_base.den *= 2;
         outlink->frame_rate = av_mul_q(inlink->frame_rate, (AVRational){2,1});
+        outlink->time_base  = av_mul_q(inlink->time_base , (AVRational){1,2});
+    } else if (tinterlace->mode == MODE_MERGEX2) {
+        outlink->frame_rate = inlink->frame_rate;
+        outlink->time_base  = inlink->time_base;
     } else if (tinterlace->mode != MODE_PAD) {
         outlink->frame_rate = av_mul_q(inlink->frame_rate, (AVRational){1,2});
+        outlink->time_base  = av_mul_q(inlink->time_base , (AVRational){2,1});
     }
+
+    for (i = 0; i<FF_ARRAY_ELEMS(standard_tbs); i++){
+        if (!av_cmp_q(standard_tbs[i], outlink->time_base))
+            break;
+    }
+    if (i == FF_ARRAY_ELEMS(standard_tbs) ||
+        (tinterlace->flags & TINTERLACE_FLAG_EXACT_TB))
+        outlink->time_base = tinterlace->preout_time_base;
 
     if (tinterlace->flags & TINTERLACE_FLAG_VLPF) {
         tinterlace->lowpass_line = lowpass_line_c;
@@ -178,19 +205,16 @@ void copy_picture_field(TInterlaceContext *tinterlace,
                         int flags)
 {
     const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(format);
+    int hsub = desc->log2_chroma_w;
     int plane, vsub = desc->log2_chroma_h;
     int k = src_field == FIELD_UPPER_AND_LOWER ? 1 : 2;
     int h;
 
     for (plane = 0; plane < desc->nb_components; plane++) {
         int lines = plane == 1 || plane == 2 ? FF_CEIL_RSHIFT(src_h, vsub) : src_h;
-        int cols  = plane == 1 || plane == 2 ? FF_CEIL_RSHIFT(    w, desc->log2_chroma_w) : w;
-        int linesize = av_image_get_linesize(format, w, plane);
+        int cols  = plane == 1 || plane == 2 ? FF_CEIL_RSHIFT(    w, hsub) : w;
         uint8_t *dstp = dst[plane];
         const uint8_t *srcp = src[plane];
-
-        if (linesize < 0)
-            return;
 
         lines = (lines + (src_field == FIELD_UPPER)) / k;
         if (src_field == FIELD_LOWER)
@@ -215,7 +239,7 @@ void copy_picture_field(TInterlaceContext *tinterlace,
             }
         } else {
             av_image_copy_plane(dstp, dst_linesize[plane] * (interleave ? 2 : 1),
-                            srcp, src_linesize[plane]*k, linesize, lines);
+                                srcp, src_linesize[plane]*k, cols, lines);
         }
     }
 }
@@ -239,6 +263,8 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *picref)
         return 0;
 
     switch (tinterlace->mode) {
+    case MODE_MERGEX2: /* move the odd frame into the upper field of the new image, even into
+                        * the lower field, generating a double-height video at same framerate */
     case MODE_MERGE: /* move the odd frame into the upper field of the new image, even into
              * the lower field, generating a double-height video at half framerate */
         out = ff_get_video_buffer(outlink, outlink->w, outlink->h);
@@ -248,18 +274,20 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *picref)
         out->height = outlink->h;
         out->interlaced_frame = 1;
         out->top_field_first = 1;
+        out->sample_aspect_ratio = av_mul_q(cur->sample_aspect_ratio, av_make_q(2, 1));
 
         /* write odd frame lines into the upper field of the new frame */
         copy_picture_field(tinterlace, out->data, out->linesize,
                            (const uint8_t **)cur->data, cur->linesize,
                            inlink->format, inlink->w, inlink->h,
-                           FIELD_UPPER_AND_LOWER, 1, FIELD_UPPER, tinterlace->flags);
+                           FIELD_UPPER_AND_LOWER, 1, tinterlace->mode == MODE_MERGEX2 ? inlink->frame_count & 1 ? FIELD_LOWER : FIELD_UPPER : FIELD_UPPER, tinterlace->flags);
         /* write even frame lines into the lower field of the new frame */
         copy_picture_field(tinterlace, out->data, out->linesize,
                            (const uint8_t **)next->data, next->linesize,
                            inlink->format, inlink->w, inlink->h,
-                           FIELD_UPPER_AND_LOWER, 1, FIELD_LOWER, tinterlace->flags);
-        av_frame_free(&tinterlace->next);
+                           FIELD_UPPER_AND_LOWER, 1, tinterlace->mode == MODE_MERGEX2 ? inlink->frame_count & 1 ? FIELD_UPPER : FIELD_LOWER : FIELD_LOWER, tinterlace->flags);
+        if (tinterlace->mode != MODE_MERGEX2)
+            av_frame_free(&tinterlace->next);
         break;
 
     case MODE_DROP_ODD:  /* only output even frames, odd  frames are dropped; height unchanged, half framerate */
@@ -277,6 +305,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *picref)
             return AVERROR(ENOMEM);
         av_frame_copy_props(out, cur);
         out->height = outlink->h;
+        out->sample_aspect_ratio = av_mul_q(cur->sample_aspect_ratio, av_make_q(2, 1));
 
         field = (1 + tinterlace->frame) & 1 ? FIELD_UPPER : FIELD_LOWER;
         /* copy upper and lower fields */
@@ -326,6 +355,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *picref)
         if (cur->pts != AV_NOPTS_VALUE)
             out->pts = cur->pts*2;
 
+        out->pts = av_rescale_q(out->pts, tinterlace->preout_time_base, outlink->time_base);
         if ((ret = ff_filter_frame(outlink, out)) < 0)
             return ret;
 
@@ -359,6 +389,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *picref)
         av_assert0(0);
     }
 
+    out->pts = av_rescale_q(out->pts, tinterlace->preout_time_base, outlink->time_base);
     ret = ff_filter_frame(outlink, out);
     tinterlace->frame++;
 

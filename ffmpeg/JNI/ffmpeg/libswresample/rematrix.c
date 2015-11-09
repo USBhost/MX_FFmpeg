@@ -65,8 +65,8 @@ int swr_set_matrix(struct SwrContext *s, const double *matrix, int stride)
     if (!s || s->in_convert) // s needs to be allocated but not initialized
         return AVERROR(EINVAL);
     memset(s->matrix, 0, sizeof(s->matrix));
-    nb_in  = av_get_channel_layout_nb_channels(s->in_ch_layout);
-    nb_out = av_get_channel_layout_nb_channels(s->out_ch_layout);
+    nb_in  = av_get_channel_layout_nb_channels(s->user_in_ch_layout);
+    nb_out = av_get_channel_layout_nb_channels(s->user_out_ch_layout);
     for (out = 0; out < nb_out; out++) {
         for (in = 0; in < nb_in; in++)
             s->matrix[out][in] = matrix[in];
@@ -340,11 +340,16 @@ av_cold static int auto_matrix(SwrContext *s)
             }
     }
 
+    av_log(s, AV_LOG_DEBUG, "Matrix coefficients:\n");
     for(i=0; i<av_get_channel_layout_nb_channels(out_ch_layout); i++){
+        const char *c =
+            av_get_channel_name(av_channel_layout_extract_channel(out_ch_layout, i));
+        av_log(s, AV_LOG_DEBUG, "%s: ", c ? c : "?");
         for(j=0; j<av_get_channel_layout_nb_channels(in_ch_layout); j++){
-            av_log(NULL, AV_LOG_DEBUG, "%f ", s->matrix[i][j]);
+            c = av_get_channel_name(av_channel_layout_extract_channel(in_ch_layout, j));
+            av_log(s, AV_LOG_DEBUG, "%s:%f ", c ? c : "?", s->matrix[i][j]);
         }
-        av_log(NULL, AV_LOG_DEBUG, "\n");
+        av_log(s, AV_LOG_DEBUG, "\n");
     }
     return 0;
 }
@@ -364,6 +369,8 @@ av_cold int swri_rematrix_init(SwrContext *s){
     if (s->midbuf.fmt == AV_SAMPLE_FMT_S16P){
         s->native_matrix = av_calloc(nb_in * nb_out, sizeof(int));
         s->native_one    = av_mallocz(sizeof(int));
+        if (!s->native_matrix || !s->native_one)
+            return AVERROR(ENOMEM);
         for (i = 0; i < nb_out; i++)
             for (j = 0; j < nb_in; j++)
                 ((int*)s->native_matrix)[i * nb_in + j] = lrintf(s->matrix[i][j] * 32768);
@@ -374,6 +381,8 @@ av_cold int swri_rematrix_init(SwrContext *s){
     }else if(s->midbuf.fmt == AV_SAMPLE_FMT_FLTP){
         s->native_matrix = av_calloc(nb_in * nb_out, sizeof(float));
         s->native_one    = av_mallocz(sizeof(float));
+        if (!s->native_matrix || !s->native_one)
+            return AVERROR(ENOMEM);
         for (i = 0; i < nb_out; i++)
             for (j = 0; j < nb_in; j++)
                 ((float*)s->native_matrix)[i * nb_in + j] = s->matrix[i][j];
@@ -384,6 +393,8 @@ av_cold int swri_rematrix_init(SwrContext *s){
     }else if(s->midbuf.fmt == AV_SAMPLE_FMT_DBLP){
         s->native_matrix = av_calloc(nb_in * nb_out, sizeof(double));
         s->native_one    = av_mallocz(sizeof(double));
+        if (!s->native_matrix || !s->native_one)
+            return AVERROR(ENOMEM);
         for (i = 0; i < nb_out; i++)
             for (j = 0; j < nb_in; j++)
                 ((double*)s->native_matrix)[i * nb_in + j] = s->matrix[i][j];
@@ -395,6 +406,8 @@ av_cold int swri_rematrix_init(SwrContext *s){
         // Only for dithering currently
 //         s->native_matrix = av_calloc(nb_in * nb_out, sizeof(double));
         s->native_one    = av_mallocz(sizeof(int));
+        if (!s->native_one)
+            return AVERROR(ENOMEM);
 //         for (i = 0; i < nb_out; i++)
 //             for (j = 0; j < nb_in; j++)
 //                 ((double*)s->native_matrix)[i * nb_in + j] = s->matrix[i][j];
@@ -415,7 +428,8 @@ av_cold int swri_rematrix_init(SwrContext *s){
         s->matrix_ch[i][0]= ch_in;
     }
 
-    if(HAVE_YASM && HAVE_MMX) swri_rematrix_init_x86(s);
+    if(HAVE_YASM && HAVE_MMX)
+        return swri_rematrix_init_x86(s);
 
     return 0;
 }

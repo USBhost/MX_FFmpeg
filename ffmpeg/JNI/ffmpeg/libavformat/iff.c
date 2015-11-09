@@ -98,7 +98,7 @@ typedef enum {
     COMP_EXP
 } svx8_compression_type;
 
-typedef struct {
+typedef struct IffDemuxContext {
     int      is_64bit;  ///< chunk size is 64-bit
     int64_t  body_pos;
     int64_t  body_end;
@@ -455,7 +455,7 @@ static int iff_read_header(AVFormatContext *s)
                  return AVERROR_INVALIDDATA;
             }
             st->codec->extradata_size = data_size + IFF_EXTRA_VIDEO_SIZE;
-            st->codec->extradata      = av_malloc(data_size + IFF_EXTRA_VIDEO_SIZE + FF_INPUT_BUFFER_PADDING_SIZE);
+            st->codec->extradata      = av_malloc(data_size + IFF_EXTRA_VIDEO_SIZE + AV_INPUT_BUFFER_PADDING_SIZE);
             if (!st->codec->extradata)
                 return AVERROR(ENOMEM);
             if (avio_read(pb, st->codec->extradata + IFF_EXTRA_VIDEO_SIZE, data_size) < 0)
@@ -682,7 +682,7 @@ static int iff_read_header(AVFormatContext *s)
 
         if (!st->codec->extradata) {
             st->codec->extradata_size = IFF_EXTRA_VIDEO_SIZE;
-            st->codec->extradata      = av_malloc(IFF_EXTRA_VIDEO_SIZE + FF_INPUT_BUFFER_PADDING_SIZE);
+            st->codec->extradata      = av_malloc(IFF_EXTRA_VIDEO_SIZE + AV_INPUT_BUFFER_PADDING_SIZE);
             if (!st->codec->extradata)
                 return AVERROR(ENOMEM);
         }
@@ -721,11 +721,15 @@ static int iff_read_packet(AVFormatContext *s,
         if (st->codec->codec_tag == ID_DSD || st->codec->codec_tag == ID_MAUD) {
             ret = av_get_packet(pb, pkt, FFMIN(iff->body_end - pos, 1024 * st->codec->block_align));
         } else {
+            if (iff->body_size > INT_MAX)
+                return AVERROR_INVALIDDATA;
             ret = av_get_packet(pb, pkt, iff->body_size);
         }
     } else if (st->codec->codec_type == AVMEDIA_TYPE_VIDEO) {
         uint8_t *buf;
 
+        if (iff->body_size > INT_MAX - 2)
+            return AVERROR_INVALIDDATA;
         if (av_new_packet(pkt, iff->body_size + 2) < 0) {
             return AVERROR(ENOMEM);
         }

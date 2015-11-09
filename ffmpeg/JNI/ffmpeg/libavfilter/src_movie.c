@@ -35,10 +35,10 @@
 #include "libavutil/avassert.h"
 #include "libavutil/opt.h"
 #include "libavutil/imgutils.h"
+#include "libavutil/internal.h"
 #include "libavutil/timestamp.h"
 #include "libavformat/avformat.h"
 #include "audio.h"
-#include "avcodec.h"
 #include "avfilter.h"
 #include "formats.h"
 #include "internal.h"
@@ -289,6 +289,8 @@ static av_cold int movie_common_init(AVFilterContext *ctx)
         snprintf(name, sizeof(name), "out%d", i);
         pad.type          = movie->st[i].st->codec->codec_type;
         pad.name          = av_strdup(name);
+        if (!pad.name)
+            return AVERROR(ENOMEM);
         pad.config_props  = movie_config_output_props;
         pad.request_frame = movie_request_frame;
         ff_insert_outpad(ctx, i, &pad);
@@ -331,7 +333,7 @@ static int movie_query_formats(AVFilterContext *ctx)
     MovieContext *movie = ctx->priv;
     int list[] = { 0, -1 };
     int64_t list64[] = { 0, -1 };
-    int i;
+    int i, ret;
 
     for (i = 0; i < ctx->nb_outputs; i++) {
         MovieStream *st = &movie->st[i];
@@ -341,16 +343,20 @@ static int movie_query_formats(AVFilterContext *ctx)
         switch (c->codec_type) {
         case AVMEDIA_TYPE_VIDEO:
             list[0] = c->pix_fmt;
-            ff_formats_ref(ff_make_format_list(list), &outlink->in_formats);
+            if ((ret = ff_formats_ref(ff_make_format_list(list), &outlink->in_formats)) < 0)
+                return ret;
             break;
         case AVMEDIA_TYPE_AUDIO:
             list[0] = c->sample_fmt;
-            ff_formats_ref(ff_make_format_list(list), &outlink->in_formats);
+            if ((ret = ff_formats_ref(ff_make_format_list(list), &outlink->in_formats)) < 0)
+                return ret;
             list[0] = c->sample_rate;
-            ff_formats_ref(ff_make_format_list(list), &outlink->in_samplerates);
+            if ((ret = ff_formats_ref(ff_make_format_list(list), &outlink->in_samplerates)) < 0)
+                return ret;
             list64[0] = c->channel_layout;
-            ff_channel_layouts_ref(avfilter_make_format64_list(list64),
-                                   &outlink->in_channel_layouts);
+            if ((ret = ff_channel_layouts_ref(avfilter_make_format64_list(list64),
+                                   &outlink->in_channel_layouts)) < 0)
+                return ret;
             break;
         }
     }
@@ -534,7 +540,7 @@ static int movie_push_frame(AVFilterContext *ctx, unsigned out_id)
     }
 
     frame->pts = av_frame_get_best_effort_timestamp(frame);
-    av_dlog(ctx, "movie_push_frame(): file:'%s' %s\n", movie->file_name,
+    ff_dlog(ctx, "movie_push_frame(): file:'%s' %s\n", movie->file_name,
             describe_frame_to_str((char[1024]){0}, 1024, frame, frame_type, outlink));
 
     if (st->st->codec->codec_type == AVMEDIA_TYPE_VIDEO) {

@@ -33,6 +33,7 @@
 #include "internal.h"
 
 #include "libavutil/avassert.h"
+#include "libavutil/internal.h"
 #include "libavutil/log.h"
 #include "libavutil/opt.h"
 #include "libavutil/avstring.h"
@@ -65,7 +66,7 @@ typedef enum {
 #define SEGMENT_LIST_FLAG_CACHE 1
 #define SEGMENT_LIST_FLAG_LIVE  2
 
-typedef struct {
+typedef struct SegmentContext {
     const AVClass *class;  /**< Class for private options. */
     int segment_idx;       ///< index of the segment file to write, starting from 0
     int segment_idx_wrap;  ///< number after which the index wraps
@@ -86,10 +87,11 @@ typedef struct {
     int cut_pending;
 
     char *entry_prefix;    ///< prefix to add to list entry filenames
-    ListType list_type;    ///< set the list type
+    int list_type;         ///< set the list type
     AVIOContext *list_pb;  ///< list file put-byte context
     char *time_str;        ///< segment duration specification string
     int64_t time;          ///< segment duration
+    int use_strftime;      ///< flag to expand filename with strftime
 
     char *times_str;       ///< segment times specification string
     int64_t *times;        ///< list of segment interval specification
@@ -104,11 +106,16 @@ typedef struct {
     int64_t time_delta;
     int  individual_header_trailer; /**< Set by a private option. */
     int  write_header_trailer; /**< Set by a private option. */
+    char *header_filename;  ///< filename to write the output header to
 
     int reset_timestamps;  ///< reset timestamps at the begin of each segment
     int64_t initial_offset;    ///< initial timestamps offset, expressed in microseconds
     char *reference_stream_specifier; ///< reference stream specifier
     int   reference_stream_index;
+    int   break_non_keyframes;
+
+    int use_rename;
+    char temp_list_filename[1024];
 
     SegmentListEntry cur_entry;
     SegmentListEntry *segment_list_entries;
@@ -179,8 +186,17 @@ static int set_segment_filename(AVFormatContext *s)
 
     if (seg->segment_idx_wrap)
         seg->segment_idx %= seg->segment_idx_wrap;
-    if (av_get_frame_filename(oc->filename, sizeof(oc->filename),
-                              s->filename, seg->segment_idx) < 0) {
+    if (seg->use_strftime) {
+        time_t now0;
+        struct tm *tm, tmpbuf;
+        time(&now0);
+        tm = localtime_r(&now0, &tmpbuf);
+        if (!strftime(oc->filename, sizeof(oc->filename), s->filename, tm)) {
+            av_log(oc, AV_LOG_ERROR, "Could not get segment filename with strftime\n");
+            return AVERROR(EINVAL);
+        }
+    } else if (av_get_frame_filename(oc->filename, sizeof(oc->filename),
+                                     s->filename, seg->segment_idx) < 0) {
         av_log(oc, AV_LOG_ERROR, "Invalid segment filename template '%s'\n", s->filename);
         return AVERROR(EINVAL);
     }
@@ -215,7 +231,7 @@ static int segment_start(AVFormatContext *s, int write_header)
     }
 
     seg->segment_idx++;
-    if ((seg->segment_idx_wrap) && (seg->segment_idx%seg->segment_idx_wrap == 0))
+    if ((seg->segment_idx_wrap) && (seg->segment_idx % seg->segment_idx_wrap == 0))
         seg->segment_idx_wrap_nb++;
 
     if ((err = set_segment_filename(s)) < 0)
@@ -226,6 +242,8 @@ static int segment_start(AVFormatContext *s, int write_header)
         av_log(s, AV_LOG_ERROR, "Failed to open segment '%s'\n", oc->filename);
         return err;
     }
+    if (!seg->individual_header_trailer)
+        oc->pb->seekable = 0;
 
     if (oc->oformat->priv_class && oc->priv_data)
         av_opt_set(oc->priv_data, "mpegts_flags", "+resend_headers", 0);
@@ -244,7 +262,8 @@ static int segment_list_open(AVFormatContext *s)
     SegmentContext *seg = s->priv_data;
     int ret;
 
-    ret = avio_open2(&seg->list_pb, seg->list, AVIO_FLAG_WRITE,
+    snprintf(seg->temp_list_filename, sizeof(seg->temp_list_filename), seg->use_rename ? "%s.tmp" : "%s", seg->list);
+    ret = avio_open2(&seg->list_pb, seg->temp_list_filename, AVIO_FLAG_WRITE,
                      &s->interrupt_callback, NULL);
     if (ret < 0) {
         av_log(s, AV_LOG_ERROR, "Failed to open segment list '%s'\n", seg->list);
@@ -333,6 +352,7 @@ static int segment_end(AVFormatContext *s, int write_trailer, int is_last)
 
             /* append new element */
             memcpy(entry, &seg->cur_entry, sizeof(*entry));
+            entry->filename = av_strdup(entry->filename);
             if (!seg->segment_list_entries)
                 seg->segment_list_entries = seg->segment_list_entries_end = entry;
             else
@@ -343,21 +363,23 @@ static int segment_end(AVFormatContext *s, int write_trailer, int is_last)
             if (seg->list_size && seg->segment_count >= seg->list_size) {
                 entry = seg->segment_list_entries;
                 seg->segment_list_entries = seg->segment_list_entries->next;
-                av_free(entry->filename);
+                av_freep(&entry->filename);
                 av_freep(&entry);
             }
 
-            avio_close(seg->list_pb);
             if ((ret = segment_list_open(s)) < 0)
                 goto end;
             for (entry = seg->segment_list_entries; entry; entry = entry->next)
                 segment_list_print_entry(seg->list_pb, seg->list_type, entry, s);
             if (seg->list_type == LIST_TYPE_M3U8 && is_last)
                 avio_printf(seg->list_pb, "#EXT-X-ENDLIST\n");
+            avio_closep(&seg->list_pb);
+            if (seg->use_rename)
+                ff_rename(seg->temp_list_filename, seg->list, s);
         } else {
             segment_list_print_entry(seg->list_pb, seg->list_type, &seg->cur_entry, s);
+            avio_flush(seg->list_pb);
         }
-        avio_flush(seg->list_pb);
     }
 
     av_log(s, AV_LOG_VERBOSE, "segment:'%s' count:%d ended\n",
@@ -365,7 +387,7 @@ static int segment_end(AVFormatContext *s, int write_trailer, int is_last)
     seg->segment_count++;
 
 end:
-    avio_close(oc->pb);
+    avio_closep(&oc->pb);
 
     return ret;
 }
@@ -501,10 +523,10 @@ static int open_null_ctx(AVIOContext **ctx)
     return 0;
 }
 
-static void close_null_ctx(AVIOContext *pb)
+static void close_null_ctxp(AVIOContext **pb)
 {
-    av_free(pb->buffer);
-    av_free(pb);
+    av_freep(&(*pb)->buffer);
+    av_freep(pb);
 }
 
 static int select_reference_stream(AVFormatContext *s)
@@ -564,6 +586,13 @@ static int select_reference_stream(AVFormatContext *s)
     return 0;
 }
 
+static void seg_free_context(SegmentContext *seg)
+{
+    avio_closep(&seg->list_pb);
+    avformat_free_context(seg->avf);
+    seg->avf = NULL;
+}
+
 static int seg_write_header(AVFormatContext *s)
 {
     SegmentContext *seg = s->priv_data;
@@ -575,6 +604,11 @@ static int seg_write_header(AVFormatContext *s)
     seg->segment_count = 0;
     if (!seg->write_header_trailer)
         seg->individual_header_trailer = 0;
+
+    if (seg->header_filename) {
+        seg->write_header_trailer = 1;
+        seg->individual_header_trailer = 0;
+    }
 
     if (!!seg->time_str + !!seg->times_str + !!seg->frames_str > 1) {
         av_log(s, AV_LOG_ERROR,
@@ -618,8 +652,13 @@ static int seg_write_header(AVFormatContext *s)
             else if (av_match_ext(seg->list, "ffcat,ffconcat")) seg->list_type = LIST_TYPE_FFCONCAT;
             else                                      seg->list_type = LIST_TYPE_FLAT;
         }
-        if ((ret = segment_list_open(s)) < 0)
-            goto fail;
+        if (!seg->list_size && seg->list_type != LIST_TYPE_M3U8) {
+            if ((ret = segment_list_open(s)) < 0)
+                goto fail;
+        } else {
+            const char *proto = avio_find_protocol_name(s->filename);
+            seg->use_rename = proto && !strcmp(proto, "file");
+        }
     }
     if (seg->list_type == LIST_TYPE_EXT)
         av_log(s, AV_LOG_WARNING, "'ext' list type option is deprecated in favor of 'csv'\n");
@@ -651,11 +690,13 @@ static int seg_write_header(AVFormatContext *s)
         goto fail;
 
     if (seg->write_header_trailer) {
-        if ((ret = avio_open2(&oc->pb, oc->filename, AVIO_FLAG_WRITE,
+        if ((ret = avio_open2(&oc->pb, seg->header_filename ? seg->header_filename : oc->filename, AVIO_FLAG_WRITE,
                               &s->interrupt_callback, NULL)) < 0) {
             av_log(s, AV_LOG_ERROR, "Failed to open segment '%s'\n", oc->filename);
             goto fail;
         }
+        if (!seg->individual_header_trailer)
+            oc->pb->seekable = 0;
     } else {
         if ((ret = open_null_ctx(&oc->pb)) < 0)
             goto fail;
@@ -671,7 +712,7 @@ static int seg_write_header(AVFormatContext *s)
     }
 
     if (ret < 0) {
-        avio_close(oc->pb);
+        avio_closep(&oc->pb);
         goto fail;
     }
     seg->segment_frame_count = 0;
@@ -686,21 +727,25 @@ static int seg_write_header(AVFormatContext *s)
     if (oc->avoid_negative_ts > 0 && s->avoid_negative_ts < 0)
         s->avoid_negative_ts = 1;
 
-    if (!seg->write_header_trailer) {
-        close_null_ctx(oc->pb);
+    if (!seg->write_header_trailer || seg->header_filename) {
+        if (seg->header_filename) {
+            av_write_frame(oc, NULL);
+            avio_closep(&oc->pb);
+        } else {
+            close_null_ctxp(&oc->pb);
+        }
         if ((ret = avio_open2(&oc->pb, oc->filename, AVIO_FLAG_WRITE,
                               &s->interrupt_callback, NULL)) < 0)
             goto fail;
+        if (!seg->individual_header_trailer)
+            oc->pb->seekable = 0;
     }
 
 fail:
     av_dict_free(&options);
-    if (ret) {
-        if (seg->list)
-            avio_close(seg->list_pb);
-        if (seg->avf)
-            avformat_free_context(seg->avf);
-    }
+    if (ret < 0)
+        seg_free_context(seg);
+
     return ret;
 }
 
@@ -715,6 +760,9 @@ static int seg_write_packet(AVFormatContext *s, AVPacket *pkt)
     int64_t usecs;
     int64_t wrapped_val;
 
+    if (!seg->avf)
+        return AVERROR(EINVAL);
+
     if (seg->times) {
         end_pts = seg->segment_count < seg->nb_times ?
             seg->times[seg->segment_count] : INT64_MAX;
@@ -726,7 +774,7 @@ static int seg_write_packet(AVFormatContext *s, AVPacket *pkt)
             int64_t avgt = av_gettime();
             time_t sec = avgt / 1000000;
             localtime_r(&sec, &ti);
-            usecs = (int64_t)(ti.tm_hour*3600 + ti.tm_min*60 + ti.tm_sec) * 1000000 + (avgt % 1000000);
+            usecs = (int64_t)(ti.tm_hour * 3600 + ti.tm_min * 60 + ti.tm_sec) * 1000000 + (avgt % 1000000);
             wrapped_val = usecs % seg->time;
             if (seg->last_cut != usecs && wrapped_val < seg->last_val) {
                 seg->cut_pending = 1;
@@ -734,18 +782,18 @@ static int seg_write_packet(AVFormatContext *s, AVPacket *pkt)
             }
             seg->last_val = wrapped_val;
         } else {
-            end_pts = seg->time * (seg->segment_count+1);
+            end_pts = seg->time * (seg->segment_count + 1);
         }
     }
 
-    av_dlog(s, "packet stream:%d pts:%s pts_time:%s duration_time:%s is_key:%d frame:%d\n",
+    ff_dlog(s, "packet stream:%d pts:%s pts_time:%s duration_time:%s is_key:%d frame:%d\n",
             pkt->stream_index, av_ts2str(pkt->pts), av_ts2timestr(pkt->pts, &st->time_base),
             av_ts2timestr(pkt->duration, &st->time_base),
             pkt->flags & AV_PKT_FLAG_KEY,
             pkt->stream_index == seg->reference_stream_index ? seg->frame_count : -1);
 
     if (pkt->stream_index == seg->reference_stream_index &&
-        pkt->flags & AV_PKT_FLAG_KEY &&
+        (pkt->flags & AV_PKT_FLAG_KEY || seg->break_non_keyframes) &&
         seg->segment_frame_count > 0 &&
         (seg->cut_pending || seg->frame_count >= start_frame ||
          (pkt->pts != AV_NOPTS_VALUE &&
@@ -762,7 +810,7 @@ static int seg_write_packet(AVFormatContext *s, AVPacket *pkt)
             goto fail;
 
         seg->cut_pending = 0;
-        seg->cur_entry.index = seg->segment_idx + seg->segment_idx_wrap*seg->segment_idx_wrap_nb;
+        seg->cur_entry.index = seg->segment_idx + seg->segment_idx_wrap * seg->segment_idx_wrap_nb;
         seg->cur_entry.start_time = (double)pkt->pts * av_q2d(st->time_base);
         seg->cur_entry.start_pts = av_rescale_q(pkt->pts, st->time_base, AV_TIME_BASE_Q);
         seg->cur_entry.end_time = seg->cur_entry.start_time +
@@ -805,6 +853,9 @@ fail:
         seg->segment_frame_count++;
     }
 
+    if (ret < 0)
+        seg_free_context(seg);
+
     return ret;
 }
 
@@ -813,35 +864,41 @@ static int seg_write_trailer(struct AVFormatContext *s)
     SegmentContext *seg = s->priv_data;
     AVFormatContext *oc = seg->avf;
     SegmentListEntry *cur, *next;
+    int ret = 0;
 
-    int ret;
+    if (!oc)
+        goto fail;
+
     if (!seg->write_header_trailer) {
         if ((ret = segment_end(s, 0, 1)) < 0)
             goto fail;
-        open_null_ctx(&oc->pb);
+        if ((ret = open_null_ctx(&oc->pb)) < 0)
+            goto fail;
         ret = av_write_trailer(oc);
-        close_null_ctx(oc->pb);
+        close_null_ctxp(&oc->pb);
     } else {
         ret = segment_end(s, 1, 1);
     }
 fail:
     if (seg->list)
-        avio_close(seg->list_pb);
+        avio_closep(&seg->list_pb);
 
     av_dict_free(&seg->format_options);
     av_opt_free(seg);
     av_freep(&seg->times);
     av_freep(&seg->frames);
+    av_freep(&seg->cur_entry.filename);
 
     cur = seg->segment_list_entries;
     while (cur) {
         next = cur->next;
-        av_free(cur->filename);
+        av_freep(&cur->filename);
         av_free(cur);
         cur = next;
     }
 
     avformat_free_context(oc);
+    seg->avf = NULL;
     return ret;
 }
 
@@ -852,6 +909,7 @@ static const AVOption options[] = {
     { "segment_format",    "set container format used for the segments", OFFSET(format),  AV_OPT_TYPE_STRING, {.str = NULL},  0, 0,       E },
     { "segment_format_options", "set list of options for the container format used for the segments", OFFSET(format_options_str), AV_OPT_TYPE_STRING, {.str = NULL}, 0, 0, E },
     { "segment_list",      "set the segment list filename",              OFFSET(list),    AV_OPT_TYPE_STRING, {.str = NULL},  0, 0,       E },
+    { "segment_header_filename", "write a single file containing the header", OFFSET(header_filename), AV_OPT_TYPE_STRING, {.str = NULL}, 0, 0, E },
 
     { "segment_list_flags","set flags affecting segment list generation", OFFSET(list_flags), AV_OPT_TYPE_FLAGS, {.i64 = SEGMENT_LIST_FLAG_CACHE }, 0, UINT_MAX, E, "list_flags"},
     { "cache",             "allow list caching",                                    0, AV_OPT_TYPE_CONST, {.i64 = SEGMENT_LIST_FLAG_CACHE }, INT_MIN, INT_MAX,   E, "list_flags"},
@@ -876,6 +934,8 @@ static const AVOption options[] = {
     { "segment_list_entry_prefix", "set base url prefix for segments", OFFSET(entry_prefix), AV_OPT_TYPE_STRING,  {.str = NULL}, 0, 0, E },
     { "segment_start_number", "set the sequence number of the first segment", OFFSET(segment_idx), AV_OPT_TYPE_INT, {.i64 = 0}, 0, INT_MAX, E },
     { "segment_wrap_number", "set the number of wrap before the first segment", OFFSET(segment_idx_wrap_nb), AV_OPT_TYPE_INT, {.i64 = 0}, 0, INT_MAX, E },
+    { "strftime",          "set filename expansion with strftime at segment creation", OFFSET(use_strftime), AV_OPT_TYPE_INT, {.i64 = 0 }, 0, 1, E },
+    { "break_non_keyframes", "allow breaking segments on non-keyframes", OFFSET(break_non_keyframes), AV_OPT_TYPE_INT, {.i64 = 0}, 0, 1, E },
 
     { "individual_header_trailer", "write header/trailer to each segment", OFFSET(individual_header_trailer), AV_OPT_TYPE_INT, {.i64 = 1}, 0, 1, E },
     { "write_header_trailer", "write a header to the first segment and a trailer to the last one", OFFSET(write_header_trailer), AV_OPT_TYPE_INT, {.i64 = 1}, 0, 1, E },

@@ -22,6 +22,7 @@
 #include "libavcodec/ass.h"
 #include "libavutil/opt.h"
 #include "libavutil/bprint.h"
+#include "libavutil/internal.h"
 #include "libavutil/intreadwrite.h"
 #include "libavutil/log.h"
 
@@ -85,8 +86,8 @@ static int chop_spaces_utf8(const unsigned char* t, int len)
 
 static void subtitle_rect_free(AVSubtitleRect **sub_rect)
 {
-    av_freep(&(*sub_rect)->pict.data[0]);
-    av_freep(&(*sub_rect)->pict.data[1]);
+    av_freep(&(*sub_rect)->data[0]);
+    av_freep(&(*sub_rect)->data[1]);
     av_freep(&(*sub_rect)->ass);
     av_freep(sub_rect);
 }
@@ -198,7 +199,7 @@ static void fix_transparency(TeletextContext *ctx, AVSubtitleRect *sub_rect, vbi
 
     // Hack for transparency, inspired by VLC code...
     for (iy = 0; iy < resy; iy++) {
-        uint8_t *pixel = sub_rect->pict.data[0] + iy * sub_rect->pict.linesize[0];
+        uint8_t *pixel = sub_rect->data[0] + iy * sub_rect->linesize[0];
         vbi_char *vc = page->text + (iy / BITMAP_CHAR_HEIGHT + chop_top) * page->columns;
         vbi_char *vcnext = vc + page->columns;
         for (; vc < vcnext; vc++) {
@@ -245,13 +246,13 @@ static int gen_sub_bitmap(TeletextContext *ctx, AVSubtitleRect *sub_rect, vbi_pa
         return 0;
     }
 
-    if ((ret = avpicture_alloc(&sub_rect->pict, AV_PIX_FMT_PAL8, resx, resy)) < 0)
-        return ret;
-    // Yes, we want to allocate the palette on our own because AVSubtitle works this way
-    sub_rect->pict.data[1] = NULL;
+    sub_rect->data[0] = av_mallocz(resx * resy);
+    sub_rect->linesize[0] = resx;
+    if (!sub_rect->data[0])
+        return AVERROR(ENOMEM);
 
     vbi_draw_vt_page_region(page, VBI_PIXFMT_PAL8,
-                            sub_rect->pict.data[0], sub_rect->pict.linesize[0],
+                            sub_rect->data[0], sub_rect->linesize[0],
                             0, chop_top, page->columns, page->rows - chop_top,
                             /*reveal*/ 1, /*flash*/ 1);
 
@@ -261,9 +262,9 @@ static int gen_sub_bitmap(TeletextContext *ctx, AVSubtitleRect *sub_rect, vbi_pa
     sub_rect->w = resx;
     sub_rect->h = resy;
     sub_rect->nb_colors = (int)cmax + 1;
-    sub_rect->pict.data[1] = av_mallocz(AVPALETTE_SIZE);
-    if (!sub_rect->pict.data[1]) {
-        av_freep(&sub_rect->pict.data[0]);
+    sub_rect->data[1] = av_mallocz(AVPALETTE_SIZE);
+    if (!sub_rect->data[1]) {
+        av_freep(&sub_rect->data[0]);
         return AVERROR(ENOMEM);
     }
     for (ci = 0; ci < cmax; ci++) {
@@ -273,10 +274,10 @@ static int gen_sub_bitmap(TeletextContext *ctx, AVSubtitleRect *sub_rect, vbi_pa
         g = VBI_G(page->color_map[ci]);
         b = VBI_B(page->color_map[ci]);
         a = VBI_A(page->color_map[ci]);
-        ((uint32_t *)sub_rect->pict.data[1])[ci] = RGBA(r, g, b, a);
-        av_dlog(ctx, "palette %0x\n", ((uint32_t *)sub_rect->pict.data[1])[ci]);
+        ((uint32_t *)sub_rect->data[1])[ci] = RGBA(r, g, b, a);
+        ff_dlog(ctx, "palette %0x\n", ((uint32_t *)sub_rect->data[1])[ci]);
     }
-    ((uint32_t *)sub_rect->pict.data[1])[cmax] = RGBA(0, 0, 0, 0);
+    ((uint32_t *)sub_rect->data[1])[cmax] = RGBA(0, 0, 0, 0);
     sub_rect->type = SUBTITLE_BITMAP;
     return 0;
 }
@@ -400,6 +401,7 @@ static int teletext_decode_frame(AVCodecContext *avctx, void *data, int *data_si
     TeletextContext *ctx = avctx->priv_data;
     AVSubtitle      *sub = data;
     int             ret = 0;
+    int j;
 
     if (!ctx->vbi) {
         if (!(ctx->vbi = vbi_decoder_new()))
@@ -427,7 +429,7 @@ static int teletext_decode_frame(AVCodecContext *avctx, void *data, int *data_si
         if (data_identifier_is_teletext(*pkt->data)) {
             if ((lines = slice_to_vbi_lines(ctx, pkt->data + 1, pkt->size - 1)) < 0)
                 return lines;
-            av_dlog(avctx, "ctx=%p buf_size=%d lines=%u pkt_pts=%7.3f\n",
+            ff_dlog(avctx, "ctx=%p buf_size=%d lines=%u pkt_pts=%7.3f\n",
                     ctx, pkt->size, lines, (double)pkt->pts/90000.0);
             if (lines > 0) {
 #ifdef DEBUG
@@ -462,6 +464,14 @@ static int teletext_decode_frame(AVCodecContext *avctx, void *data, int *data_si
             if (sub->rects) {
                 sub->num_rects = 1;
                 sub->rects[0] = ctx->pages->sub_rect;
+#if FF_API_AVPICTURE
+FF_DISABLE_DEPRECATION_WARNINGS
+                for (j = 0; j < 4; j++) {
+                    sub->rects[0]->pict.data[j] = sub->rects[0]->data[j];
+                    sub->rects[0]->pict.linesize[j] = sub->rects[0]->linesize[j];
+                }
+FF_ENABLE_DEPRECATION_WARNINGS
+#endif
             } else {
                 ret = AVERROR(ENOMEM);
             }
@@ -517,7 +527,7 @@ static int teletext_close_decoder(AVCodecContext *avctx)
 {
     TeletextContext *ctx = avctx->priv_data;
 
-    av_dlog(avctx, "lines_total=%u\n", ctx->lines_processed);
+    ff_dlog(avctx, "lines_total=%u\n", ctx->lines_processed);
     while (ctx->nb_pages)
         subtitle_rect_free(&ctx->pages[--ctx->nb_pages].sub_rect);
     av_freep(&ctx->pages);
@@ -565,7 +575,7 @@ AVCodec ff_libzvbi_teletext_decoder = {
     .init      = teletext_init_decoder,
     .close     = teletext_close_decoder,
     .decode    = teletext_decode_frame,
-    .capabilities = CODEC_CAP_DELAY,
+    .capabilities = AV_CODEC_CAP_DELAY,
     .flush     = teletext_flush,
     .priv_class= &teletext_class,
 };

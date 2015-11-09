@@ -2,11 +2,4 @@ To build all ffmpeg library, change directory to ffmpeg/JNI and run rebuild-ffmp
 
 To build individual ffmpeg library, change directory to ffmpeg/JNI and run build-ffmpeg.sh {architecture name}.
 
-To recover removed codecs, remove following lines from media/JNI/config-ffmpeg.sh before building ffmpeg.
-
-	--disable-demuxer=dts
-	--disable-parser=dca
-	--disable-decoder=dca
-
-
 Visit https://sites.google.com/site/mxvpen/ffmpeg for more information

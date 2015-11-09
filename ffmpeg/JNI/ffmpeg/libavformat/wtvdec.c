@@ -49,7 +49,7 @@
  *
  */
 
-typedef struct {
+typedef struct WtvFile {
     AVIOContext *pb_filesystem;  /**< file system (AVFormatContext->pb) */
 
     int sector_bits;     /**< sector shift bits; used to convert sector number into pb_filesystem offset */
@@ -204,8 +204,8 @@ static AVIOContext * wtvfile_open_sector(int first_sector, uint64_t length, int 
     wf->sector_bits = length & (1ULL<<63) ? WTV_SECTOR_BITS : WTV_BIGSECTOR_BITS;
 
     if (!wf->nb_sectors) {
-        av_free(wf->sectors);
-        av_free(wf);
+        av_freep(&wf->sectors);
+        av_freep(&wf);
         return NULL;
     }
 
@@ -224,25 +224,25 @@ static AVIOContext * wtvfile_open_sector(int first_sector, uint64_t length, int 
     /* seek to initial sector */
     wf->position = 0;
     if (seek_by_sector(s->pb, wf->sectors[0], 0) < 0) {
-        av_free(wf->sectors);
-        av_free(wf);
+        av_freep(&wf->sectors);
+        av_freep(&wf);
         return NULL;
     }
 
     wf->pb_filesystem = s->pb;
     buffer = av_malloc(1 << wf->sector_bits);
     if (!buffer) {
-        av_free(wf->sectors);
-        av_free(wf);
+        av_freep(&wf->sectors);
+        av_freep(&wf);
         return NULL;
     }
 
     pb = avio_alloc_context(buffer, 1 << wf->sector_bits, 0, wf,
                            wtvfile_read_packet, NULL, wtvfile_seek);
     if (!pb) {
-        av_free(buffer);
-        av_free(wf->sectors);
-        av_free(wf);
+        av_freep(&buffer);
+        av_freep(&wf->sectors);
+        av_freep(&wf);
     }
     return pb;
 }
@@ -304,7 +304,7 @@ static AVIOContext * wtvfile_open2(AVFormatContext *s, const uint8_t *buf, int b
 static void wtvfile_close(AVIOContext *pb)
 {
     WtvFile *wf = pb->opaque;
-    av_free(wf->sectors);
+    av_freep(&wf->sectors);
     av_freep(&pb->opaque);
     av_freep(&pb->buffer);
     av_free(pb);
@@ -316,11 +316,11 @@ static void wtvfile_close(AVIOContext *pb)
  *
  */
 
-typedef struct {
+typedef struct WtvStream {
     int seen_data;
 } WtvStream;
 
-typedef struct {
+typedef struct WtvContext {
     AVIOContext *pb;       /**< timeline file */
     int64_t epoch;
     int64_t pts;             /**< pts for next data chunk */
@@ -670,7 +670,7 @@ static AVStream * parse_media_type(AVFormatContext *s, AVStream *st, int sid,
         if (!st)
             return NULL;
         if (!ff_guidcmp(formattype, ff_format_waveformatex)) {
-            int ret = ff_get_wav_header(pb, st->codec, size);
+            int ret = ff_get_wav_header(s, pb, st->codec, size, 0);
             if (ret < 0)
                 return NULL;
         } else {
@@ -767,7 +767,7 @@ static int recover(WtvContext *wtv, uint64_t broken_pos)
     int i;
     for (i = 0; i < wtv->nb_index_entries; i++) {
         if (wtv->index_entries[i].pos > broken_pos) {
-            int ret = avio_seek(pb, wtv->index_entries[i].pos, SEEK_SET);
+            int64_t ret = avio_seek(pb, wtv->index_entries[i].pos, SEEK_SET);
             if (ret < 0)
                 return ret;
             wtv->pts = wtv->index_entries[i].timestamp;
@@ -965,7 +965,7 @@ static int read_header(AVFormatContext *s)
     uint8_t root[WTV_SECTOR_SIZE];
     AVIOContext *pb;
     int64_t timeline_pos;
-    int ret;
+    int64_t ret;
 
     wtv->epoch          =
     wtv->pts            =

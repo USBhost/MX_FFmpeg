@@ -18,8 +18,10 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include "mpegutils.h"
 #include "mpegvideo.h"
 #include "h263.h"
+#include "mpegvideodata.h"
 
 /* don't understand why they choose a different header ! */
 int ff_intel_h263_decode_picture_header(MpegEncContext *s)
@@ -37,8 +39,7 @@ int ff_intel_h263_decode_picture_header(MpegEncContext *s)
     }
     s->picture_number = get_bits(&s->gb, 8); /* picture timestamp */
 
-    if (get_bits1(&s->gb) != 1) {
-        av_log(s->avctx, AV_LOG_ERROR, "Bad marker\n");
+    if (check_marker(&s->gb, "after picture_number") != 1) {
         return -1;      /* marker */
     }
     if (get_bits1(&s->gb) != 0) {
@@ -94,7 +95,7 @@ int ff_intel_h263_decode_picture_header(MpegEncContext *s)
     if(format == 6){
         int ar = get_bits(&s->gb, 4);
         skip_bits(&s->gb, 9); // display width
-        skip_bits1(&s->gb);
+        check_marker(&s->gb, "in dimensions");
         skip_bits(&s->gb, 9); // display height
         if(ar == 15){
             s->avctx->sample_aspect_ratio.num = get_bits(&s->gb, 8); // aspect ratio - width
@@ -136,7 +137,7 @@ AVCodec ff_h263i_decoder = {
     .init           = ff_h263_decode_init,
     .close          = ff_h263_decode_end,
     .decode         = ff_h263_decode_frame,
-    .capabilities   = CODEC_CAP_DRAW_HORIZ_BAND | CODEC_CAP_DR1,
+    .capabilities   = AV_CODEC_CAP_DRAW_HORIZ_BAND | AV_CODEC_CAP_DR1,
     .pix_fmts       = (const enum AVPixelFormat[]) {
         AV_PIX_FMT_YUV420P,
         AV_PIX_FMT_NONE

@@ -70,7 +70,7 @@ typedef struct SmcContext {
         row_ptr += stride * 4; \
     } \
     total_blocks--; \
-    if (total_blocks < 0 + !!n_blocks) \
+    if (total_blocks < !!n_blocks) \
     { \
         av_log(s->avctx, AV_LOG_INFO, "warning: block counter just went negative (this should not happen)\n"); \
         return; \
@@ -472,5 +472,5 @@ AVCodec ff_smc_decoder = {
     .init           = smc_decode_init,
     .close          = smc_decode_end,
     .decode         = smc_decode_frame,
-    .capabilities   = CODEC_CAP_DR1,
+    .capabilities   = AV_CODEC_CAP_DR1,
 };

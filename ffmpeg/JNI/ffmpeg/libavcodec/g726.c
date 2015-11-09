@@ -23,7 +23,6 @@
  */
 #include <limits.h>
 
-#include "libavutil/avassert.h"
 #include "libavutil/channel_layout.h"
 #include "libavutil/opt.h"
 #include "avcodec.h"
@@ -33,7 +32,7 @@
 
 /**
  * G.726 11bit float.
- * G.726 Standard uses rather odd 11bit floating point arithmentic for
+ * G.726 Standard uses rather odd 11bit floating point arithmetic for
  * numerous occasions. It's a mystery to me why they did it this way
  * instead of simply using 32bit integer arithmetic.
  */
@@ -219,7 +218,7 @@ static int16_t g726_decode(G726Context* c, int I)
             c->b[i] = 0;
     } else {
         /* This is a bit crazy, but it really is +255 not +256 */
-        fa1 = av_clip((-c->a[0]*c->pk[0]*pk0)>>5, -256, 255);
+        fa1 = av_clip_intp2((-c->a[0]*c->pk[0]*pk0)>>5, 8);
 
         c->a[1] += 128*pk0*c->pk[1] + fa1 - (c->a[1]>>7);
         c->a[1] = av_clip(c->a[1], -12288, 12288);
@@ -298,7 +297,7 @@ static int16_t g726_encode(G726Context* c, int16_t sig)
 {
     uint8_t i;
 
-    i = quant(c, sig/4 - c->se) & ((1<<c->code_size) - 1);
+    i = av_mod_uintp2(quant(c, sig/4 - c->se), c->code_size);
     g726_decode(c, i);
     return i;
 }
@@ -316,7 +315,11 @@ static av_cold int g726_encode_init(AVCodecContext *avctx)
                "Resample or reduce the compliance level.\n");
         return AVERROR(EINVAL);
     }
-    av_assert0(avctx->sample_rate > 0);
+    if (avctx->sample_rate <= 0) {
+        av_log(avctx, AV_LOG_ERROR, "Invalid sample rate %d\n",
+               avctx->sample_rate);
+        return AVERROR(EINVAL);
+    }
 
     if(avctx->channels != 1){
         av_log(avctx, AV_LOG_ERROR, "Only mono is supported\n");
@@ -348,7 +351,7 @@ static int g726_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
     int i, ret, out_size;
 
     out_size = (frame->nb_samples * c->code_size + 7) / 8;
-    if ((ret = ff_alloc_packet2(avctx, avpkt, out_size)) < 0)
+    if ((ret = ff_alloc_packet2(avctx, avpkt, out_size, 0)) < 0)
         return ret;
     init_put_bits(&pb, avpkt->data, avpkt->size);
 
@@ -389,7 +392,7 @@ AVCodec ff_adpcm_g726_encoder = {
     .priv_data_size = sizeof(G726Context),
     .init           = g726_encode_init,
     .encode2        = g726_encode_frame,
-    .capabilities   = CODEC_CAP_SMALL_LAST_FRAME,
+    .capabilities   = AV_CODEC_CAP_SMALL_LAST_FRAME,
     .sample_fmts    = (const enum AVSampleFormat[]){ AV_SAMPLE_FMT_S16,
                                                      AV_SAMPLE_FMT_NONE },
     .priv_class     = &g726_class,
@@ -474,7 +477,7 @@ AVCodec ff_adpcm_g726_decoder = {
     .init           = g726_decode_init,
     .decode         = g726_decode_frame,
     .flush          = g726_decode_flush,
-    .capabilities   = CODEC_CAP_DR1,
+    .capabilities   = AV_CODEC_CAP_DR1,
 };
 #endif
 
@@ -487,7 +490,7 @@ AVCodec ff_adpcm_g726le_decoder = {
     .init           = g726_decode_init,
     .decode         = g726_decode_frame,
     .flush          = g726_decode_flush,
-    .capabilities   = CODEC_CAP_DR1,
+    .capabilities   = AV_CODEC_CAP_DR1,
     .long_name      = NULL_IF_CONFIG_SMALL("G.726 ADPCM little-endian"),
 };
 #endif

@@ -29,6 +29,24 @@ fate-fraps-v5: CMD = framecrc -i $(TARGET_SAMPLES)/fraps/fraps-v5-bouncing-balls
 FATE_SCREEN-$(call DEMDEC, AVI, FRAPS) += $(FATE_FRAPS)
 fate-fraps: $(FATE_FRAPS)
 
+FATE_G2M += fate-g2m2
+fate-g2m2: CMD = framecrc -idct simple -i $(TARGET_SAMPLES)/g2m/g2m2.asf -an
+
+FATE_G2M += fate-g2m3
+fate-g2m3: CMD = framecrc -idct simple -i $(TARGET_SAMPLES)/g2m/g2m3.asf -frames:v 20 -an
+
+FATE_G2M += fate-g2m4
+fate-g2m4: CMD = framecrc -idct simple -i $(TARGET_SAMPLES)/g2m/g2m4.asf
+
+FATE_SAMPLES_AVCONV-$(call DEMDEC, ASF, G2M) += $(FATE_G2M)
+fate-g2m: $(FATE_G2M)
+
+FATE_SAMPLES_AVCONV-$(call DEMDEC, AVI, SCREENPRESSO) += fate-screenpresso
+fate-screenpresso: CMD = framecrc -i $(TARGET_SAMPLES)/spv1/bunny.avi
+
+FATE_SAMPLES_AVCONV-$(call DEMDEC, ASF, TDSC) += fate-tdsc
+fate-tdsc: CMD = framecrc -idct simple -i $(TARGET_SAMPLES)/tdsc/tdsc.asf -an -pix_fmt bgr24
+
 FATE_TSCC += fate-tscc-15bit
 fate-tscc-15bit: CMD = framecrc -i $(TARGET_SAMPLES)/tscc/oneminute.avi -t 15 -pix_fmt rgb24
 
@@ -38,8 +56,14 @@ fate-tscc-32bit: CMD = framecrc -i $(TARGET_SAMPLES)/tscc/2004-12-17-uebung9-par
 FATE_SCREEN-$(call DEMDEC, AVI, TSCC) += $(FATE_TSCC)
 fate-tscc: $(FATE_TSCC)
 
-FATE_SAMPLES_AVCONV-$(call DEMDEC, AVI, TSCC2) += fate-tscc2
-fate-tscc2: CMD = framecrc -i $(TARGET_SAMPLES)/tscc/tsc2_16bpp.avi
+FATE_TSCC2-$(CONFIG_AVI_DEMUXER) += fate-tscc2-avi
+fate-tscc2-avi: CMD = framecrc -i $(TARGET_SAMPLES)/tscc/tsc2_16bpp.avi
+
+FATE_TSCC2-$(CONFIG_MOV_DEMUXER) += fate-tscc2-mov
+fate-tscc2-mov: CMD = framecrc -i $(TARGET_SAMPLES)/tscc/rec.trec
+
+FATE_SAMPLES_AVCONV-$(CONFIG_TSCC2_DECODER) += $(FATE_TSCC2-yes)
+fate-tscc2: $(FATE_TSCC2-yes)
 
 FATE_VMNC += fate-vmnc-16bit
 fate-vmnc-16bit: CMD = framecrc -i $(TARGET_SAMPLES)/VMnc/test.avi -pix_fmt rgb24

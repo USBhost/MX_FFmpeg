@@ -394,14 +394,14 @@ static inline int check_marker(GetBitContext *s, const char *msg)
 {
     int bit = get_bits1(s);
     if (!bit)
-        av_log(NULL, AV_LOG_INFO, "Marker bit missing %s\n", msg);
+        av_log(NULL, AV_LOG_INFO, "Marker bit missing at %d of %d %s\n", get_bits_count(s) - 1, s->size_in_bits, msg);
 
     return bit;
 }
 
 /**
  * Initialize GetBitContext.
- * @param buffer bitstream buffer, must be FF_INPUT_BUFFER_PADDING_SIZE bytes
+ * @param buffer bitstream buffer, must be AV_INPUT_BUFFER_PADDING_SIZE bytes
  *        larger than the actual read bits because some optimized bitstream
  *        readers read 32 or 64 bit at once and could read over the end
  * @param bit_size the size of the buffer in bits
@@ -432,7 +432,7 @@ static inline int init_get_bits(GetBitContext *s, const uint8_t *buffer,
 
 /**
  * Initialize GetBitContext.
- * @param buffer bitstream buffer, must be FF_INPUT_BUFFER_PADDING_SIZE bytes
+ * @param buffer bitstream buffer, must be AV_INPUT_BUFFER_PADDING_SIZE bytes
  *        larger than the actual read bits because some optimized bitstream
  *        readers read 32 or 64 bit at once and could read over the end
  * @param byte_size the size of the buffer in bytes
@@ -685,11 +685,7 @@ static inline int get_xbits_trace(GetBitContext *s, int n, const char *file,
 
 #define get_vlc(s, vlc)             get_vlc_trace(s, (vlc)->table, (vlc)->bits,   3, __FILE__, __PRETTY_FUNCTION__, __LINE__)
 #define get_vlc2(s, tab, bits, max) get_vlc_trace(s,          tab,        bits, max, __FILE__, __PRETTY_FUNCTION__, __LINE__)
-
-#define tprintf(p, ...) av_log(p, AV_LOG_DEBUG, __VA_ARGS__)
-
 #else //TRACE
-#define tprintf(p, ...) { }
 #define GET_RL_VLC GET_RL_VLC_INTERNAL
 #endif
 

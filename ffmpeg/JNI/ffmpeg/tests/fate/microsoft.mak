@@ -66,6 +66,9 @@ fate-vc1-ism: CMD = framecrc -i $(TARGET_SAMPLES)/isom/vc1-wmapro.ism -an
 FATE_MICROSOFT-$(CONFIG_VC1_DECODER) += $(FATE_VC1-yes)
 fate-vc1: $(FATE_VC1-yes)
 
+FATE_MICROSOFT-$(CONFIG_ASF_DEMUXER) += fate-asf-repldata
+fate-asf-repldata: CMD = framecrc -i $(TARGET_SAMPLES)/asf/bug821-2.asf -c copy
+
 FATE_MICROSOFT += $(FATE_MICROSOFT-yes)
 
 FATE_SAMPLES_FFMPEG += $(FATE_MICROSOFT)

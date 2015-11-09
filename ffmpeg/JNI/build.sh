@@ -1,14 +1,11 @@
 #!/bin/bash
-# @note HTC Desire / Motorola Milestone 등의 버그로 v7에서도 armeabi를 로드하여 armeabi에 이름을 바꿔 넣음 
-# @see http://groups.google.com/group/android-ndk/browse_thread/thread/464bab5543c672d4
-
-# API 21이전에는 libc.so에 rand, atof등의 함수가 누락되어있어 x86_64를 제외하고는 API 16을 사용한다.
 
 TARGET=$1
 COPY=0
 BUILD=0
 PROFILE=0
 CPU_CORE=12
+PLATFORM=19
 
 MAKE=$NDK/ndk-build
 
@@ -27,6 +24,13 @@ prepare_x86()
 	rm -r ../obj/local
 }
 
+prepare_x86_64()
+{
+	rm -r ../obj/local
+	NDK_TOOLCHAIN_VERSION=4.9
+	MAKE=$NDK/ndk-build
+}
+
 # MIPS32 revision 2
 mips32r2() 
 {
@@ -37,7 +41,7 @@ mips32r2()
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
 				  -e APP_ABI=mips \
-				  -e APP_PLATFORM=android-19 \
+				  -e APP_PLATFORM=android-$PLATFORM \
 				  -e LINK_AGAINST=15-mips \
 				  -e APP_BUILD_SCRIPT=a-$TARGET.mk \
 				  -e ARCH=mips32r2 \
@@ -52,11 +56,11 @@ x86_64()
 	if [ $BUILD -eq 1 ]
 	then
 		echo -ne '\nBUILDING '$TARGET'.x86_64...\n\n'
-		prepare_x86
+		prepare_x86_64
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
 				  -e APP_ABI=x86_64 \
-				  -e APP_PLATFORM=android-21 \
+				  -e APP_PLATFORM=android-$PLATFORM \
 				  -e LINK_AGAINST=21-x86_64 \
 				  -e APP_BUILD_SCRIPT=a-$TARGET.mk \
 				  -e ARCH=atom \
@@ -76,7 +80,7 @@ x86()
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
 				  -e APP_ABI=x86 \
-				  -e APP_PLATFORM=android-19 \
+				  -e APP_PLATFORM=android-$PLATFORM \
 				  -e LINK_AGAINST=16-x86 \
 				  -e APP_BUILD_SCRIPT=a-$TARGET.mk \
 				  -e ARCH=atom \
@@ -96,13 +100,37 @@ x86_sse2()
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
 				  -e APP_ABI=x86 \
-				  -e APP_PLATFORM=android-19 \
+				  -e APP_PLATFORM=android-$PLATFORM \
 				  -e LINK_AGAINST=16-x86 \
 				  -e APP_BUILD_SCRIPT=a-$TARGET.mk \
 				  -e ARCH=i686 \
 				  -e NDK_APP_DST_DIR=libs/x86-sse2 \
 				  -e NAME=$TARGET \
 				  -e PROFILE=$PROFILE
+	fi
+}
+
+arm64() 
+{
+	if [ $BUILD -eq 1 ]
+	then
+		echo -ne '\nBUILDING '$TARGET'.arm64...\n\n'
+		prepare
+		$MAKE NDK_DEBUG=0 \
+				  -j$CPU_CORE \
+				  -e APP_PLATFORM=android-$PLATFORM \
+				  -e LINK_AGAINST=22-arm64 \
+				  -e APP_BUILD_SCRIPT=a-$TARGET.mk \
+				  -e ARCH=armv8-a \
+				  -e VFP=neon \
+				  -e NDK_APP_DST_DIR=libs/arm64-v8a \
+				  -e NAME=$TARGET \
+				  -e PROFILE=$PROFILE
+	fi
+
+	if [ $COPY -eq 1 ]
+	then
+		cp libs/arm64-v8a/lib$TARGET.so libs/output/videoplayer/arm64-v8a/
 	fi
 }
 
@@ -114,7 +142,7 @@ neon()
 		prepare
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
-				  -e APP_PLATFORM=android-19 \
+				  -e APP_PLATFORM=android-$PLATFORM \
 				  -e LINK_AGAINST=16-arm \
 				  -e APP_BUILD_SCRIPT=a-$TARGET.mk \
 				  -e ARCH=armv7-a \
@@ -138,7 +166,7 @@ tegra3()
 		prepare
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
-				  -e APP_PLATFORM=android-19 \
+				  -e APP_PLATFORM=android-$PLATFORM \
 				  -e LINK_AGAINST=16-arm \
 				  -e APP_BUILD_SCRIPT=a-$TARGET.mk \
 				  -e ARCH=armv7-a \
@@ -164,7 +192,7 @@ tegra2()
 		echo -ne '\nBUILDING '$TARGET'.tegra2...\n\n' 
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
-				  -e APP_PLATFORM=android-19 \
+				  -e APP_PLATFORM=android-$PLATFORM \
 				  -e LINK_AGAINST=16-arm \
 				  -e APP_BUILD_SCRIPT=a-$TARGET.mk \
 				  -e ARCH=armv7-a \
@@ -189,7 +217,7 @@ v7a()
 		echo -ne '\nBUILDING '$TARGET'.v7a...\n\n' 
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
-				  -e APP_PLATFORM=android-19 \
+				  -e APP_PLATFORM=android-$PLATFORM \
 				  -e LINK_AGAINST=16-arm \
 				  -e APP_BUILD_SCRIPT=a-$TARGET.mk \
 				  -e ARCH=armv7-a \
@@ -214,7 +242,7 @@ v6_vfp()
 		echo -ne '\nBUILDING '$TARGET'.v6+vfp...\n\n' 
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
-				  -e APP_PLATFORM=android-19 \
+				  -e APP_PLATFORM=android-$PLATFORM \
 				  -e LINK_AGAINST=16-arm \
 				  -e APP_BUILD_SCRIPT=a-$TARGET.mk \
 				  -e ARCH=armv6 \
@@ -239,7 +267,7 @@ v6()
 		echo -ne '\nBUILDING '$TARGET'.v6...\n\n' 
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
-				  -e APP_PLATFORM=android-19 \
+				  -e APP_PLATFORM=android-$PLATFORM \
 				  -e LINK_AGAINST=16-arm \
 				  -e APP_BUILD_SCRIPT=a-$TARGET.mk \
 				  -e ARCH=armv6 \
@@ -263,7 +291,7 @@ v5te()
 		echo -ne '\nBUILDING '$TARGET'.v5te...\n\n' 
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
-				  -e APP_PLATFORM=android-19 \
+				  -e APP_PLATFORM=android-$PLATFORM \
 				  -e LINK_AGAINST=16-arm \
 				  -e APP_BUILD_SCRIPT=a-$TARGET.mk \
 				  -e ARCH=armv5te \
@@ -307,6 +335,8 @@ fi
 				x86 ;;
 			x86_sse2)
 				x86_sse2 ;;
+			arm64)
+				arm64 ;;
 			neon) 
 				neon ;;
 			tegra3)
@@ -323,6 +353,8 @@ fi
 				v5te ;;
 			profile)
 				PROFILE=1 ;;
+			21)
+				PLATFORM=21 ;;
 			4.8)
 				export NDK_TOOLCHAIN_VERSION=4.8 ;;
 		esac

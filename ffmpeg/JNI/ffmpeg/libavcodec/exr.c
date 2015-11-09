@@ -27,17 +27,17 @@
  * For more information on the OpenEXR format, visit:
  *  http://openexr.com/
  *
- * exr_flt2uint() and exr_halflt2uint() is credited to  Reimar Döffinger.
- * exr_half2float() is credited to Aaftab Munshi; Dan Ginsburg, Dave Shreiner.
- *
+ * exr_flt2uint() and exr_halflt2uint() is credited to Reimar Döffinger.
+ * exr_half2float() is credited to Aaftab Munshi, Dan Ginsburg, Dave Shreiner.
  */
 
-#include <zlib.h>
 #include <float.h>
+#include <zlib.h>
 
 #include "libavutil/imgutils.h"
-#include "libavutil/opt.h"
 #include "libavutil/intfloat.h"
+#include "libavutil/opt.h"
+#include "libavutil/color_utils.h"
 
 #include "avcodec.h"
 #include "bytestream.h"
@@ -111,14 +111,14 @@ typedef struct EXRContext {
 
     const char *layer;
 
+    enum AVColorTransferCharacteristic apply_trc_type;
     float gamma;
-
     uint16_t gamma_table[65536];
-
 } EXRContext;
 
 /* -15 stored using a single precision bias of 127 */
 #define HALF_FLOAT_MIN_BIASED_EXP_AS_SINGLE_FP_EXP 0x38000000
+
 /* max exponent value in single precision that will be converted
  * to Inf or Nan when stored as a half-float */
 #define HALF_FLOAT_MAX_BIASED_EXP_AS_SINGLE_FP_EXP 0x47800000
@@ -128,7 +128,7 @@ typedef struct EXRContext {
 
 #define HALF_FLOAT_MAX_BIASED_EXP (0x1F << 10)
 
-/*
+/**
  * Convert a half float as a uint16_t into a full float.
  *
  * @param hf half float as uint16_t
@@ -137,10 +137,10 @@ typedef struct EXRContext {
  */
 static union av_intfloat32 exr_half2float(uint16_t hf)
 {
-    unsigned int    sign = (unsigned int)(hf >> 15);
-    unsigned int    mantissa = (unsigned int)(hf & ((1 << 10) - 1));
-    unsigned int    exp = (unsigned int)(hf & HALF_FLOAT_MAX_BIASED_EXP);
-    union av_intfloat32   f;
+    unsigned int sign = (unsigned int) (hf >> 15);
+    unsigned int mantissa = (unsigned int) (hf & ((1 << 10) - 1));
+    unsigned int exp = (unsigned int) (hf & HALF_FLOAT_MAX_BIASED_EXP);
+    union av_intfloat32 f;
 
     if (exp == HALF_FLOAT_MAX_BIASED_EXP) {
         // we have a half-float NaN or Inf
@@ -843,8 +843,9 @@ static int decode_block(AVCodecContext *avctx, void *tdata,
     int axmax = (avctx->width - (s->xmax + 1)) * 2 * s->desc->nb_components;
     int bxmin = s->xmin * 2 * s->desc->nb_components;
     int i, x, buf_size = s->buf_size;
-    int ret;
     float one_gamma = 1.0f / s->gamma;
+    avpriv_trc_function trc_func = avpriv_get_trc_function_from_trc(s->apply_trc_type);
+    int ret;
 
     line_offset = AV_RL64(s->gb.buffer + jobnr * 8);
     // Check if the buffer has the required bytes needed from the offset
@@ -923,24 +924,43 @@ static int decode_block(AVCodecContext *avctx, void *tdata,
         ptr_x += s->xmin * s->desc->nb_components;
         if (s->pixel_type == EXR_FLOAT) {
             // 32-bit
-            for (x = 0; x < xdelta; x++) {
-                union av_intfloat32 t;
-                t.i = bytestream_get_le32(&r);
-                if ( t.f > 0.0f )  /* avoid negative values */
-                    t.f = powf(t.f, one_gamma);
-                *ptr_x++ = exr_flt2uint(t.i);
+            if (trc_func) {
+                for (x = 0; x < xdelta; x++) {
+                    union av_intfloat32 t;
+                    t.i = bytestream_get_le32(&r);
+                    t.f = trc_func(t.f);
+                    *ptr_x++ = exr_flt2uint(t.i);
 
-                t.i = bytestream_get_le32(&g);
-                if ( t.f > 0.0f )
-                    t.f = powf(t.f, one_gamma);
-                *ptr_x++ = exr_flt2uint(t.i);
+                    t.i = bytestream_get_le32(&g);
+                    t.f = trc_func(t.f);
+                    *ptr_x++ = exr_flt2uint(t.i);
 
-                t.i = bytestream_get_le32(&b);
-                if ( t.f > 0.0f )
-                    t.f = powf(t.f, one_gamma);
-                *ptr_x++ = exr_flt2uint(t.i);
-                if (channel_buffer[3])
-                    *ptr_x++ = exr_flt2uint(bytestream_get_le32(&a));
+                    t.i = bytestream_get_le32(&b);
+                    t.f = trc_func(t.f);
+                    *ptr_x++ = exr_flt2uint(t.i);
+                    if (channel_buffer[3])
+                        *ptr_x++ = exr_flt2uint(bytestream_get_le32(&a));
+                }
+            } else {
+                for (x = 0; x < xdelta; x++) {
+                    union av_intfloat32 t;
+                    t.i = bytestream_get_le32(&r);
+                    if (t.f > 0.0f)  /* avoid negative values */
+                        t.f = powf(t.f, one_gamma);
+                    *ptr_x++ = exr_flt2uint(t.i);
+
+                    t.i = bytestream_get_le32(&g);
+                    if (t.f > 0.0f)
+                        t.f = powf(t.f, one_gamma);
+                    *ptr_x++ = exr_flt2uint(t.i);
+
+                    t.i = bytestream_get_le32(&b);
+                    if (t.f > 0.0f)
+                        t.f = powf(t.f, one_gamma);
+                    *ptr_x++ = exr_flt2uint(t.i);
+                    if (channel_buffer[3])
+                        *ptr_x++ = exr_flt2uint(bytestream_get_le32(&a));
+                }
             }
         } else {
             // 16-bit
@@ -1011,6 +1031,22 @@ static int decode_header(EXRContext *s)
 {
     int current_channel_offset = 0;
     int magic_number, version, flags, i;
+
+    s->xmin               = ~0;
+    s->xmax               = ~0;
+    s->ymin               = ~0;
+    s->ymax               = ~0;
+    s->xdelta             = ~0;
+    s->ydelta             = ~0;
+    s->channel_offsets[0] = -1;
+    s->channel_offsets[1] = -1;
+    s->channel_offsets[2] = -1;
+    s->channel_offsets[3] = -1;
+    s->pixel_type         = EXR_UNKNOWN;
+    s->compression        = EXR_UNKN;
+    s->nb_channels        = 0;
+    s->w                  = 0;
+    s->h                  = 0;
 
     if (bytestream2_get_bytes_left(&s->gb) < 10) {
         av_log(s->avctx, AV_LOG_ERROR, "Header too short to parse.\n");
@@ -1273,6 +1309,9 @@ static int decode_frame(AVCodecContext *avctx, void *data,
         return AVERROR_INVALIDDATA;
     }
 
+    if (s->apply_trc_type != AVCOL_TRC_UNSPECIFIED)
+        avctx->color_trc = s->apply_trc_type;
+
     switch (s->compression) {
     case EXR_RAW:
     case EXR_RLE:
@@ -1346,41 +1385,35 @@ static int decode_frame(AVCodecContext *avctx, void *data,
 
 static av_cold int decode_init(AVCodecContext *avctx)
 {
+    EXRContext *s = avctx->priv_data;
     uint32_t i;
     union av_intfloat32 t;
-    EXRContext *s = avctx->priv_data;
     float one_gamma = 1.0f / s->gamma;
+    avpriv_trc_function trc_func = NULL;
 
     s->avctx              = avctx;
-    s->xmin               = ~0;
-    s->xmax               = ~0;
-    s->ymin               = ~0;
-    s->ymax               = ~0;
-    s->xdelta             = ~0;
-    s->ydelta             = ~0;
-    s->channel_offsets[0] = -1;
-    s->channel_offsets[1] = -1;
-    s->channel_offsets[2] = -1;
-    s->channel_offsets[3] = -1;
-    s->pixel_type         = EXR_UNKNOWN;
-    s->compression        = EXR_UNKN;
-    s->nb_channels        = 0;
-    s->w                  = 0;
-    s->h                  = 0;
 
-    if ( one_gamma > 0.9999f && one_gamma < 1.0001f ) {
-        for ( i = 0; i < 65536; ++i ) {
-            s->gamma_table[i] = exr_halflt2uint(i);
+    trc_func = avpriv_get_trc_function_from_trc(s->apply_trc_type);
+    if (trc_func) {
+        for (i = 0; i < 65536; ++i) {
+            t = exr_half2float(i);
+            t.f = trc_func(t.f);
+            s->gamma_table[i] = exr_flt2uint(t.i);
         }
     } else {
-        for ( i = 0; i < 65536; ++i ) {
-            t = exr_half2float(i);
-            /* If negative value we reuse half value */
-            if ( t.f <= 0.0f ) {
+        if (one_gamma > 0.9999f && one_gamma < 1.0001f) {
+            for (i = 0; i < 65536; ++i)
                 s->gamma_table[i] = exr_halflt2uint(i);
-            } else {
-                t.f = powf(t.f, one_gamma);
-                s->gamma_table[i] = exr_flt2uint(t.i);
+        } else {
+            for (i = 0; i < 65536; ++i) {
+                t = exr_half2float(i);
+                /* If negative value we reuse half value */
+                if (t.f <= 0.0f) {
+                    s->gamma_table[i] = exr_halflt2uint(i);
+                } else {
+                    t.f = powf(t.f, one_gamma);
+                    s->gamma_table[i] = exr_flt2uint(t.i);
+                }
             }
         }
     }
@@ -1393,6 +1426,7 @@ static av_cold int decode_init(AVCodecContext *avctx)
     return 0;
 }
 
+#if HAVE_THREADS
 static int decode_init_thread_copy(AVCodecContext *avctx)
 {    EXRContext *s = avctx->priv_data;
 
@@ -1403,6 +1437,7 @@ static int decode_init_thread_copy(AVCodecContext *avctx)
 
     return 0;
 }
+#endif
 
 static av_cold int decode_end(AVCodecContext *avctx)
 {
@@ -1427,8 +1462,45 @@ static av_cold int decode_end(AVCodecContext *avctx)
 static const AVOption options[] = {
     { "layer", "Set the decoding layer", OFFSET(layer),
         AV_OPT_TYPE_STRING, { .str = "" }, 0, 0, VD },
-    { "gamma", "Set the float gamma value when decoding (experimental/unsupported)", OFFSET(gamma),
+    { "gamma", "Set the float gamma value when decoding", OFFSET(gamma),
         AV_OPT_TYPE_FLOAT, { .dbl = 1.0f }, 0.001, FLT_MAX, VD },
+
+    // XXX: Note the abuse of the enum using AVCOL_TRC_UNSPECIFIED to subsume the existing gamma option
+    { "apply_trc", "color transfer characteristics to apply to EXR linear input", OFFSET(apply_trc_type),
+        AV_OPT_TYPE_INT, {.i64 = AVCOL_TRC_UNSPECIFIED }, 1, AVCOL_TRC_NB-1, VD, "apply_trc_type"},
+    { "bt709",        "BT.709",           0,
+        AV_OPT_TYPE_CONST, {.i64 = AVCOL_TRC_BT709 },        INT_MIN, INT_MAX, VD, "apply_trc_type"},
+    { "gamma",        "gamma",            0,
+        AV_OPT_TYPE_CONST, {.i64 = AVCOL_TRC_UNSPECIFIED },  INT_MIN, INT_MAX, VD, "apply_trc_type"},
+    { "gamma22",      "BT.470 M",         0,
+        AV_OPT_TYPE_CONST, {.i64 = AVCOL_TRC_GAMMA22 },      INT_MIN, INT_MAX, VD, "apply_trc_type"},
+    { "gamma28",      "BT.470 BG",        0,
+        AV_OPT_TYPE_CONST, {.i64 = AVCOL_TRC_GAMMA28 },      INT_MIN, INT_MAX, VD, "apply_trc_type"},
+    { "smpte170m",    "SMPTE 170 M",      0,
+        AV_OPT_TYPE_CONST, {.i64 = AVCOL_TRC_SMPTE170M },    INT_MIN, INT_MAX, VD, "apply_trc_type"},
+    { "smpte240m",    "SMPTE 240 M",      0,
+        AV_OPT_TYPE_CONST, {.i64 = AVCOL_TRC_SMPTE240M },    INT_MIN, INT_MAX, VD, "apply_trc_type"},
+    { "linear",       "Linear",           0,
+        AV_OPT_TYPE_CONST, {.i64 = AVCOL_TRC_LINEAR },       INT_MIN, INT_MAX, VD, "apply_trc_type"},
+    { "log",          "Log",              0,
+        AV_OPT_TYPE_CONST, {.i64 = AVCOL_TRC_LOG },          INT_MIN, INT_MAX, VD, "apply_trc_type"},
+    { "log_sqrt",     "Log square root",  0,
+        AV_OPT_TYPE_CONST, {.i64 = AVCOL_TRC_LOG_SQRT },     INT_MIN, INT_MAX, VD, "apply_trc_type"},
+    { "iec61966_2_4", "IEC 61966-2-4",    0,
+        AV_OPT_TYPE_CONST, {.i64 = AVCOL_TRC_IEC61966_2_4 }, INT_MIN, INT_MAX, VD, "apply_trc_type"},
+    { "bt1361",       "BT.1361",          0,
+        AV_OPT_TYPE_CONST, {.i64 = AVCOL_TRC_BT1361_ECG },   INT_MIN, INT_MAX, VD, "apply_trc_type"},
+    { "iec61966_2_1", "IEC 61966-2-1",    0,
+        AV_OPT_TYPE_CONST, {.i64 = AVCOL_TRC_IEC61966_2_1 }, INT_MIN, INT_MAX, VD, "apply_trc_type"},
+    { "bt2020_10bit", "BT.2020 - 10 bit", 0,
+        AV_OPT_TYPE_CONST, {.i64 = AVCOL_TRC_BT2020_10 },    INT_MIN, INT_MAX, VD, "apply_trc_type"},
+    { "bt2020_12bit", "BT.2020 - 12 bit", 0,
+        AV_OPT_TYPE_CONST, {.i64 = AVCOL_TRC_BT2020_12 },    INT_MIN, INT_MAX, VD, "apply_trc_type"},
+    { "smpte2084",    "SMPTE ST 2084",    0,
+        AV_OPT_TYPE_CONST, {.i64 = AVCOL_TRC_SMPTEST2084 },  INT_MIN, INT_MAX, VD, "apply_trc_type"},
+    { "smpte428_1",   "SMPTE ST 428-1",   0,
+        AV_OPT_TYPE_CONST, {.i64 = AVCOL_TRC_SMPTEST428_1 }, INT_MIN, INT_MAX, VD, "apply_trc_type"},
+
     { NULL },
 };
 
@@ -1449,7 +1521,7 @@ AVCodec ff_exr_decoder = {
     .init_thread_copy = ONLY_IF_THREADS_ENABLED(decode_init_thread_copy),
     .close            = decode_end,
     .decode           = decode_frame,
-    .capabilities     = CODEC_CAP_DR1 | CODEC_CAP_FRAME_THREADS |
-                        CODEC_CAP_SLICE_THREADS,
+    .capabilities     = AV_CODEC_CAP_DR1 | AV_CODEC_CAP_FRAME_THREADS |
+                        AV_CODEC_CAP_SLICE_THREADS,
     .priv_class       = &exr_class,
 };

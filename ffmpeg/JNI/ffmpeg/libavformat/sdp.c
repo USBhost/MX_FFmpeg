@@ -348,7 +348,7 @@ static char *extradata2config(AVCodecContext *c)
 static char *xiph_extradata2config(AVCodecContext *c)
 {
     char *config, *encoded_config;
-    uint8_t *header_start[3];
+    const uint8_t *header_start[3];
     int headers_len, header_len[3], config_len;
     int first_header_size;
 
@@ -504,9 +504,10 @@ static char *sdp_write_media_attributes(char *buff, int size, AVCodecContext *c,
             /* only QCIF and CIF are specified as supported in RFC 4587 */
             if (c->width == 176 && c->height == 144)
                 pic_fmt = "QCIF=1";
-            if (c->width == 352 && c->height == 288)
+            else if (c->width == 352 && c->height == 288)
                 pic_fmt = "CIF=1";
-            av_strlcatf(buff, size, "a=rtpmap:%d H261/90000\r\n", payload_type);
+            if (payload_type >= RTP_PT_PRIVATE)
+                av_strlcatf(buff, size, "a=rtpmap:%d H261/90000\r\n", payload_type);
             if (pic_fmt)
                 av_strlcatf(buff, size, "a=fmtp:%d %s\r\n", payload_type, pic_fmt);
             break;
@@ -684,7 +685,7 @@ static char *sdp_write_media_attributes(char *buff, int size, AVCodecContext *c,
                 const char *mode;
                 uint64_t vad_option;
 
-                if (c->flags & CODEC_FLAG_QSCALE)
+                if (c->flags & AV_CODEC_FLAG_QSCALE)
                       mode = "on";
                 else if (!av_opt_get_int(c, "vad", AV_OPT_FLAG_ENCODING_PARAM, &vad_option) && vad_option)
                       mode = "vad";
@@ -739,7 +740,7 @@ void ff_sdp_write_media(char *buff, int size, AVStream *st, int idx,
     av_strlcatf(buff, size, "m=%s %d RTP/AVP %d\r\n", type, port, payload_type);
     sdp_write_address(buff, size, dest_addr, dest_type, ttl);
     if (c->bit_rate) {
-        av_strlcatf(buff, size, "b=AS:%d\r\n", c->bit_rate / 1000);
+        av_strlcatf(buff, size, "b=AS:%"PRId64"\r\n", (int64_t)c->bit_rate / 1000);
     }
 
     sdp_write_media_attributes(buff, size, c, payload_type, fmt);

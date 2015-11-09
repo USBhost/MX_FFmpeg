@@ -80,7 +80,7 @@ static void free_segment_list(HLSContext *s)
 {
     int i;
     for (i = 0; i < s->n_segments; i++)
-        av_free(s->segments[i]);
+        av_freep(&s->segments[i]);
     av_freep(&s->segments);
     s->n_segments = 0;
 }
@@ -89,7 +89,7 @@ static void free_variant_list(HLSContext *s)
 {
     int i;
     for (i = 0; i < s->n_variants; i++)
-        av_free(s->variants[i]);
+        av_freep(&s->variants[i]);
     av_freep(&s->variants);
     s->n_variants = 0;
 }
@@ -121,8 +121,10 @@ static int parse_playlist(URLContext *h, const char *url)
         return ret;
 
     read_chomp_line(in, line, sizeof(line));
-    if (strcmp(line, "#EXTM3U"))
-        return AVERROR_INVALIDDATA;
+    if (strcmp(line, "#EXTM3U")) {
+        ret = AVERROR_INVALIDDATA;
+        goto fail;
+    }
 
     free_segment_list(s);
     s->finished = 0;

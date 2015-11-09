@@ -107,7 +107,8 @@ AVOutputFormat ff_md5_muxer = {
     .write_header      = write_header,
     .write_packet      = write_packet,
     .write_trailer     = write_trailer,
-    .flags             = AVFMT_NOTIMESTAMPS,
+    .flags             = AVFMT_VARIABLE_FPS | AVFMT_TS_NONSTRICT |
+                         AVFMT_TS_NEGATIVE,
     .priv_class        = &md5enc_class,
 };
 #endif
@@ -134,7 +135,7 @@ static int framemd5_write_packet(struct AVFormatContext *s, AVPacket *pkt)
     av_hash_init(c->hash);
     av_hash_update(c->hash, pkt->data, pkt->size);
 
-    snprintf(buf, sizeof(buf) - 64, "%d, %10"PRId64", %10"PRId64", %8d, %8d, ",
+    snprintf(buf, sizeof(buf) - 64, "%d, %10"PRId64", %10"PRId64", %8"PRId64", %8d, ",
              pkt->stream_index, pkt->dts, pkt->pts, pkt->duration, pkt->size);
     md5_finish(s, buf);
     return 0;

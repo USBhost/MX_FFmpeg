@@ -92,7 +92,8 @@ static int webvtt_read_header(AVFormatContext *s)
 
         /* ignore header chunk */
         if (!strncmp(p, "\xEF\xBB\xBFWEBVTT", 9) ||
-            !strncmp(p, "WEBVTT", 6))
+            !strncmp(p, "WEBVTT", 6) ||
+            !strncmp(p, "NOTE", 4))
             continue;
 
         /* optional cue identifier (can be a number like in SRT or some kind of
@@ -161,7 +162,7 @@ static int webvtt_read_header(AVFormatContext *s)
         SET_SIDE_DATA(settings,   AV_PKT_DATA_WEBVTT_SETTINGS);
     }
 
-    ff_subtitles_queue_finalize(&webvtt->q);
+    ff_subtitles_queue_finalize(s, &webvtt->q);
 
 end:
     av_bprint_finalize(&cue,    NULL);

@@ -172,7 +172,7 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
 
     /* Some formats want stream headers to be separate. */
     if (oc->oformat->flags & AVFMT_GLOBALHEADER)
-        c->flags |= CODEC_FLAG_GLOBAL_HEADER;
+        c->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
 }
 
 /**************************************************************/
@@ -230,7 +230,7 @@ static void open_audio(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
     /* increment frequency by 110 Hz per second */
     ost->tincr2 = 2 * M_PI * 110.0 / c->sample_rate / c->sample_rate;
 
-    if (c->codec->capabilities & CODEC_CAP_VARIABLE_FRAME_SIZE)
+    if (c->codec->capabilities & AV_CODEC_CAP_VARIABLE_FRAME_SIZE)
         nb_samples = 10000;
     else
         nb_samples = c->frame_size;
@@ -493,44 +493,25 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost)
     AVCodecContext *c;
     AVFrame *frame;
     int got_packet = 0;
+    AVPacket pkt = { 0 };
 
     c = ost->st->codec;
 
     frame = get_video_frame(ost);
 
-    if (oc->oformat->flags & AVFMT_RAWPICTURE) {
-        /* a hack to avoid data copy with some raw video muxers */
-        AVPacket pkt;
-        av_init_packet(&pkt);
+    av_init_packet(&pkt);
 
-        if (!frame)
-            return 1;
+    /* encode the image */
+    ret = avcodec_encode_video2(c, &pkt, frame, &got_packet);
+    if (ret < 0) {
+        fprintf(stderr, "Error encoding video frame: %s\n", av_err2str(ret));
+        exit(1);
+    }
 
-        pkt.flags        |= AV_PKT_FLAG_KEY;
-        pkt.stream_index  = ost->st->index;
-        pkt.data          = (uint8_t *)frame;
-        pkt.size          = sizeof(AVPicture);
-
-        pkt.pts = pkt.dts = frame->pts;
-        av_packet_rescale_ts(&pkt, c->time_base, ost->st->time_base);
-
-        ret = av_interleaved_write_frame(oc, &pkt);
+    if (got_packet) {
+        ret = write_frame(oc, &c->time_base, ost->st, &pkt);
     } else {
-        AVPacket pkt = { 0 };
-        av_init_packet(&pkt);
-
-        /* encode the image */
-        ret = avcodec_encode_video2(c, &pkt, frame, &got_packet);
-        if (ret < 0) {
-            fprintf(stderr, "Error encoding video frame: %s\n", av_err2str(ret));
-            exit(1);
-        }
-
-        if (got_packet) {
-            ret = write_frame(oc, &c->time_base, ost->st, &pkt);
-        } else {
-            ret = 0;
-        }
+        ret = 0;
     }
 
     if (ret < 0) {
@@ -661,7 +642,7 @@ int main(int argc, char **argv)
 
     if (!(fmt->flags & AVFMT_NOFILE))
         /* Close the output file. */
-        avio_close(oc->pb);
+        avio_closep(&oc->pb);
 
     /* free the stream */
     avformat_free_context(oc);

@@ -173,10 +173,20 @@ typedef struct ChannelMap {
 
 typedef struct OpusContext {
     OpusStreamContext *streams;
+
+    /* current output buffers for each streams */
+    float **out;
+    int   *out_size;
+    /* Buffers for synchronizing the streams when they have different
+     * resampling delays */
+    AVAudioFifo **sync_buffers;
+    /* number of decoded samples for each stream */
+    int         *decoded_samples;
+
     int             nb_streams;
     int      nb_stereo_streams;
 
-    AVFloatDSPContext fdsp;
+    AVFloatDSPContext *fdsp;
     int16_t gain_i;
     float   gain;
 
@@ -279,7 +289,7 @@ static av_always_inline unsigned int opus_getrawbits(OpusRangeCoder *rc, unsigne
         rc->rb.bytes--;
     }
 
-    value = rc->rb.cacheval & ((1<<count)-1);
+    value = av_mod_uintp2(rc->rb.cacheval, count);
     rc->rb.cacheval    >>= count;
     rc->rb.cachelen     -= count;
     rc->total_read_bits += count;

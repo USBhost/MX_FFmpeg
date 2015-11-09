@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2010 Gordon Schmidt <gordon.schmidt <at> s2000.tu-chemnitz.de>
- * Copyright (c) 2013 Paul B Mahol
+ * Copyright (c) 2013-2015 Paul B Mahol
  *
  * This file is part of FFmpeg.
  *
@@ -21,6 +21,7 @@
 
 #include "libavutil/avassert.h"
 #include "libavutil/imgutils.h"
+#include "libavutil/intreadwrite.h"
 #include "libavutil/opt.h"
 #include "libavutil/parseutils.h"
 #include "libavutil/pixdesc.h"
@@ -29,6 +30,7 @@
 #include "formats.h"
 #include "internal.h"
 #include "video.h"
+#include "stereo3d.h"
 
 enum StereoCode {
     ANAGLYPH_RC_GRAY,   // anaglyph red/cyan gray
@@ -59,15 +61,21 @@ enum StereoCode {
     ABOVE_BELOW_2_RL,   // above-below with half height resolution
     ALTERNATING_LR,     // alternating frames (left eye first, right eye second)
     ALTERNATING_RL,     // alternating frames (right eye first, left eye second)
+    CHECKERBOARD_LR,    // checkerboard pattern (left eye first, right eye second)
+    CHECKERBOARD_RL,    // checkerboard pattern (right eye first, left eye second)
+    INTERLEAVE_COLS_LR, // column-interleave (left eye first, right eye second)
+    INTERLEAVE_COLS_RL, // column-interleave (right eye first, left eye second)
+    HDMI,               // HDMI frame pack (left eye first, right eye second)
     STEREO_CODE_COUNT   // TODO: needs autodetection
 };
 
 typedef struct StereoComponent {
-    enum StereoCode format;
+    int format;                 ///< StereoCode
     int width, height;
     int off_left, off_right;
     int off_lstep, off_rstep;
     int row_left, row_right;
+    int row_step;
 } StereoComponent;
 
 static const int ana_coeff[][3][6] = {
@@ -133,7 +141,6 @@ typedef struct Stereo3DContext {
     const AVClass *class;
     StereoComponent in, out;
     int width, height;
-    int row_step;
     const int *ana_matrix[3];
     int nb_planes;
     int linesize[4];
@@ -142,24 +149,29 @@ typedef struct Stereo3DContext {
     int pixstep[4];
     AVFrame *prev;
     double ts_unit;
+    int blanks;
+    int in_off_left[4], in_off_right[4];
+    Stereo3DDSPContext dsp;
 } Stereo3DContext;
 
 #define OFFSET(x) offsetof(Stereo3DContext, x)
 #define FLAGS AV_OPT_FLAG_FILTERING_PARAM|AV_OPT_FLAG_VIDEO_PARAM
 
 static const AVOption stereo3d_options[] = {
-    { "in",    "set input format",  OFFSET(in.format),  AV_OPT_TYPE_INT, {.i64=SIDE_BY_SIDE_LR}, SIDE_BY_SIDE_LR, STEREO_CODE_COUNT-1, FLAGS, "in"},
-    { "ab2l",  "above below half height left first",  0, AV_OPT_TYPE_CONST, {.i64=ABOVE_BELOW_2_LR},  0, 0, FLAGS, "in" },
-    { "ab2r",  "above below half height right first", 0, AV_OPT_TYPE_CONST, {.i64=ABOVE_BELOW_2_RL},  0, 0, FLAGS, "in" },
-    { "abl",   "above below left first",              0, AV_OPT_TYPE_CONST, {.i64=ABOVE_BELOW_LR},    0, 0, FLAGS, "in" },
-    { "abr",   "above below right first",             0, AV_OPT_TYPE_CONST, {.i64=ABOVE_BELOW_RL},    0, 0, FLAGS, "in" },
-    { "al",    "alternating frames left first",       0, AV_OPT_TYPE_CONST, {.i64=ALTERNATING_LR},    0, 0, FLAGS, "in" },
-    { "ar",    "alternating frames right first",      0, AV_OPT_TYPE_CONST, {.i64=ALTERNATING_RL},    0, 0, FLAGS, "in" },
-    { "sbs2l", "side by side half width left first",  0, AV_OPT_TYPE_CONST, {.i64=SIDE_BY_SIDE_2_LR}, 0, 0, FLAGS, "in" },
-    { "sbs2r", "side by side half width right first", 0, AV_OPT_TYPE_CONST, {.i64=SIDE_BY_SIDE_2_RL}, 0, 0, FLAGS, "in" },
-    { "sbsl",  "side by side left first",             0, AV_OPT_TYPE_CONST, {.i64=SIDE_BY_SIDE_LR},   0, 0, FLAGS, "in" },
-    { "sbsr",  "side by side right first",            0, AV_OPT_TYPE_CONST, {.i64=SIDE_BY_SIDE_RL},   0, 0, FLAGS, "in" },
-    { "out",   "set output format", OFFSET(out.format), AV_OPT_TYPE_INT, {.i64=ANAGLYPH_RC_DUBOIS}, 0, STEREO_CODE_COUNT-1, FLAGS, "out"},
+    { "in",    "set input format",  OFFSET(in.format),   AV_OPT_TYPE_INT,   {.i64=SIDE_BY_SIDE_LR}, INTERLEAVE_ROWS_LR, STEREO_CODE_COUNT-1, FLAGS, "in"},
+    { "ab2l",  "above below half height left first",  0, AV_OPT_TYPE_CONST, {.i64=ABOVE_BELOW_2_LR},   0, 0, FLAGS, "in" },
+    { "ab2r",  "above below half height right first", 0, AV_OPT_TYPE_CONST, {.i64=ABOVE_BELOW_2_RL},   0, 0, FLAGS, "in" },
+    { "abl",   "above below left first",              0, AV_OPT_TYPE_CONST, {.i64=ABOVE_BELOW_LR},     0, 0, FLAGS, "in" },
+    { "abr",   "above below right first",             0, AV_OPT_TYPE_CONST, {.i64=ABOVE_BELOW_RL},     0, 0, FLAGS, "in" },
+    { "al",    "alternating frames left first",       0, AV_OPT_TYPE_CONST, {.i64=ALTERNATING_LR},     0, 0, FLAGS, "in" },
+    { "ar",    "alternating frames right first",      0, AV_OPT_TYPE_CONST, {.i64=ALTERNATING_RL},     0, 0, FLAGS, "in" },
+    { "sbs2l", "side by side half width left first",  0, AV_OPT_TYPE_CONST, {.i64=SIDE_BY_SIDE_2_LR},  0, 0, FLAGS, "in" },
+    { "sbs2r", "side by side half width right first", 0, AV_OPT_TYPE_CONST, {.i64=SIDE_BY_SIDE_2_RL},  0, 0, FLAGS, "in" },
+    { "sbsl",  "side by side left first",             0, AV_OPT_TYPE_CONST, {.i64=SIDE_BY_SIDE_LR},    0, 0, FLAGS, "in" },
+    { "sbsr",  "side by side right first",            0, AV_OPT_TYPE_CONST, {.i64=SIDE_BY_SIDE_RL},    0, 0, FLAGS, "in" },
+    { "irl",   "interleave rows left first",          0, AV_OPT_TYPE_CONST, {.i64=INTERLEAVE_ROWS_LR}, 0, 0, FLAGS, "in" },
+    { "irr",   "interleave rows right first",         0, AV_OPT_TYPE_CONST, {.i64=INTERLEAVE_ROWS_RL}, 0, 0, FLAGS, "in" },
+    { "out",   "set output format", OFFSET(out.format),  AV_OPT_TYPE_INT,   {.i64=ANAGLYPH_RC_DUBOIS}, 0, STEREO_CODE_COUNT-1, FLAGS, "out"},
     { "ab2l",  "above below half height left first",  0, AV_OPT_TYPE_CONST, {.i64=ABOVE_BELOW_2_LR},   0, 0, FLAGS, "out" },
     { "ab2r",  "above below half height right first", 0, AV_OPT_TYPE_CONST, {.i64=ABOVE_BELOW_2_RL},   0, 0, FLAGS, "out" },
     { "abl",   "above below left first",              0, AV_OPT_TYPE_CONST, {.i64=ABOVE_BELOW_LR},     0, 0, FLAGS, "out" },
@@ -188,6 +200,11 @@ static const AVOption stereo3d_options[] = {
     { "sbs2r", "side by side half width right first", 0, AV_OPT_TYPE_CONST, {.i64=SIDE_BY_SIDE_2_RL},  0, 0, FLAGS, "out" },
     { "sbsl",  "side by side left first",             0, AV_OPT_TYPE_CONST, {.i64=SIDE_BY_SIDE_LR},    0, 0, FLAGS, "out" },
     { "sbsr",  "side by side right first",            0, AV_OPT_TYPE_CONST, {.i64=SIDE_BY_SIDE_RL},    0, 0, FLAGS, "out" },
+    { "chl",   "checkerboard left first",             0, AV_OPT_TYPE_CONST, {.i64=CHECKERBOARD_LR},    0, 0, FLAGS, "out" },
+    { "chr",   "checkerboard right first",            0, AV_OPT_TYPE_CONST, {.i64=CHECKERBOARD_RL},    0, 0, FLAGS, "out" },
+    { "icl",   "interleave columns left first",       0, AV_OPT_TYPE_CONST, {.i64=INTERLEAVE_COLS_LR}, 0, 0, FLAGS, "out" },
+    { "icr",   "interleave columns right first",      0, AV_OPT_TYPE_CONST, {.i64=INTERLEAVE_COLS_RL}, 0, 0, FLAGS, "out" },
+    { "hdmi",  "HDMI frame pack",                     0, AV_OPT_TYPE_CONST, {.i64=HDMI},               0, 0, FLAGS, "out" },
     { NULL }
 };
 
@@ -256,6 +273,7 @@ static int query_formats(AVFilterContext *ctx)
 {
     Stereo3DContext *s = ctx->priv;
     const enum AVPixelFormat *pix_fmts;
+    AVFilterFormats *fmts_list;
 
     switch (s->out.format) {
     case ANAGLYPH_GM_COLOR:
@@ -278,9 +296,41 @@ static int query_formats(AVFilterContext *ctx)
         pix_fmts = other_pix_fmts;
     }
 
-    ff_set_common_formats(ctx, ff_make_format_list(pix_fmts));
+    fmts_list = ff_make_format_list(pix_fmts);
+    if (!fmts_list)
+        return AVERROR(ENOMEM);
+    return ff_set_common_formats(ctx, fmts_list);
+}
 
-    return 0;
+static inline uint8_t ana_convert(const int *coeff, const uint8_t *left, const uint8_t *right)
+{
+    int sum;
+
+    sum  = coeff[0] * left[0] + coeff[3] * right[0]; //red in
+    sum += coeff[1] * left[1] + coeff[4] * right[1]; //green in
+    sum += coeff[2] * left[2] + coeff[5] * right[2]; //blue in
+
+    return av_clip_uint8(sum >> 16);
+}
+
+static void anaglyph(uint8_t *dst, uint8_t *lsrc, uint8_t *rsrc,
+                     ptrdiff_t dst_linesize, ptrdiff_t l_linesize, ptrdiff_t r_linesize,
+                     int width, int height,
+                     const int *ana_matrix_r, const int *ana_matrix_g, const int *ana_matrix_b)
+{
+    int x, y, o;
+
+    for (y = 0; y < height; y++) {
+        for (o = 0, x = 0; x < width; x++, o+= 3) {
+            dst[o    ] = ana_convert(ana_matrix_r, lsrc + o, rsrc + o);
+            dst[o + 1] = ana_convert(ana_matrix_g, lsrc + o, rsrc + o);
+            dst[o + 2] = ana_convert(ana_matrix_b, lsrc + o, rsrc + o);
+        }
+
+        dst  += dst_linesize;
+        lsrc += l_linesize;
+        rsrc += r_linesize;
+    }
 }
 
 static int config_output(AVFilterLink *outlink)
@@ -304,17 +354,12 @@ static int config_output(AVFilterLink *outlink)
             return AVERROR_INVALIDDATA;
         }
         break;
+    case INTERLEAVE_ROWS_LR:
+    case INTERLEAVE_ROWS_RL:
     case ABOVE_BELOW_2_LR:
     case ABOVE_BELOW_LR:
     case ABOVE_BELOW_2_RL:
     case ABOVE_BELOW_RL:
-        if (s->out.format == INTERLEAVE_ROWS_LR ||
-            s->out.format == INTERLEAVE_ROWS_RL) {
-            if (inlink->h & 3) {
-                av_log(ctx, AV_LOG_ERROR, "height must be multiple of 4\n");
-                return AVERROR_INVALIDDATA;
-            }
-        }
         if (inlink->h & 1) {
             av_log(ctx, AV_LOG_ERROR, "height must be even\n");
             return AVERROR_INVALIDDATA;
@@ -326,13 +371,13 @@ static int config_output(AVFilterLink *outlink)
     s->width        = inlink->w;
     s->in.height    =
     s->height       = inlink->h;
-    s->row_step     = 1;
     s->in.off_lstep =
     s->in.off_rstep =
     s->in.off_left  =
     s->in.off_right =
     s->in.row_left  =
     s->in.row_right = 0;
+    s->in.row_step  = 1;
 
     switch (s->in.format) {
     case SIDE_BY_SIDE_2_LR:
@@ -361,9 +406,19 @@ static int config_output(AVFilterLink *outlink)
         break;
     case ALTERNATING_RL:
     case ALTERNATING_LR:
-        outlink->flags |= FF_LINK_FLAG_REQUEST_LOOP;
         fps.den        *= 2;
         tb.num         *= 2;
+        break;
+    case INTERLEAVE_ROWS_LR:
+    case INTERLEAVE_ROWS_RL:
+        s->in.row_step  = 2;
+        if (s->in.format == INTERLEAVE_ROWS_RL)
+            s->in.off_lstep = 1;
+        else
+            s->in.off_rstep = 1;
+        if (s->out.format != CHECKERBOARD_LR &&
+            s->out.format != CHECKERBOARD_RL)
+            s->height   = inlink->h / 2;
         break;
     default:
         av_log(ctx, AV_LOG_ERROR, "input format %d is not supported\n", s->in.format);
@@ -378,6 +433,7 @@ static int config_output(AVFilterLink *outlink)
     s->out.off_right =
     s->out.row_left  =
     s->out.row_right = 0;
+    s->out.row_step  = 1;
 
     switch (s->out.format) {
     case ANAGLYPH_RB_GRAY:
@@ -420,6 +476,16 @@ static int config_output(AVFilterLink *outlink)
         s->out.height    = s->height * 2;
         s->out.row_right = s->height;
         break;
+    case HDMI:
+        if (s->height != 720 && s->height != 1080) {
+            av_log(ctx, AV_LOG_ERROR, "Only 720 and 1080 height supported\n");
+            return AVERROR(EINVAL);
+        }
+
+        s->blanks = s->height / 24;
+        s->out.height    = s->height * 2 + s->blanks;
+        s->out.row_right = s->height + s->blanks;
+        break;
     case ABOVE_BELOW_2_RL:
         aspect.num      *= 2;
     case ABOVE_BELOW_RL:
@@ -427,26 +493,41 @@ static int config_output(AVFilterLink *outlink)
         s->out.row_left  = s->height;
         break;
     case INTERLEAVE_ROWS_LR:
-        s->row_step      = 2;
-        s->height        = s->height / 2;
-        s->out.off_rstep =
-        s->in.off_rstep  = 1;
+        s->in.row_step   = 1 + (s->in.format == INTERLEAVE_ROWS_RL);
+        s->out.row_step  = 2;
+        s->out.height    = s->height * 2;
+        s->out.off_rstep = 1;
+        s->in.off_rstep  = s->in.format != INTERLEAVE_ROWS_RL;
         break;
     case INTERLEAVE_ROWS_RL:
-        s->row_step      = 2;
-        s->height        = s->height / 2;
-        s->out.off_lstep =
-        s->in.off_lstep  = 1;
+        s->in.row_step   = 1 + (s->in.format == INTERLEAVE_ROWS_LR);
+        s->out.row_step  = 2;
+        s->out.height    = s->height * 2;
+        s->out.off_lstep = 1;
+        s->in.off_lstep  = s->in.format != INTERLEAVE_ROWS_LR;
         break;
     case MONO_R:
         s->in.off_left   = s->in.off_right;
         s->in.row_left   = s->in.row_right;
+        if (s->in.format == INTERLEAVE_ROWS_LR)
+            FFSWAP(int, s->in.off_lstep, s->in.off_rstep);
+        break;
     case MONO_L:
+        if (s->in.format == INTERLEAVE_ROWS_RL)
+            FFSWAP(int, s->in.off_lstep, s->in.off_rstep);
         break;
     case ALTERNATING_RL:
     case ALTERNATING_LR:
         fps.num         *= 2;
         tb.den          *= 2;
+        break;
+    case CHECKERBOARD_LR:
+    case CHECKERBOARD_RL:
+        s->out.width     = s->width * 2;
+        break;
+    case INTERLEAVE_COLS_LR:
+    case INTERLEAVE_COLS_RL:
+        s->out.width     = s->width * 2;
         break;
     default:
         av_log(ctx, AV_LOG_ERROR, "output format %d is not supported\n", s->out.format);
@@ -469,18 +550,40 @@ static int config_output(AVFilterLink *outlink)
     s->hsub = desc->log2_chroma_w;
     s->vsub = desc->log2_chroma_h;
 
+    s->dsp.anaglyph = anaglyph;
+    if (ARCH_X86)
+        ff_stereo3d_init_x86(&s->dsp);
+
     return 0;
 }
 
-static inline uint8_t ana_convert(const int *coeff, const uint8_t *left, const uint8_t *right)
+typedef struct ThreadData {
+    AVFrame *ileft, *iright;
+    AVFrame *out;
+} ThreadData;
+
+static int filter_slice(AVFilterContext *ctx, void *arg, int jobnr, int nb_jobs)
 {
-    int sum;
+    Stereo3DContext *s = ctx->priv;
+    ThreadData *td = arg;
+    AVFrame *ileft = td->ileft;
+    AVFrame *iright = td->iright;
+    AVFrame *out = td->out;
+    int height = s->out.height;
+    int start = (height *  jobnr   ) / nb_jobs;
+    int end   = (height * (jobnr+1)) / nb_jobs;
+    const int **ana_matrix = s->ana_matrix;
 
-    sum  = coeff[0] * left[0] + coeff[3] * right[0]; //red in
-    sum += coeff[1] * left[1] + coeff[4] * right[1]; //green in
-    sum += coeff[2] * left[2] + coeff[5] * right[2]; //blue in
+    s->dsp.anaglyph(out->data[0] + out->linesize[0] * start,
+             ileft ->data[0] + s->in_off_left [0]  + ileft->linesize[0] * start * s->in.row_step,
+             iright->data[0] + s->in_off_right[0] + iright->linesize[0] * start * s->in.row_step,
+             out->linesize[0],
+             ileft->linesize[0] * s->in.row_step,
+             iright->linesize[0] * s->in.row_step,
+             s->out.width, end - start,
+             ana_matrix[0], ana_matrix[1], ana_matrix[2]);
 
-    return av_clip_uint8(sum >> 16);
+    return 0;
 }
 
 static int filter_frame(AVFilterLink *inlink, AVFrame *inpicref)
@@ -490,8 +593,10 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *inpicref)
     AVFilterLink *outlink = ctx->outputs[0];
     AVFrame *out, *oleft, *oright, *ileft, *iright;
     int out_off_left[4], out_off_right[4];
-    int in_off_left[4], in_off_right[4];
     int i;
+
+    if (s->in.format == s->out.format)
+        return ff_filter_frame(outlink, inpicref);
 
     switch (s->in.format) {
     case ALTERNATING_LR:
@@ -532,13 +637,21 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *inpicref)
     for (i = 0; i < 4; i++) {
         int hsub = i == 1 || i == 2 ? s->hsub : 0;
         int vsub = i == 1 || i == 2 ? s->vsub : 0;
-        in_off_left[i]   = (FF_CEIL_RSHIFT(s->in.row_left,   vsub) + s->in.off_lstep)  * ileft->linesize[i]  + FF_CEIL_RSHIFT(s->in.off_left   * s->pixstep[i], hsub);
-        in_off_right[i]  = (FF_CEIL_RSHIFT(s->in.row_right,  vsub) + s->in.off_rstep)  * iright->linesize[i] + FF_CEIL_RSHIFT(s->in.off_right  * s->pixstep[i], hsub);
+        s->in_off_left[i]   = (FF_CEIL_RSHIFT(s->in.row_left,   vsub) + s->in.off_lstep)  * ileft->linesize[i]  + FF_CEIL_RSHIFT(s->in.off_left   * s->pixstep[i], hsub);
+        s->in_off_right[i]  = (FF_CEIL_RSHIFT(s->in.row_right,  vsub) + s->in.off_rstep)  * iright->linesize[i] + FF_CEIL_RSHIFT(s->in.off_right  * s->pixstep[i], hsub);
         out_off_left[i]  = (FF_CEIL_RSHIFT(s->out.row_left,  vsub) + s->out.off_lstep) * oleft->linesize[i]  + FF_CEIL_RSHIFT(s->out.off_left  * s->pixstep[i], hsub);
         out_off_right[i] = (FF_CEIL_RSHIFT(s->out.row_right, vsub) + s->out.off_rstep) * oright->linesize[i] + FF_CEIL_RSHIFT(s->out.off_right * s->pixstep[i], hsub);
     }
 
     switch (s->out.format) {
+    case HDMI:
+        for (i = 0; i < s->nb_planes; i++) {
+            int j, h = s->height >> ((i == 1 || i == 2) ? s->vsub : 0);
+            int b = (s->blanks) >> ((i == 1 || i == 2) ? s->vsub : 0);
+
+            for (j = h; j < h + b; j++)
+                memset(oleft->data[i] + j * s->linesize[i], 0, s->linesize[i]);
+        }
     case ALTERNATING_LR:
     case ALTERNATING_RL:
     case SIDE_BY_SIDE_LR:
@@ -553,14 +666,14 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *inpicref)
     case INTERLEAVE_ROWS_RL:
         for (i = 0; i < s->nb_planes; i++) {
             av_image_copy_plane(oleft->data[i] + out_off_left[i],
-                                oleft->linesize[i] * s->row_step,
-                                ileft->data[i] + in_off_left[i],
-                                ileft->linesize[i] * s->row_step,
+                                oleft->linesize[i] * s->out.row_step,
+                                ileft->data[i] + s->in_off_left[i],
+                                ileft->linesize[i] * s->in.row_step,
                                 s->linesize[i], s->pheight[i]);
             av_image_copy_plane(oright->data[i] + out_off_right[i],
-                                oright->linesize[i] * s->row_step,
-                                iright->data[i] + in_off_right[i],
-                                iright->linesize[i] * s->row_step,
+                                oright->linesize[i] * s->out.row_step,
+                                iright->data[i] + s->in_off_right[i],
+                                iright->linesize[i] * s->in.row_step,
                                 s->linesize[i], s->pheight[i]);
         }
         break;
@@ -569,8 +682,8 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *inpicref)
     case MONO_R:
         for (i = 0; i < s->nb_planes; i++) {
             av_image_copy_plane(out->data[i], out->linesize[i],
-                                iright->data[i] + in_off_left[i],
-                                iright->linesize[i],
+                                iright->data[i] + s->in_off_left[i],
+                                iright->linesize[i] * s->in.row_step,
                                 s->linesize[i], s->pheight[i]);
         }
         break;
@@ -588,25 +701,122 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *inpicref)
     case ANAGLYPH_YB_HALF:
     case ANAGLYPH_YB_COLOR:
     case ANAGLYPH_YB_DUBOIS: {
-        int x, y, il, ir, o;
-        const uint8_t *lsrc = ileft->data[0];
-        const uint8_t *rsrc = iright->data[0];
-        uint8_t *dst = out->data[0];
-        int out_width = s->out.width;
-        const int **ana_matrix = s->ana_matrix;
+        ThreadData td;
 
-        for (y = 0; y < s->out.height; y++) {
-            o   = out->linesize[0] * y;
-            il  = in_off_left[0]  + y * ileft->linesize[0];
-            ir  = in_off_right[0] + y * iright->linesize[0];
-            for (x = 0; x < out_width; x++, il += 3, ir += 3, o+= 3) {
-                dst[o    ] = ana_convert(ana_matrix[0], lsrc + il, rsrc + ir);
-                dst[o + 1] = ana_convert(ana_matrix[1], lsrc + il, rsrc + ir);
-                dst[o + 2] = ana_convert(ana_matrix[2], lsrc + il, rsrc + ir);
+        td.ileft = ileft; td.iright = iright; td.out = out;
+        ctx->internal->execute(ctx, filter_slice, &td, NULL,
+                               FFMIN(s->out.height, ctx->graph->nb_threads));
+        break;
+    }
+    case CHECKERBOARD_RL:
+    case CHECKERBOARD_LR:
+        for (i = 0; i < s->nb_planes; i++) {
+            int x, y;
+
+            for (y = 0; y < s->pheight[i]; y++) {
+                uint8_t *dst = out->data[i] + out->linesize[i] * y;
+                uint8_t *left = ileft->data[i] + ileft->linesize[i] * y + s->in_off_left[i];
+                uint8_t *right = iright->data[i] + iright->linesize[i] * y + s->in_off_right[i];
+                int p, b;
+
+                if (s->out.format == CHECKERBOARD_RL)
+                    FFSWAP(uint8_t*, left, right);
+                switch (s->pixstep[i]) {
+                case 1:
+                    for (x = 0, b = 0, p = 0; x < s->linesize[i] * 2; x+=2, p++, b++) {
+                        dst[x  ] = (b&1) == (y&1) ? left[p] : right[p];
+                        dst[x+1] = (b&1) != (y&1) ? left[p] : right[p];
+                    }
+                    break;
+                case 2:
+                    for (x = 0, b = 0, p = 0; x < s->linesize[i] * 2; x+=4, p+=2, b++) {
+                        AV_WN16(&dst[x  ], (b&1) == (y&1) ? AV_RN16(&left[p]) : AV_RN16(&right[p]));
+                        AV_WN16(&dst[x+2], (b&1) != (y&1) ? AV_RN16(&left[p]) : AV_RN16(&right[p]));
+                    }
+                    break;
+                case 3:
+                    for (x = 0, b = 0, p = 0; x < s->linesize[i] * 2; x+=6, p+=3, b++) {
+                        AV_WB24(&dst[x  ], (b&1) == (y&1) ? AV_RB24(&left[p]) : AV_RB24(&right[p]));
+                        AV_WB24(&dst[x+3], (b&1) != (y&1) ? AV_RB24(&left[p]) : AV_RB24(&right[p]));
+                    }
+                    break;
+                case 4:
+                    for (x = 0, b = 0, p = 0; x < s->linesize[i] * 2; x+=8, p+=4, b++) {
+                        AV_WN32(&dst[x  ], (b&1) == (y&1) ? AV_RN32(&left[p]) : AV_RN32(&right[p]));
+                        AV_WN32(&dst[x+4], (b&1) != (y&1) ? AV_RN32(&left[p]) : AV_RN32(&right[p]));
+                    }
+                    break;
+                case 6:
+                    for (x = 0, b = 0, p = 0; x < s->linesize[i] * 2; x+=12, p+=6, b++) {
+                        AV_WB48(&dst[x  ], (b&1) == (y&1) ? AV_RB48(&left[p]) : AV_RB48(&right[p]));
+                        AV_WB48(&dst[x+6], (b&1) != (y&1) ? AV_RB48(&left[p]) : AV_RB48(&right[p]));
+                    }
+                    break;
+                case 8:
+                    for (x = 0, b = 0, p = 0; x < s->linesize[i] * 2; x+=16, p+=8, b++) {
+                        AV_WN64(&dst[x  ], (b&1) == (y&1) ? AV_RN64(&left[p]) : AV_RN64(&right[p]));
+                        AV_WN64(&dst[x+8], (b&1) != (y&1) ? AV_RN64(&left[p]) : AV_RN64(&right[p]));
+                    }
+                    break;
+                }
             }
         }
         break;
-    }
+    case INTERLEAVE_COLS_LR:
+    case INTERLEAVE_COLS_RL:
+        for (i = 0; i < s->nb_planes; i++) {
+            int x, y;
+
+            for (y = 0; y < s->pheight[i]; y++) {
+                uint8_t *dst = out->data[i] + out->linesize[i] * y;
+                uint8_t *left = ileft->data[i] + ileft->linesize[i] * y * s->in.row_step + s->in_off_left[i];
+                uint8_t *right = iright->data[i] + iright->linesize[i] * y * s->in.row_step + s->in_off_right[i];
+                int p, b;
+
+                if (s->out.format == INTERLEAVE_COLS_LR)
+                    FFSWAP(uint8_t*, left, right);
+
+                switch (s->pixstep[i]) {
+                case 1:
+                    for (x = 0, b = 0, p = 0; x < s->linesize[i] * 2; x+=2, p++, b++) {
+                        dst[x  ] =   b&1  ? left[p] : right[p];
+                        dst[x+1] = !(b&1) ? left[p] : right[p];
+                    }
+                    break;
+                case 2:
+                    for (x = 0, b = 0, p = 0; x < s->linesize[i] * 2; x+=4, p+=2, b++) {
+                        AV_WN16(&dst[x  ],   b&1  ? AV_RN16(&left[p]) : AV_RN16(&right[p]));
+                        AV_WN16(&dst[x+2], !(b&1) ? AV_RN16(&left[p]) : AV_RN16(&right[p]));
+                    }
+                    break;
+                case 3:
+                    for (x = 0, b = 0, p = 0; x < s->linesize[i] * 2; x+=6, p+=3, b++) {
+                        AV_WB24(&dst[x  ],   b&1  ? AV_RB24(&left[p]) : AV_RB24(&right[p]));
+                        AV_WB24(&dst[x+3], !(b&1) ? AV_RB24(&left[p]) : AV_RB24(&right[p]));
+                    }
+                    break;
+                case 4:
+                    for (x = 0, b = 0, p = 0; x < s->linesize[i] * 2; x+=8, p+=4, b++) {
+                        AV_WN32(&dst[x  ],   b&1  ? AV_RN32(&left[p]) : AV_RN32(&right[p]));
+                        AV_WN32(&dst[x+4], !(b&1) ? AV_RN32(&left[p]) : AV_RN32(&right[p]));
+                    }
+                    break;
+                case 6:
+                    for (x = 0, b = 0, p = 0; x < s->linesize[i] * 2; x+=12, p+=6, b++) {
+                        AV_WB48(&dst[x  ],   b&1  ? AV_RB48(&left[p]) : AV_RB48(&right[p]));
+                        AV_WB48(&dst[x+6], !(b&1) ? AV_RB48(&left[p]) : AV_RB48(&right[p]));
+                    }
+                    break;
+                case 8:
+                    for (x = 0, b = 0, p = 0; x < s->linesize[i] * 2; x+=16, p+=8, b++) {
+                        AV_WN64(&dst[x  ],   b&1 ?  AV_RN64(&left[p]) : AV_RN64(&right[p]));
+                        AV_WN64(&dst[x+8], !(b&1) ? AV_RN64(&left[p]) : AV_RN64(&right[p]));
+                    }
+                    break;
+                }
+            }
+        }
+        break;
     default:
         av_assert0(0);
     }
@@ -661,4 +871,5 @@ AVFilter ff_vf_stereo3d = {
     .inputs        = stereo3d_inputs,
     .outputs       = stereo3d_outputs,
     .priv_class    = &stereo3d_class,
+    .flags         = AVFILTER_FLAG_SLICE_THREADS,
 };

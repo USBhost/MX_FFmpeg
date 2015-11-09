@@ -109,7 +109,7 @@ int ff_text_peek_r8(FFTextReader *r)
 }
 
 AVPacket *ff_subtitles_queue_insert(FFDemuxSubtitlesQueue *q,
-                                    const uint8_t *event, int len, int merge)
+                                    const uint8_t *event, size_t len, int merge)
 {
     AVPacket *subs, *sub;
 
@@ -166,7 +166,34 @@ static int cmp_pkt_sub_pos_ts(const void *a, const void *b)
     return s1->pos > s2->pos ? 1 : -1;
 }
 
-void ff_subtitles_queue_finalize(FFDemuxSubtitlesQueue *q)
+static void drop_dups(void *log_ctx, FFDemuxSubtitlesQueue *q)
+{
+    int i, drop = 0;
+
+    for (i = 1; i < q->nb_subs; i++) {
+        const int last_id = i - 1 - drop;
+        const AVPacket *last = &q->subs[last_id];
+
+        if (q->subs[i].pts        == last->pts &&
+            q->subs[i].duration   == last->duration &&
+            q->subs[i].stream_index == last->stream_index &&
+            !strcmp(q->subs[i].data, last->data)) {
+
+            av_free_packet(&q->subs[i]);
+            drop++;
+        } else if (drop) {
+            q->subs[last_id + 1] = q->subs[i];
+            memset(&q->subs[i], 0, sizeof(q->subs[i])); // for safety
+        }
+    }
+
+    if (drop) {
+        q->nb_subs -= drop;
+        av_log(log_ctx, AV_LOG_WARNING, "Dropping %d duplicated subtitle events\n", drop);
+    }
+}
+
+void ff_subtitles_queue_finalize(void *log_ctx, FFDemuxSubtitlesQueue *q)
 {
     int i;
 
@@ -176,6 +203,9 @@ void ff_subtitles_queue_finalize(FFDemuxSubtitlesQueue *q)
     for (i = 0; i < q->nb_subs; i++)
         if (q->subs[i].duration == -1 && i < q->nb_subs - 1)
             q->subs[i].duration = q->subs[i + 1].pts - q->subs[i].pts;
+
+    if (!q->keep_duplicates)
+        drop_dups(log_ctx, q);
 }
 
 int ff_subtitles_queue_read_packet(FFDemuxSubtitlesQueue *q, AVPacket *pkt)
@@ -303,7 +333,7 @@ int ff_smil_extract_next_text_chunk(FFTextReader *tr, AVBPrint *buf, char *c)
 const char *ff_smil_get_attr_ptr(const char *s, const char *attr)
 {
     int in_quotes = 0;
-    const int len = strlen(attr);
+    const size_t len = strlen(attr);
 
     while (*s) {
         while (*s) {

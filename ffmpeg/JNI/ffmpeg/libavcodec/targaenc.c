@@ -21,6 +21,7 @@
 
 #include <string.h>
 
+#include "libavutil/imgutils.h"
 #include "libavutil/internal.h"
 #include "libavutil/intreadwrite.h"
 #include "libavutil/pixdesc.h"
@@ -84,8 +85,9 @@ static int targa_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
         av_log(avctx, AV_LOG_ERROR, "image dimensions too large\n");
         return AVERROR(EINVAL);
     }
-    picsize = avpicture_get_size(avctx->pix_fmt, avctx->width, avctx->height);
-    if ((ret = ff_alloc_packet2(avctx, pkt, picsize + 45)) < 0)
+    picsize = av_image_get_buffer_size(avctx->pix_fmt,
+                                       avctx->width, avctx->height, 1);
+    if ((ret = ff_alloc_packet2(avctx, pkt, picsize + 45, 0)) < 0)
         return ret;
 
     /* zero out the header and only set applicable fields */
@@ -172,19 +174,13 @@ static int targa_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
 
 static av_cold int targa_encode_init(AVCodecContext *avctx)
 {
-    avctx->coded_frame = av_frame_alloc();
-    if (!avctx->coded_frame)
-        return AVERROR(ENOMEM);
-
+#if FF_API_CODED_FRAME
+FF_DISABLE_DEPRECATION_WARNINGS
     avctx->coded_frame->key_frame = 1;
     avctx->coded_frame->pict_type = AV_PICTURE_TYPE_I;
+FF_ENABLE_DEPRECATION_WARNINGS
+#endif
 
-    return 0;
-}
-
-static av_cold int targa_encode_close(AVCodecContext *avctx)
-{
-    av_frame_free(&avctx->coded_frame);
     return 0;
 }
 
@@ -194,7 +190,6 @@ AVCodec ff_targa_encoder = {
     .type           = AVMEDIA_TYPE_VIDEO,
     .id             = AV_CODEC_ID_TARGA,
     .init           = targa_encode_init,
-    .close          = targa_encode_close,
     .encode2        = targa_encode_frame,
     .pix_fmts       = (const enum AVPixelFormat[]){
         AV_PIX_FMT_BGR24, AV_PIX_FMT_BGRA, AV_PIX_FMT_RGB555LE, AV_PIX_FMT_GRAY8, AV_PIX_FMT_PAL8,

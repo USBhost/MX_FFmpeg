@@ -28,10 +28,6 @@
 #include "riff.h"
 #include "asf.h"
 
-#undef NDEBUG
-#include <assert.h>
-
-
 #define ASF_INDEXED_INTERVAL    10000000
 #define ASF_INDEX_BLOCK         (1<<9)
 #define ASF_PAYLOADS_PER_PACKET 63
@@ -187,7 +183,39 @@
 
 #define DATA_HEADER_SIZE 50
 
-typedef struct {
+typedef struct ASFPayload {
+    uint8_t type;
+    uint16_t size;
+} ASFPayload;
+
+typedef struct ASFStream {
+    int num;
+    unsigned char seq;
+    /* use for reading */
+    AVPacket pkt;
+    int frag_offset;
+    int packet_obj_size;
+    int timestamp;
+    int64_t duration;
+    int skip_to_key;
+    int pkt_clean;
+
+    int ds_span;                /* descrambling  */
+    int ds_packet_size;
+    int ds_chunk_size;
+
+    int64_t packet_pos;
+
+    uint16_t stream_language_index;
+
+    int      palette_changed;
+    uint32_t palette[256];
+
+    int payload_ext_ct;
+    ASFPayload payload[8];
+} ASFStream;
+
+typedef struct ASFContext {
     uint32_t seqno;
     int is_streamed;
     ASFStream streams[128];              ///< it's max number and it's not that big
@@ -485,7 +513,7 @@ static int asf_write_header1(AVFormatContext *s, int64_t file_size,
     /* chapters using ASF markers */
     if (!asf->is_streamed && s->nb_chapters) {
         int ret;
-        if (ret = asf_write_markers(s))
+        if ((ret = asf_write_markers(s)) < 0)
             return ret;
     }
     /* stream headers */
@@ -656,6 +684,8 @@ static int asf_write_header(AVFormatContext *s)
     asf->nb_packets = 0;
 
     asf->index_ptr             = av_malloc(sizeof(ASFIndex) * ASF_INDEX_BLOCK);
+    if (!asf->index_ptr)
+        return AVERROR(ENOMEM);
     asf->nb_index_memory_alloc = ASF_INDEX_BLOCK;
     asf->maximum_packet        = 0;
 
@@ -664,6 +694,7 @@ static int asf_write_header(AVFormatContext *s)
      * It is needed to use asf as a streamable format. */
     if (asf_write_header1(s, 0, DATA_HEADER_SIZE) < 0) {
         //av_free(asf);
+        av_freep(&asf->index_ptr);
         return -1;
     }
 

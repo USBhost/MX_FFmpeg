@@ -53,6 +53,12 @@ typedef struct MOVStsc {
     int id;
 } MOVStsc;
 
+typedef struct MOVElst {
+    int64_t duration;
+    int64_t time;
+    float rate;
+} MOVElst;
+
 typedef struct MOVDref {
     uint32_t type;
     char *path;
@@ -97,6 +103,7 @@ typedef struct MOVSbgp {
 typedef struct MOVFragmentIndexItem {
     int64_t moof_offset;
     int64_t time;
+    int headers_read;
 } MOVFragmentIndexItem;
 
 typedef struct MOVFragmentIndex {
@@ -121,6 +128,8 @@ typedef struct MOVStreamContext {
     MOVStsc *stsc_data;
     unsigned int stps_count;
     unsigned *stps_data;  ///< partial sync sample for mpeg-2 open gop
+    MOVElst *elst_data;
+    unsigned int elst_count;
     int ctts_index;
     int ctts_sample;
     unsigned int sample_size; ///< may contain value calculated from stsd or value from stsz atom
@@ -131,8 +140,6 @@ typedef struct MOVStreamContext {
     unsigned int keyframe_count;
     int *keyframes;
     int time_scale;
-    int64_t empty_duration; ///< empty duration of the first edit list entry
-    int64_t start_time;   ///< start time of the media
     int64_t time_offset;  ///< time offset of the edit list entries
     int current_sample;
     unsigned int bytes_per_frame;
@@ -164,7 +171,7 @@ typedef struct MOVStreamContext {
 } MOVStreamContext;
 
 typedef struct MOVContext {
-    AVClass *avclass;
+    const AVClass *class; ///< class for private options
     AVFormatContext *fc;
     int time_scale;
     int64_t duration;     ///< duration of the longest track
@@ -180,7 +187,10 @@ typedef struct MOVContext {
     int chapter_track;
     int use_absolute_path;
     int ignore_editlist;
+    int seek_individually;
     int64_t next_root_atom; ///< offset of the next root atom
+    int export_all;
+    int export_xmp;
     int *bitrates;          ///< bitrates read before streams creation
     int bitrates_count;
     int moov_retry;
@@ -188,6 +198,16 @@ typedef struct MOVContext {
     int has_looked_for_mfra;
     MOVFragmentIndex** fragment_index_data;
     unsigned fragment_index_count;
+    int fragment_index_complete;
+    int atom_depth;
+    unsigned int aax_mode;  ///< 'aax' file has been detected
+    uint8_t file_key[20];
+    uint8_t file_iv[20];
+    void *activation_bytes;
+    int activation_bytes_size;
+    void *audible_fixed_key;
+    int audible_fixed_key_size;
+    struct AVAES *aes_decrypt;
 } MOVContext;
 
 int ff_mp4_read_descr_len(AVIOContext *pb);
@@ -245,6 +265,7 @@ void ff_mp4_parse_es_descr(AVIOContext *pb, int *es_id);
      (tag) == MKTAG('a', 'i', '1', '3') ||  \
      (tag) == MKTAG('a', 'i', '1', '5') ||  \
      (tag) == MKTAG('a', 'i', '1', '6') ||  \
+     (tag) == MKTAG('a', 'i', 'v', 'x') ||  \
      (tag) == MKTAG('A', 'V', 'i', 'n'))
 
 

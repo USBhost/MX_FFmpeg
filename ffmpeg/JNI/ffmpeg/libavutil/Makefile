@@ -6,7 +6,6 @@ HEADERS = adler32.h                                                     \
           aes.h                                                         \
           attributes.h                                                  \
           audio_fifo.h                                                  \
-          audioconvert.h                                                \
           avassert.h                                                    \
           avstring.h                                                    \
           avutil.h                                                      \
@@ -16,10 +15,12 @@ HEADERS = adler32.h                                                     \
           bswap.h                                                       \
           buffer.h                                                      \
           cast5.h                                                       \
+          camellia.h                                                    \
           channel_layout.h                                              \
           common.h                                                      \
           cpu.h                                                         \
           crc.h                                                         \
+          des.h                                                         \
           display.h                                                     \
           downmix_info.h                                                \
           error.h                                                       \
@@ -41,13 +42,13 @@ HEADERS = adler32.h                                                     \
           motion_vector.h                                               \
           murmur3.h                                                     \
           dict.h                                                        \
-          old_pix_fmts.h                                                \
           opt.h                                                         \
           parseutils.h                                                  \
           pixdesc.h                                                     \
           pixelutils.h                                                  \
           pixfmt.h                                                      \
           random_seed.h                                                 \
+          rc4.h                                                         \
           replaygain.h                                                  \
           rational.h                                                    \
           ripemd.h                                                      \
@@ -59,8 +60,11 @@ HEADERS = adler32.h                                                     \
           time.h                                                        \
           timecode.h                                                    \
           timestamp.h                                                   \
+          tree.h                                                        \
+          twofish.h                                                     \
           version.h                                                     \
           xtea.h                                                        \
+          tea.h                                                         \
 
 HEADERS-$(CONFIG_LZO)                   += lzo.h
 
@@ -76,7 +80,6 @@ BUILT_HEADERS = avconfig.h                                              \
 
 OBJS = adler32.o                                                        \
        aes.o                                                            \
-       atomic.o                                                         \
        audio_fifo.o                                                     \
        avstring.o                                                       \
        base64.o                                                         \
@@ -84,7 +87,9 @@ OBJS = adler32.o                                                        \
        bprint.o                                                         \
        buffer.o                                                         \
        cast5.o                                                          \
+       camellia.o                                                       \
        channel_layout.o                                                 \
+       color_utils.o                                                    \
        cpu.o                                                            \
        crc.o                                                            \
        des.o                                                            \
@@ -117,6 +122,7 @@ OBJS = adler32.o                                                        \
        pixelutils.o                                                     \
        random_seed.o                                                    \
        rational.o                                                       \
+       reverse.o                                                        \
        rc4.o                                                            \
        ripemd.o                                                         \
        samplefmt.o                                                      \
@@ -127,9 +133,13 @@ OBJS = adler32.o                                                        \
        time.o                                                           \
        timecode.o                                                       \
        tree.o                                                           \
+       twofish.o                                                        \
        utils.o                                                          \
        xga_font_data.o                                                  \
        xtea.o                                                           \
+       tea.o                                                            \
+
+OBJS-$(!HAVE_ATOMICS_NATIVE)            += atomic.o                     \
 
 OBJS-$(CONFIG_LZO)                      += lzo.o
 OBJS-$(CONFIG_OPENCL)                   += opencl.o opencl_internal.o
@@ -138,8 +148,6 @@ OBJS += $(COMPAT_OBJS:%=../compat/%)
 
 # Windows resource file
 SLIBOBJS-$(HAVE_GNU_WINDRES)            += avutilres.o
-
-SKIPHEADERS          = old_pix_fmts.h
 
 SKIPHEADERS-$(HAVE_ATOMICS_GCC)        += atomic_gcc.h
 SKIPHEADERS-$(HAVE_ATOMICS_SUNCC)      += atomic_suncc.h
@@ -154,6 +162,7 @@ TESTPROGS = adler32                                                     \
             blowfish                                                    \
             bprint                                                      \
             cast5                                                       \
+            camellia                                                    \
             cpu                                                         \
             crc                                                         \
             des                                                         \
@@ -181,8 +190,10 @@ TESTPROGS = adler32                                                     \
             sha512                                                      \
             softfloat                                                   \
             tree                                                        \
+            twofish                                                     \
             utf8                                                        \
             xtea                                                        \
+            tea                                                         \
 
 TESTPROGS-$(HAVE_LZO1X_999_COMPRESS) += lzo
 

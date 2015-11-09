@@ -175,7 +175,7 @@ static int set_params(AVFilterContext *ctx, const char *params)
         switch (info.type) {
             void *v;
             double d;
-            char s[128];
+            char str[128];
             f0r_param_color_t col;
             f0r_param_position_t pos;
 
@@ -200,9 +200,9 @@ static int set_params(AVFilterContext *ctx, const char *params)
             av_log(ctx, AV_LOG_DEBUG, "%f/%f", pos.x, pos.y);
             break;
         default: /* F0R_PARAM_STRING */
-            v = s;
+            v = str;
             s->get_param_value(s->instance, v, i);
-            av_log(ctx, AV_LOG_DEBUG, "'%s'", s);
+            av_log(ctx, AV_LOG_DEBUG, "'%s'", str);
             break;
         }
 #endif
@@ -370,11 +370,14 @@ static int query_formats(AVFilterContext *ctx)
 {
     Frei0rContext *s = ctx->priv;
     AVFilterFormats *formats = NULL;
+    int ret;
 
     if        (s->plugin_info.color_model == F0R_COLOR_MODEL_BGRA8888) {
-        ff_add_format(&formats, AV_PIX_FMT_BGRA);
+        if ((ret = ff_add_format(&formats, AV_PIX_FMT_BGRA)) < 0)
+            return ret;
     } else if (s->plugin_info.color_model == F0R_COLOR_MODEL_RGBA8888) {
-        ff_add_format(&formats, AV_PIX_FMT_RGBA);
+        if ((ret = ff_add_format(&formats, AV_PIX_FMT_RGBA)) < 0)
+            return ret;
     } else {                                   /* F0R_COLOR_MODEL_PACKED32 */
         static const enum AVPixelFormat pix_fmts[] = {
             AV_PIX_FMT_BGRA, AV_PIX_FMT_ARGB, AV_PIX_FMT_ABGR, AV_PIX_FMT_ARGB, AV_PIX_FMT_NONE
@@ -385,8 +388,7 @@ static int query_formats(AVFilterContext *ctx)
     if (!formats)
         return AVERROR(ENOMEM);
 
-    ff_set_common_formats(ctx, formats);
-    return 0;
+    return ff_set_common_formats(ctx, formats);
 }
 
 static int filter_frame(AVFilterLink *inlink, AVFrame *in)
@@ -471,6 +473,7 @@ static int source_config_props(AVFilterLink *outlink)
     outlink->w = s->w;
     outlink->h = s->h;
     outlink->time_base = s->time_base;
+    outlink->frame_rate = av_inv_q(s->time_base);
     outlink->sample_aspect_ratio = (AVRational){1,1};
 
     if (s->destruct && s->instance)

@@ -288,6 +288,14 @@ static void write_metadata(AVFormatContext *s, unsigned int ts)
             ||!strcmp(tag->key, "audiocodecid")
             ||!strcmp(tag->key, "duration")
             ||!strcmp(tag->key, "onMetaData")
+            ||!strcmp(tag->key, "datasize")
+            ||!strcmp(tag->key, "lasttimestamp")
+            ||!strcmp(tag->key, "totalframes")
+            ||!strcmp(tag->key, "hasAudio")
+            ||!strcmp(tag->key, "hasVideo")
+            ||!strcmp(tag->key, "hasCuePoints")
+            ||!strcmp(tag->key, "hasMetadata")
+            ||!strcmp(tag->key, "hasKeyframes")
         ){
             av_log(s, AV_LOG_DEBUG, "Ignoring metadata for %s\n", tag->key);
             continue;
@@ -317,6 +325,17 @@ static void write_metadata(AVFormatContext *s, unsigned int ts)
     avio_wb32(pb, data_size + 11);
 }
 
+static int unsupported_codec(AVFormatContext *s,
+                             const char* type, int codec_id)
+{
+    const AVCodecDescriptor *desc = avcodec_descriptor_get(codec_id);
+    av_log(s, AV_LOG_ERROR,
+           "%s codec %s not compatible with flv\n",
+            type,
+            desc ? desc->name : "unknown");
+    return AVERROR(ENOSYS);
+}
+
 static int flv_write_header(AVFormatContext *s)
 {
     int i;
@@ -339,11 +358,9 @@ static int flv_write_header(AVFormatContext *s)
                 return AVERROR(EINVAL);
             }
             flv->video_enc = enc;
-            if (enc->codec_tag == 0) {
-                av_log(s, AV_LOG_ERROR, "Video codec '%s' for stream %d is not compatible with FLV\n",
-                       avcodec_get_name(enc->codec_id), i);
-                return AVERROR(EINVAL);
-            }
+            if (!ff_codec_get_tag(flv_video_codec_ids, enc->codec_id))
+                return unsupported_codec(s, "Video", enc->codec_id);
+
             if (enc->codec_id == AV_CODEC_ID_MPEG4 ||
                 enc->codec_id == AV_CODEC_ID_H263) {
                 int error = s->strict_std_compliance > FF_COMPLIANCE_UNOFFICIAL;
@@ -355,6 +372,9 @@ static int flv_write_header(AVFormatContext *s)
                            "use vstrict=-1 / -strict -1 to use it anyway.\n");
                     return AVERROR(EINVAL);
                 }
+            } else if (enc->codec_id == AV_CODEC_ID_VP6) {
+                av_log(s, AV_LOG_WARNING,
+                       "Muxing VP6 in flv will produce flipped video on playback.\n");
             }
             break;
         case AVMEDIA_TYPE_AUDIO:
@@ -365,14 +385,19 @@ static int flv_write_header(AVFormatContext *s)
             }
             flv->audio_enc = enc;
             if (get_audio_flags(s, enc) < 0)
-                return AVERROR_INVALIDDATA;
+                return unsupported_codec(s, "Audio", enc->codec_id);
             if (enc->codec_id == AV_CODEC_ID_PCM_S16BE)
                 av_log(s, AV_LOG_WARNING,
                        "16-bit big-endian audio in flv is valid but most likely unplayable (hardware dependent); use s16le\n");
             break;
         case AVMEDIA_TYPE_DATA:
-            if (enc->codec_id != AV_CODEC_ID_TEXT && enc->codec_id != AV_CODEC_ID_NONE) {
-                av_log(s, AV_LOG_ERROR, "Data codec '%s' for stream %d is not compatible with FLV\n",
+            if (enc->codec_id != AV_CODEC_ID_TEXT && enc->codec_id != AV_CODEC_ID_NONE)
+                return unsupported_codec(s, "Data", enc->codec_id);
+            flv->data_enc = enc;
+            break;
+        case AVMEDIA_TYPE_SUBTITLE:
+            if (enc->codec_id != AV_CODEC_ID_TEXT) {
+                av_log(s, AV_LOG_ERROR, "Subtitle codec '%s' for stream %d is not compatible with FLV\n",
                        avcodec_get_name(enc->codec_id), i);
                 return AVERROR_INVALIDDATA;
             }
@@ -517,13 +542,7 @@ static int flv_write_packet(AVFormatContext *s, AVPacket *pkt)
     case AVMEDIA_TYPE_VIDEO:
         avio_w8(pb, FLV_TAG_TYPE_VIDEO);
 
-        flags = enc->codec_tag;
-        if (flags == 0) {
-            av_log(s, AV_LOG_ERROR,
-                   "Video codec '%s' is not compatible with FLV\n",
-                   avcodec_get_name(enc->codec_id));
-            return AVERROR(EINVAL);
-        }
+        flags = ff_codec_get_tag(flv_video_codec_ids, enc->codec_id);
 
         flags |= pkt->flags & AV_PKT_FLAG_KEY ? FLV_FRAME_KEY : FLV_FRAME_INTER;
         break;
@@ -534,6 +553,7 @@ static int flv_write_packet(AVFormatContext *s, AVPacket *pkt)
 
         avio_w8(pb, FLV_TAG_TYPE_AUDIO);
         break;
+    case AVMEDIA_TYPE_SUBTITLE:
     case AVMEDIA_TYPE_DATA:
         avio_w8(pb, FLV_TAG_TYPE_META);
         break;
@@ -542,7 +562,7 @@ static int flv_write_packet(AVFormatContext *s, AVPacket *pkt)
     }
 
     if (enc->codec_id == AV_CODEC_ID_H264 || enc->codec_id == AV_CODEC_ID_MPEG4) {
-        /* check if extradata looks like mp4 formated */
+        /* check if extradata looks like mp4 formatted */
         if (enc->extradata_size > 0 && *(uint8_t*)enc->extradata != 1)
             if ((ret = ff_avc_parse_nal_units_buf(pkt->data, &data, &size)) < 0)
                 return ret;
@@ -577,7 +597,8 @@ static int flv_write_packet(AVFormatContext *s, AVPacket *pkt)
     avio_w8(pb, (ts >> 24) & 0x7F); // timestamps are 32 bits _signed_
     avio_wb24(pb, flv->reserved);
 
-    if (enc->codec_type == AVMEDIA_TYPE_DATA) {
+    if (enc->codec_type == AVMEDIA_TYPE_DATA ||
+        enc->codec_type == AVMEDIA_TYPE_SUBTITLE ) {
         int data_size;
         int64_t metadata_size_pos = avio_tell(pb);
         if (enc->codec_id == AV_CODEC_ID_TEXT) {

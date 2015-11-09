@@ -31,6 +31,7 @@
 #include "config.h"
 
 #if HAVE_WINDOWS_H
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif
 #if HAVE_OPENGL_GL3_H
@@ -732,8 +733,8 @@ static av_cold void opengl_fill_color_map(OpenGLContext *opengl)
         return;
 
 #define FILL_COMPONENT(i) { \
-        shift = desc->comp[i].depth_minus1 >> 3; \
-        opengl->color_map[(i << 2) + ((desc->comp[i].offset_plus1 - 1) >> shift)] = 1.0; \
+        shift = (desc->comp[i].depth - 1) >> 3; \
+        opengl->color_map[(i << 2) + (desc->comp[i].offset >> shift)] = 1.0; \
     }
 
     memset(opengl->color_map, 0, sizeof(opengl->color_map));

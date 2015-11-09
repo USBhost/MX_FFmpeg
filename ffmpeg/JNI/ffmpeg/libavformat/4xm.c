@@ -77,7 +77,7 @@ typedef struct FourxmDemuxContext {
     AudioTrack *tracks;
 
     int64_t video_pts;
-    float fps;
+    AVRational fps;
 } FourxmDemuxContext;
 
 static int fourxm_probe(AVProbeData *p)
@@ -104,14 +104,14 @@ static int parse_vtrk(AVFormatContext *s,
     if (!st)
         return AVERROR(ENOMEM);
 
-    avpriv_set_pts_info(st, 60, 1, fourxm->fps);
+    avpriv_set_pts_info(st, 60, fourxm->fps.den, fourxm->fps.num);
 
     fourxm->video_stream_index = st->index;
 
     st->codec->codec_type     = AVMEDIA_TYPE_VIDEO;
     st->codec->codec_id       = AV_CODEC_ID_4XM;
 
-    st->codec->extradata      = av_mallocz(4 + FF_INPUT_BUFFER_PADDING_SIZE);
+    st->codec->extradata      = av_mallocz(4 + AV_INPUT_BUFFER_PADDING_SIZE);
     if (!st->codec->extradata)
         return AVERROR(ENOMEM);
     st->codec->extradata_size = 4;
@@ -206,7 +206,7 @@ static int fourxm_read_header(AVFormatContext *s)
 
     fourxm->track_count = 0;
     fourxm->tracks      = NULL;
-    fourxm->fps         = 1.0;
+    fourxm->fps         = (AVRational){1,1};
 
     /* skip the first 3 32-bit numbers */
     avio_skip(pb, 12);
@@ -241,7 +241,7 @@ static int fourxm_read_header(AVFormatContext *s)
                 ret = AVERROR_INVALIDDATA;
                 goto fail;
             }
-            fourxm->fps = av_int2float(AV_RL32(&header[i + 12]));
+            fourxm->fps = av_d2q(av_int2float(AV_RL32(&header[i + 12])), 10000);
         } else if (fourcc_tag == vtrk_TAG) {
             if ((ret = parse_vtrk(s, fourxm, header + i, size,
                                   header_size - i)) < 0)

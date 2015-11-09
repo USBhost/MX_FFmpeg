@@ -92,7 +92,7 @@ fail:
     return ret;
 }
 
-static int ff_raw_data_read_header(AVFormatContext *s)
+int ff_raw_data_read_header(AVFormatContext *s)
 {
     AVStream *st = avformat_new_stream(s, NULL);
     if (!st)
@@ -119,19 +119,7 @@ AVInputFormat ff_data_demuxer = {
     .read_header    = ff_raw_data_read_header,
     .read_packet    = ff_raw_read_partial_packet,
     .raw_codec_id   = AV_CODEC_ID_NONE,
-};
-#endif
-
-#if CONFIG_LATM_DEMUXER
-
-AVInputFormat ff_latm_demuxer = {
-    .name           = "latm",
-    .long_name      = NULL_IF_CONFIG_SMALL("raw LOAS/LATM"),
-    .read_header    = ff_raw_audio_read_header,
-    .read_packet    = ff_raw_read_partial_packet,
-    .flags          = AVFMT_GENERIC_INDEX,
-    .extensions     = "latm",
-    .raw_codec_id   = AV_CODEC_ID_AAC_LATM,
+    .flags          = AVFMT_NOTIMESTAMPS,
 };
 #endif
 
@@ -187,10 +175,10 @@ static int mjpeg_probe(AVProbeData *p)
     }
 
     if (nb_invalid*4 + 1 < nb_frames) {
-        static const char ct_jpeg[] = "\r\nContent-Type: image/jpeg\r\n\r\n";
+        static const char ct_jpeg[] = "\r\nContent-Type: image/jpeg\r\n";
         int i;
 
-        for (i=0; i<FFMIN(p->buf_size - sizeof(ct_jpeg), 100); i++)
+        for (i=0; i<FFMIN(p->buf_size - (int)sizeof(ct_jpeg), 100); i++)
             if (!memcmp(p->buf + i, ct_jpeg, sizeof(ct_jpeg) - 1))
                 return AVPROBE_SCORE_EXTENSION;
 
@@ -203,44 +191,4 @@ static int mjpeg_probe(AVProbeData *p)
 }
 
 FF_DEF_RAWVIDEO_DEMUXER2(mjpeg, "raw MJPEG video", mjpeg_probe, "mjpg,mjpeg,mpo", AV_CODEC_ID_MJPEG, AVFMT_GENERIC_INDEX|AVFMT_NOTIMESTAMPS)
-#endif
-
-#if CONFIG_MLP_DEMUXER
-AVInputFormat ff_mlp_demuxer = {
-    .name           = "mlp",
-    .long_name      = NULL_IF_CONFIG_SMALL("raw MLP"),
-    .read_header    = ff_raw_audio_read_header,
-    .read_packet    = ff_raw_read_partial_packet,
-    .flags          = AVFMT_GENERIC_INDEX,
-    .extensions     = "mlp",
-    .raw_codec_id   = AV_CODEC_ID_MLP,
-};
-#endif
-
-#if CONFIG_TRUEHD_DEMUXER
-AVInputFormat ff_truehd_demuxer = {
-    .name           = "truehd",
-    .long_name      = NULL_IF_CONFIG_SMALL("raw TrueHD"),
-    .read_header    = ff_raw_audio_read_header,
-    .read_packet    = ff_raw_read_partial_packet,
-    .flags          = AVFMT_GENERIC_INDEX,
-    .extensions     = "thd",
-    .raw_codec_id   = AV_CODEC_ID_TRUEHD,
-};
-#endif
-
-#if CONFIG_SHORTEN_DEMUXER
-AVInputFormat ff_shorten_demuxer = {
-    .name           = "shn",
-    .long_name      = NULL_IF_CONFIG_SMALL("raw Shorten"),
-    .read_header    = ff_raw_audio_read_header,
-    .read_packet    = ff_raw_read_partial_packet,
-    .flags          = AVFMT_NOBINSEARCH | AVFMT_NOGENSEARCH | AVFMT_NO_BYTE_SEEK,
-    .extensions     = "shn",
-    .raw_codec_id   = AV_CODEC_ID_SHORTEN,
-};
-#endif
-
-#if CONFIG_VC1_DEMUXER
-FF_DEF_RAWVIDEO_DEMUXER2(vc1, "raw VC-1", NULL, "vc1", AV_CODEC_ID_VC1, AVFMT_GENERIC_INDEX|AVFMT_NOTIMESTAMPS)
 #endif

@@ -107,23 +107,26 @@ static int query_formats(AVFilterContext *ctx)
         AV_SAMPLE_FMT_DBLP,
         AV_SAMPLE_FMT_NONE
     };
+    int ret;
 
-    layouts = ff_all_channel_layouts();
+    layouts = ff_all_channel_counts();
     if (!layouts)
         return AVERROR(ENOMEM);
-    ff_set_common_channel_layouts(ctx, layouts);
+    ret = ff_set_common_channel_layouts(ctx, layouts);
+    if (ret < 0)
+        return ret;
 
     formats = ff_make_format_list(sample_fmts);
     if (!formats)
         return AVERROR(ENOMEM);
-    ff_set_common_formats(ctx, formats);
+    ret = ff_set_common_formats(ctx, formats);
+    if (ret < 0)
+        return ret;
 
     formats = ff_all_samplerates();
     if (!formats)
         return AVERROR(ENOMEM);
-    ff_set_common_samplerates(ctx, formats);
-
-    return 0;
+    return ff_set_common_samplerates(ctx, formats);
 }
 
 static void count_items(char *item_str, int *nb_items)
@@ -395,6 +398,11 @@ static int config_output(AVFilterLink *outlink)
         return AVERROR(EINVAL);
     }
 
+    for (i = nb_decays; i < channels; i++) {
+        s->channels[i].attack = s->channels[nb_decays - 1].attack;
+        s->channels[i].decay = s->channels[nb_decays - 1].decay;
+    }
+
 #define S(x) s->segments[2 * ((x) + 1)]
     p = s->points;
     for (i = 0, new_nb_items = 0; i < nb_points; i++) {
@@ -523,7 +531,6 @@ static int config_output(AVFilterLink *outlink)
     if (err)
         return err;
 
-    outlink->flags |= FF_LINK_FLAG_REQUEST_LOOP;
     s->compand = compand_delay;
     return 0;
 }

@@ -30,8 +30,25 @@ fate-brenderpix: $(FATE_BRENDERPIX-yes)
 FATE_IMAGE-$(call PARSERDEMDEC, BMP, IMAGE2PIPE, BMP) += fate-bmpparser
 fate-bmpparser: CMD = framecrc -f image2pipe -i $(TARGET_SAMPLES)/bmp/numbers.bmp -pix_fmt rgb24
 
+define FATE_IMGSUITE_DDS
+FATE_DDS += fate-dds-$(1)
+fate-dds-$(1): CMD = framecrc -i $(TARGET_SAMPLES)/dds/fate_$(1).dds $(DDS_OPTS_$(1))
+endef
+
+DDS_OPTS_pal     = -sws_flags +accurate_rnd+bitexact -pix_fmt rgba
+DDS_OPTS_pal-ati = -sws_flags +accurate_rnd+bitexact -pix_fmt rgba
+DDS_FMT = argb argb-aexp dx10-bc1 dx10-bc1a dx10-bc2 dx10-bc3 dx10-bc4 dx10-bc5 dxt1 dxt1a dxt1-normalmap dxt2 dxt3 dxt4 dxt5 dxt5-aexp dxt5-normalmap dxt5-normalmap-ati dxt5-rbxg dxt5-rgxb dxt5-rxbg dxt5-rxgb dxt5-xgbr dxt5-xgxr dxt5-xrbg dxt5-ycocg dxt5-ycocg-scaled pal pal-ati rgb16 rgb24 rgba rgtc1s rgtc1u rgtc2s rgtc2u rgtc2u-xy uyvy xbgr xrgb y ya ycocg yuyv
+$(foreach FMT,$(DDS_FMT),$(eval $(call FATE_IMGSUITE_DDS,$(FMT))))
+
+FATE_DDS-$(call DEMDEC, IMAGE2, DDS) += $(FATE_DDS)
+FATE_IMAGE += $(FATE_DDS-yes)
+fate-dds: $(FATE_DDS-yes)
+
 FATE_IMAGE-$(call DEMDEC, IMAGE2, DPX) += fate-dpx
 fate-dpx: CMD = framecrc -i $(TARGET_SAMPLES)/dpx/lighthouse_rgb48.dpx
+
+FATE_SAMPLES_AVCONV-$(call PARSERDEMDEC, DPX, IMAGE2PIPE, DPX) += fate-dpxparser
+fate-dpxparser: CMD = framecrc -f image2pipe -i $(TARGET_SAMPLES)/dpx/lena_4x_concat.dpx -sws_flags +accurate_rnd+bitexact
 
 FATE_EXR += fate-exr-slice-raw
 fate-exr-slice-raw: CMD = framecrc -i $(TARGET_SAMPLES)/exr/rgba_slice_raw.exr -pix_fmt rgba64le
@@ -52,6 +69,9 @@ FATE_EXR-$(call DEMDEC, IMAGE2, EXR) += $(FATE_EXR)
 
 FATE_IMAGE += $(FATE_EXR-yes)
 fate-exr: $(FATE_EXR-yes)
+
+FATE_IMAGE-$(call DEMDEC, IMAGE2, QDRAW) += fate-pict
+fate-pict: CMD = framecrc -i $(TARGET_SAMPLES)/quickdraw/TRU256.PCT -pix_fmt rgb24
 
 FATE_IMAGE-$(call DEMDEC, IMAGE2, PICTOR) += fate-pictor
 fate-pictor: CMD = framecrc -i $(TARGET_SAMPLES)/pictor/MFISH.PIC -pix_fmt rgb24
@@ -103,7 +123,7 @@ fate-sgi-rgba64-rle: CMD = framecrc -i $(TARGET_SAMPLES)/sgi/maya_rgba64_rle.sgi
 
 FATE_SGI-$(call DEMDEC, IMAGE2, SGI) += $(FATE_SGI)
 
-FATE_SAMPLES_AVCONV += $(FATE_SGI-yes)
+FATE_IMAGE += $(FATE_SGI-yes)
 fate-sgi: $(FATE_SGI-yes)
 
 FATE_SUNRASTER += fate-sunraster-1bit-raw

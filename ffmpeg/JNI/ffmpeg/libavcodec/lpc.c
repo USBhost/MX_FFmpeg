@@ -37,12 +37,18 @@ static void lpc_apply_welch_window_c(const int32_t *data, int len,
     double w;
     double c;
 
-    /* The optimization in commit fa4ed8c does not support odd len.
-     * If someone wants odd len extend that change. */
-    av_assert2(!(len & 1));
-
     n2 = (len >> 1);
     c = 2.0 / (len - 1.0);
+
+    if (len & 1) {
+        for(i=0; i<n2; i++) {
+            w = c - i - 1.0;
+            w = 1.0 - (w * w);
+            w_data[i] = data[i] * w;
+            w_data[len-1-i] = data[len-1-i] * w;
+        }
+        return;
+    }
 
     w_data+=n2;
       data+=n2;
@@ -161,6 +167,28 @@ int ff_lpc_calc_ref_coefs(LPCContext *s,
     return order;
 }
 
+double ff_lpc_calc_ref_coefs_f(LPCContext *s, const float *samples, int len,
+                               int order, double *ref)
+{
+    int i;
+    double signal = 0.0f, avg_err = 0.0f;
+    double autoc[MAX_LPC_ORDER+1] = {0}, error[MAX_LPC_ORDER+1] = {0};
+    const double a = 0.5f, b = 1.0f - a;
+
+    /* Apply windowing */
+    for (i = 0; i < len; i++) {
+        double weight = a - b*cos((2*M_PI*i)/(len - 1));
+        s->windowed_samples[i] = weight*samples[i];
+    }
+
+    s->lpc_compute_autocorr(s->windowed_samples, len, order, autoc);
+    signal = autoc[0];
+    compute_ref_coefs(autoc, order, ref, error);
+    for (i = 0; i < order; i++)
+        avg_err = (avg_err + error[i])/2.0f;
+    return signal/avg_err;
+}
+
 /**
  * Calculate LPC coefficients for multiple orders
  *
@@ -208,7 +236,7 @@ int ff_lpc_calc_coefs(LPCContext *s,
     }
 
     if (lpc_type == FF_LPC_TYPE_CHOLESKY) {
-        LLSModel m[2];
+        LLSModel *m = s->lls_models;
         LOCAL_ALIGNED(32, double, var, [FFALIGN(MAX_LPC_ORDER+1,4)]);
         double av_uninit(weight);
         memset(var, 0, FFALIGN(MAX_LPC_ORDER+1,4)*sizeof(*var));

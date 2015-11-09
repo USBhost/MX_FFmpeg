@@ -82,7 +82,7 @@ typedef struct WAVMuxContext {
     int write_peak;
     int rf64;
     int peak_block_size;
-    PeakFormat peak_format;
+    int peak_format;
     int peak_block_pos;
     int peak_ppv;
     int peak_bps;
@@ -92,7 +92,7 @@ typedef struct WAVMuxContext {
 static inline void bwf_write_bext_string(AVFormatContext *s, const char *key, int maxlen)
 {
     AVDictionaryEntry *tag;
-    int len = 0;
+    size_t len = 0;
 
     if (tag = av_dict_get(s->metadata, key, NULL, 0)) {
         len = strlen(tag->value);
@@ -120,11 +120,11 @@ static void bwf_write_bext_chunk(AVFormatContext *s)
     avio_wl64(s->pb, time_reference);
     avio_wl16(s->pb, 1);  // set version to 1
 
-    if (tmp_tag = av_dict_get(s->metadata, "umid", NULL, 0)) {
+    if ((tmp_tag = av_dict_get(s->metadata, "umid", NULL, 0)) && strlen(tmp_tag->value) > 2) {
         unsigned char umidpart_str[17] = {0};
-        int i;
+        int64_t i;
         uint64_t umidpart;
-        int len = strlen(tmp_tag->value+2);
+        size_t len = strlen(tmp_tag->value+2);
 
         for (i = 0; i < len/16; i++) {
             memcpy(umidpart_str, tmp_tag->value + 2 + (i*16), 16);
@@ -252,7 +252,7 @@ static void peak_write_frame(AVFormatContext *s)
     wav->peak_num_frames++;
 }
 
-static void peak_write_chunk(AVFormatContext *s)
+static int peak_write_chunk(AVFormatContext *s)
 {
     WAVMuxContext *wav = s->priv_data;
     AVIOContext *pb = s->pb;
@@ -272,8 +272,12 @@ static void peak_write_chunk(AVFormatContext *s)
         av_log(s, AV_LOG_INFO, "Writing local time and date to Peak Envelope Chunk\n");
         now0 = av_gettime();
         now_secs = now0 / 1000000;
-        strftime(timestamp, sizeof(timestamp), "%Y:%m:%d:%H:%M:%S:", localtime_r(&now_secs, &tmpbuf));
-        av_strlcatf(timestamp, sizeof(timestamp), "%03d", (int)((now0 / 1000) % 1000));
+        if (strftime(timestamp, sizeof(timestamp), "%Y:%m:%d:%H:%M:%S:", localtime_r(&now_secs, &tmpbuf))) {
+            av_strlcatf(timestamp, sizeof(timestamp), "%03d", (int)((now0 / 1000) % 1000));
+        } else {
+            av_log(s, AV_LOG_ERROR, "Failed to write timestamp\n");
+            return -1;
+        }
     }
 
     avio_wl32(pb, 1);                           /* version */
@@ -293,6 +297,8 @@ static void peak_write_chunk(AVFormatContext *s)
 
     if (!wav->data)
         wav->data = peak;
+
+    return 0;
 }
 
 static int wav_write_header(AVFormatContext *s)
@@ -414,17 +420,18 @@ static int wav_write_trailer(AVFormatContext *s)
     int64_t file_size, data_size;
     int64_t number_of_samples = 0;
     int rf64 = 0;
+    int ret = 0;
 
     avio_flush(pb);
 
     if (s->pb->seekable) {
-        if (wav->write_peak != 2) {
+        if (wav->write_peak != 2 && avio_tell(pb) - wav->data < UINT32_MAX) {
             ff_end_tag(pb, wav->data);
             avio_flush(pb);
         }
 
         if (wav->write_peak && wav->peak_output) {
-            peak_write_chunk(s);
+            ret = peak_write_chunk(s);
             avio_flush(pb);
         }
 
@@ -433,12 +440,16 @@ static int wav_write_trailer(AVFormatContext *s)
         data_size = file_size - wav->data;
         if (wav->rf64 == RF64_ALWAYS || (wav->rf64 == RF64_AUTO && file_size - 8 > UINT32_MAX)) {
             rf64 = 1;
-        } else {
+        } else if (file_size - 8 <= UINT32_MAX) {
             avio_seek(pb, 4, SEEK_SET);
             avio_wl32(pb, (uint32_t)(file_size - 8));
             avio_seek(pb, file_size, SEEK_SET);
 
             avio_flush(pb);
+        } else {
+            av_log(s, AV_LOG_ERROR,
+                   "Filesize %"PRId64" invalid for wav, output file will be broken\n",
+                   file_size);
         }
 
         number_of_samples = av_rescale(wav->maxpts - wav->minpts + wav->last_duration,
@@ -485,13 +496,13 @@ static int wav_write_trailer(AVFormatContext *s)
     if (wav->write_peak)
         peak_free_buffers(s);
 
-    return 0;
+    return ret;
 }
 
 #define OFFSET(x) offsetof(WAVMuxContext, x)
 #define ENC AV_OPT_FLAG_ENCODING_PARAM
 static const AVOption options[] = {
-    { "write_bext", "Write BEXT chunk.", OFFSET(write_bext), AV_OPT_TYPE_INT, { .i64 = 0 }, 0, 1, ENC },
+    { "write_bext", "Write BEXT chunk.", OFFSET(write_bext), AV_OPT_TYPE_BOOL, { .i64 = 0 }, 0, 1, ENC },
     { "write_peak", "Write Peak Envelope chunk.",            OFFSET(write_peak), AV_OPT_TYPE_INT, { .i64 = 0 }, 0, 2, ENC, "peak" },
     { "off",        "Do not write peak chunk.",              0,                  AV_OPT_TYPE_CONST, { .i64 = PEAK_OFF  }, 0, 0, ENC, "peak" },
     { "on",         "Append peak chunk after wav data.",     0,                  AV_OPT_TYPE_CONST, { .i64 = PEAK_ON   }, 0, 0, ENC, "peak" },

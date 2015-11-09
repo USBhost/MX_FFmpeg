@@ -512,7 +512,7 @@ static av_cold int decode_init(AVCodecContext *avctx)
         avctx->pix_fmt = AV_PIX_FMT_YUV422P;
         av_log(avctx, AV_LOG_DEBUG, "Image type is YUV 4:2:2.\n");
         if (avctx->width % 4) {
-            avpriv_request_sample(avctx, "Unsupported dimensions\n");
+            avpriv_request_sample(avctx, "Unsupported dimensions");
             return AVERROR_INVALIDDATA;
         }
         break;
@@ -547,7 +547,7 @@ static av_cold int decode_init(AVCodecContext *avctx)
 
     av_pix_fmt_get_chroma_sub_sample(avctx->pix_fmt, &subsample_h, &subsample_v);
     if (avctx->width % (1<<subsample_h) || avctx->height % (1<<subsample_v)) {
-        avpriv_request_sample(avctx, "Unsupported dimensions\n");
+        avpriv_request_sample(avctx, "Unsupported dimensions");
         return AVERROR_INVALIDDATA;
     }
 
@@ -660,7 +660,7 @@ AVCodec ff_mszh_decoder = {
     .init           = decode_init,
     .close          = decode_end,
     .decode         = decode_frame,
-    .capabilities   = CODEC_CAP_DR1,
+    .capabilities   = AV_CODEC_CAP_DR1,
 };
 #endif
 
@@ -674,6 +674,6 @@ AVCodec ff_zlib_decoder = {
     .init           = decode_init,
     .close          = decode_end,
     .decode         = decode_frame,
-    .capabilities   = CODEC_CAP_DR1,
+    .capabilities   = AV_CODEC_CAP_DR1,
 };
 #endif

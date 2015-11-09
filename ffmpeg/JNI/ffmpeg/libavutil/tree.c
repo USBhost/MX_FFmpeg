@@ -37,7 +37,7 @@ struct AVTreeNode *av_tree_node_alloc(void)
 }
 
 void *av_tree_find(const AVTreeNode *t, void *key,
-                   int (*cmp)(void *key, const void *b), void *next[2])
+                   int (*cmp)(const void *key, const void *b), void *next[2])
 {
     if (t) {
         unsigned int v = cmp(key, t->elem);
@@ -57,7 +57,7 @@ void *av_tree_find(const AVTreeNode *t, void *key,
 }
 
 void *av_tree_insert(AVTreeNode **tp, void *key,
-                     int (*cmp)(void *key, const void *b), AVTreeNode **next)
+                     int (*cmp)(const void *key, const void *b), AVTreeNode **next)
 {
     AVTreeNode *t = *tp;
     if (t) {
@@ -202,9 +202,9 @@ static void print(AVTreeNode *t, int depth)
         av_log(NULL, AV_LOG_ERROR, "NULL\n");
 }
 
-static int cmp(void *a, const void *b)
+static int cmp(const void *a, const void *b)
 {
-    return (uint8_t *) a - (const uint8_t *) b;
+    return (const uint8_t *) a - (const uint8_t *) b;
 }
 
 int main(int argc, char **argv)

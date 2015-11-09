@@ -27,12 +27,12 @@
 #include "libavcodec/bytestream.h"
 #include "libavutil/avstring.h"
 #include "libavutil/base64.h"
+#include "libavutil/hmac.h"
 #include "libavutil/intfloat.h"
 #include "libavutil/lfg.h"
 #include "libavutil/md5.h"
 #include "libavutil/opt.h"
 #include "libavutil/random_seed.h"
-#include "libavutil/sha.h"
 #include "avformat.h"
 #include "internal.h"
 
@@ -49,8 +49,8 @@
 #endif
 
 #define APP_MAX_LENGTH 1024
-#define PLAYPATH_MAX_LENGTH 256
-#define TCURL_MAX_LENGTH 512
+#define PLAYPATH_MAX_LENGTH 512
+#define TCURL_MAX_LENGTH 1024
 #define FLASHVER_MAX_LENGTH 64
 #define RTMP_PKTDATA_DEFAULT_SIZE 4096
 #define RTMP_HEADER 11
@@ -217,9 +217,8 @@ static void free_tracked_methods(RTMPContext *rt)
     int i;
 
     for (i = 0; i < rt->nb_tracked_methods; i ++)
-        av_free(rt->tracked_methods[i].name);
-    av_free(rt->tracked_methods);
-    rt->tracked_methods      = NULL;
+        av_freep(&rt->tracked_methods[i].name);
+    av_freep(&rt->tracked_methods);
     rt->tracked_methods_size = 0;
     rt->nb_tracked_methods   = 0;
 }
@@ -957,41 +956,22 @@ static int gen_fcsubscribe_stream(URLContext *s, RTMPContext *rt,
 int ff_rtmp_calc_digest(const uint8_t *src, int len, int gap,
                         const uint8_t *key, int keylen, uint8_t *dst)
 {
-    struct AVSHA *sha;
-    uint8_t hmac_buf[64+32] = {0};
-    int i;
+    AVHMAC *hmac;
 
-    sha = av_sha_alloc();
-    if (!sha)
+    hmac = av_hmac_alloc(AV_HMAC_SHA256);
+    if (!hmac)
         return AVERROR(ENOMEM);
 
-    if (keylen < 64) {
-        memcpy(hmac_buf, key, keylen);
-    } else {
-        av_sha_init(sha, 256);
-        av_sha_update(sha,key, keylen);
-        av_sha_final(sha, hmac_buf);
-    }
-    for (i = 0; i < 64; i++)
-        hmac_buf[i] ^= HMAC_IPAD_VAL;
-
-    av_sha_init(sha, 256);
-    av_sha_update(sha, hmac_buf, 64);
+    av_hmac_init(hmac, key, keylen);
     if (gap <= 0) {
-        av_sha_update(sha, src, len);
+        av_hmac_update(hmac, src, len);
     } else { //skip 32 bytes used for storing digest
-        av_sha_update(sha, src, gap);
-        av_sha_update(sha, src + gap + 32, len - gap - 32);
+        av_hmac_update(hmac, src, gap);
+        av_hmac_update(hmac, src + gap + 32, len - gap - 32);
     }
-    av_sha_final(sha, hmac_buf + 64);
+    av_hmac_final(hmac, dst, 32);
 
-    for (i = 0; i < 64; i++)
-        hmac_buf[i] ^= HMAC_IPAD_VAL ^ HMAC_OPAD_VAL; //reuse XORed key for opad
-    av_sha_init(sha, 256);
-    av_sha_update(sha, hmac_buf, 64+32);
-    av_sha_final(sha, dst);
-
-    av_free(sha);
+    av_hmac_free(hmac);
 
     return 0;
 }
@@ -2238,7 +2218,7 @@ static int append_flv_data(RTMPContext *rt, RTMPPacket *pkt, int skip)
     bytestream2_put_byte(&pbc, ts >> 24);
     bytestream2_put_be24(&pbc, 0);
     bytestream2_put_buffer(&pbc, data, size);
-    bytestream2_put_be32(&pbc, 0);
+    bytestream2_put_be32(&pbc, size + RTMP_HEADER);
 
     return 0;
 }
@@ -2316,7 +2296,7 @@ static int rtmp_parse_result(URLContext *s, RTMPContext *rt, RTMPPacket *pkt)
 
     switch (pkt->type) {
     case RTMP_PT_BYTES_READ:
-        av_dlog(s, "received bytes read report\n");
+        av_log(s, AV_LOG_TRACE, "received bytes read report\n");
         break;
     case RTMP_PT_CHUNK_SIZE:
         if ((ret = handle_chunk_size(s, pkt)) < 0)
@@ -2388,8 +2368,9 @@ static int handle_metadata(RTMPContext *rt, RTMPPacket *pkt)
         bytestream_put_be24(&p, ts);
         bytestream_put_byte(&p, ts >> 24);
         memcpy(p, next, size + 3 + 4);
+        p    += size + 3;
+        bytestream_put_be32(&p, size + RTMP_HEADER);
         next += size + 3 + 4;
-        p    += size + 3 + 4;
     }
     if (p != rt->flv_data + rt->flv_size) {
         av_log(NULL, AV_LOG_WARNING, "Incomplete flv packets in "
@@ -2552,7 +2533,7 @@ static int inject_fake_duration_metadata(RTMPContext *rt)
     // Increase the size by the injected packet
     rt->flv_size += 55;
     // Delete the old FLV data
-    av_free(old_flv_data);
+    av_freep(&old_flv_data);
 
     p = rt->flv_data + 13;
     bytestream_put_byte(&p, FLV_TAG_TYPE_META);
@@ -2579,7 +2560,7 @@ static int inject_fake_duration_metadata(RTMPContext *rt)
     // Finalise object
     bytestream_put_be16(&p, 0); // Empty string
     bytestream_put_byte(&p, AMF_END_OF_OBJECT);
-    bytestream_put_be32(&p, 40); // size of data part (sum of all parts below)
+    bytestream_put_be32(&p, 40 + RTMP_HEADER); // size of data part (sum of all parts above)
 
     return 0;
 }
@@ -2954,7 +2935,7 @@ static int rtmp_write(URLContext *s, const uint8_t *buf, int size)
 {
     RTMPContext *rt = s->priv_data;
     int size_temp = size;
-    int pktsize, pkttype;
+    int pktsize, pkttype, copy;
     uint32_t ts;
     const uint8_t *buf_temp = buf;
     uint8_t c;
@@ -2971,8 +2952,9 @@ static int rtmp_write(URLContext *s, const uint8_t *buf, int size)
 
         if (rt->flv_header_bytes < RTMP_HEADER) {
             const uint8_t *header = rt->flv_header;
-            int copy = FFMIN(RTMP_HEADER - rt->flv_header_bytes, size_temp);
             int channel = RTMP_AUDIO_CHANNEL;
+
+            copy = FFMIN(RTMP_HEADER - rt->flv_header_bytes, size_temp);
             bytestream_get_buffer(&buf_temp, rt->flv_header + rt->flv_header_bytes, copy);
             rt->flv_header_bytes += copy;
             size_temp            -= copy;
@@ -2989,15 +2971,15 @@ static int rtmp_write(URLContext *s, const uint8_t *buf, int size)
             if (pkttype == RTMP_PT_VIDEO)
                 channel = RTMP_VIDEO_CHANNEL;
 
-            //force 12bytes header
             if (((pkttype == RTMP_PT_VIDEO || pkttype == RTMP_PT_AUDIO) && ts == 0) ||
                 pkttype == RTMP_PT_NOTIFY) {
-                if (pkttype == RTMP_PT_NOTIFY)
-                    pktsize += 16;
                 if ((ret = ff_rtmp_check_alloc_array(&rt->prev_pkt[1],
                                                      &rt->nb_prev_pkt[1],
                                                      channel)) < 0)
                     return ret;
+                // Force sending a full 12 bytes header by clearing the
+                // channel id, to make it not match a potential earlier
+                // packet in the same channel.
                 rt->prev_pkt[1][channel].channel_id = 0;
             }
 
@@ -3008,23 +2990,42 @@ static int rtmp_write(URLContext *s, const uint8_t *buf, int size)
 
             rt->out_pkt.extra = rt->stream_id;
             rt->flv_data = rt->out_pkt.data;
-
-            if (pkttype == RTMP_PT_NOTIFY)
-                ff_amf_write_string(&rt->flv_data, "@setDataFrame");
         }
 
-        if (rt->flv_size - rt->flv_off > size_temp) {
-            bytestream_get_buffer(&buf_temp, rt->flv_data + rt->flv_off, size_temp);
-            rt->flv_off += size_temp;
-            size_temp = 0;
-        } else {
-            bytestream_get_buffer(&buf_temp, rt->flv_data + rt->flv_off, rt->flv_size - rt->flv_off);
-            size_temp   -= rt->flv_size - rt->flv_off;
-            rt->flv_off += rt->flv_size - rt->flv_off;
-        }
+        copy = FFMIN(rt->flv_size - rt->flv_off, size_temp);
+        bytestream_get_buffer(&buf_temp, rt->flv_data + rt->flv_off, copy);
+        rt->flv_off += copy;
+        size_temp   -= copy;
 
         if (rt->flv_off == rt->flv_size) {
             rt->skip_bytes = 4;
+
+            if (rt->out_pkt.type == RTMP_PT_NOTIFY) {
+                // For onMetaData and |RtmpSampleAccess packets, we want
+                // @setDataFrame prepended to the packet before it gets sent.
+                // However, not all RTMP_PT_NOTIFY packets (e.g., onTextData
+                // and onCuePoint).
+                uint8_t commandbuffer[64];
+                int stringlen = 0;
+                GetByteContext gbc;
+
+                bytestream2_init(&gbc, rt->flv_data, rt->flv_size);
+                if (!ff_amf_read_string(&gbc, commandbuffer, sizeof(commandbuffer),
+                                        &stringlen)) {
+                    if (!strcmp(commandbuffer, "onMetaData") ||
+                        !strcmp(commandbuffer, "|RtmpSampleAccess")) {
+                        uint8_t *ptr;
+                        if ((ret = av_reallocp(&rt->out_pkt.data, rt->out_pkt.size + 16)) < 0) {
+                            rt->flv_size = rt->flv_off = rt->flv_header_bytes = 0;
+                            return ret;
+                        }
+                        memmove(rt->out_pkt.data + 16, rt->out_pkt.data, rt->out_pkt.size);
+                        rt->out_pkt.size += 16;
+                        ptr = rt->out_pkt.data;
+                        ff_amf_write_string(&ptr, "@setDataFrame");
+                    }
+                }
+            }
 
             if ((ret = rtmp_send_packet(rt, &rt->out_pkt, 0)) < 0)
                 return ret;

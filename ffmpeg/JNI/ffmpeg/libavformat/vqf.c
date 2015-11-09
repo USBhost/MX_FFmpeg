@@ -211,8 +211,8 @@ static int vqf_read_header(AVFormatContext *s)
         size = 2048;
         break;
     default:
-        av_log(s, AV_LOG_ERROR, "Mode not suported: %d Hz, %d kb/s.\n",
-               st->codec->sample_rate, st->codec->bit_rate);
+        av_log(s, AV_LOG_ERROR, "Mode not suported: %d Hz, %"PRId64" kb/s.\n",
+               st->codec->sample_rate, (int64_t)st->codec->bit_rate);
         return -1;
     }
     c->frame_bit_len = st->codec->bit_rate*size/st->codec->sample_rate;
@@ -261,7 +261,7 @@ static int vqf_read_seek(AVFormatContext *s,
 {
     VqfContext *c = s->priv_data;
     AVStream *st;
-    int ret;
+    int64_t ret;
     int64_t pos;
 
     st = s->streams[stream_index];
@@ -275,7 +275,7 @@ static int vqf_read_seek(AVFormatContext *s,
     st->cur_dts = av_rescale(pos, st->time_base.den,
                              st->codec->bit_rate * (int64_t)st->time_base.num);
 
-    if ((ret = avio_seek(s->pb, ((pos-7) >> 3) + s->data_offset, SEEK_SET)) < 0)
+    if ((ret = avio_seek(s->pb, ((pos-7) >> 3) + s->internal->data_offset, SEEK_SET)) < 0)
         return ret;
 
     c->remaining_bits = -7 - ((pos-7)&7);

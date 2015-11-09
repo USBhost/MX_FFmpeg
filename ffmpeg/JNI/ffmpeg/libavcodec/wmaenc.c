@@ -50,8 +50,8 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
     if (avctx->bit_rate < 24 * 1000) {
         av_log(avctx, AV_LOG_ERROR,
-               "bitrate too low: got %i, need 24000 or higher\n",
-               avctx->bit_rate);
+               "bitrate too low: got %"PRId64", need 24000 or higher\n",
+               (int64_t)avctx->bit_rate);
         return AVERROR(EINVAL);
     }
 
@@ -60,11 +60,15 @@ static av_cold int encode_init(AVCodecContext *avctx)
     flags2 = 1;
     if (avctx->codec->id == AV_CODEC_ID_WMAV1) {
         extradata             = av_malloc(4);
+        if (!extradata)
+            return AVERROR(ENOMEM);
         avctx->extradata_size = 4;
         AV_WL16(extradata, flags1);
         AV_WL16(extradata + 2, flags2);
     } else if (avctx->codec->id == AV_CODEC_ID_WMAV2) {
         extradata             = av_mallocz(10);
+        if (!extradata)
+            return AVERROR(ENOMEM);
         avctx->extradata_size = 10;
         AV_WL32(extradata, flags1);
         AV_WL16(extradata + 4, flags2);
@@ -107,10 +111,10 @@ static void apply_window_and_mdct(AVCodecContext *avctx, const AVFrame *frame)
 
     for (ch = 0; ch < avctx->channels; ch++) {
         memcpy(s->output, s->frame_out[ch], window_len * sizeof(*s->output));
-        s->fdsp.vector_fmul_scalar(s->frame_out[ch], audio[ch], n, len);
-        s->fdsp.vector_fmul_reverse(&s->output[window_len], s->frame_out[ch],
+        s->fdsp->vector_fmul_scalar(s->frame_out[ch], audio[ch], n, len);
+        s->fdsp->vector_fmul_reverse(&s->output[window_len], s->frame_out[ch],
                                     win, len);
-        s->fdsp.vector_fmul(s->frame_out[ch], s->frame_out[ch], win, len);
+        s->fdsp->vector_fmul(s->frame_out[ch], s->frame_out[ch], win, len);
         mdct->mdct_calc(mdct, s->coefs[ch], s->output);
     }
 }
@@ -373,7 +377,7 @@ static int encode_superframe(AVCodecContext *avctx, AVPacket *avpkt,
         }
     }
 
-    if ((ret = ff_alloc_packet2(avctx, avpkt, 2 * MAX_CODED_SUPERFRAME_SIZE)) < 0)
+    if ((ret = ff_alloc_packet2(avctx, avpkt, 2 * MAX_CODED_SUPERFRAME_SIZE, 0)) < 0)
         return ret;
 
     total_gain = 128;

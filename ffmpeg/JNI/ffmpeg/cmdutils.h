@@ -46,7 +46,7 @@ extern const int program_birth_year;
 
 extern AVCodecContext *avcodec_opts[AVMEDIA_TYPE_NB];
 extern AVFormatContext *avformat_opts;
-extern struct SwsContext *sws_opts;
+extern AVDictionary *sws_dict;
 extern AVDictionary *swr_opts;
 extern AVDictionary *format_opts, *codec_opts, *resample_opts;
 extern int hide_banner;
@@ -277,7 +277,7 @@ typedef struct OptionGroup {
     AVDictionary *codec_opts;
     AVDictionary *format_opts;
     AVDictionary *resample_opts;
-    struct SwsContext *sws_opts;
+    AVDictionary *sws_dict;
     AVDictionary *swr_opts;
 } OptionGroup;
 
@@ -530,18 +530,6 @@ int show_colors(void *optctx, const char *opt, const char *arg);
 int read_yesno(void);
 
 /**
- * Read the file with name filename, and put its content in a newly
- * allocated 0-terminated buffer.
- *
- * @param filename file to read from
- * @param bufptr location where pointer to buffer is returned
- * @param size   location where size of buffer is returned
- * @return >= 0 in case of success, a negative value corresponding to an
- * AVERROR error code in case of failure.
- */
-int cmdutils_read_file(const char *filename, char **bufptr, size_t *size);
-
-/**
  * Get a file corresponding to a preset file.
  *
  * If is_path is non-zero, look for the file in the path preset_name.
@@ -596,5 +584,7 @@ void *grow_array(void *array, int elem_size, int *size, int new_size);
 #define GET_CH_LAYOUT_DESC(ch_layout)\
     char name[128];\
     av_get_channel_layout_string(name, sizeof(name), 0, ch_layout);
+
+double get_rotation(AVStream *st);
 
 #endif /* CMDUTILS_H */

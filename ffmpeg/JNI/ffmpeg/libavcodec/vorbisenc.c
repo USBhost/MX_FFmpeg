@@ -39,7 +39,7 @@
 #undef NDEBUG
 #include <assert.h>
 
-typedef struct {
+typedef struct vorbis_enc_codebook {
     int nentries;
     uint8_t *lens;
     uint32_t *codewords;
@@ -53,14 +53,14 @@ typedef struct {
     float *pow2;
 } vorbis_enc_codebook;
 
-typedef struct {
+typedef struct vorbis_enc_floor_class {
     int dim;
     int subclass;
     int masterbook;
     int *books;
 } vorbis_enc_floor_class;
 
-typedef struct {
+typedef struct vorbis_enc_floor {
     int partitions;
     int *partition_to_class;
     int nclasses;
@@ -71,7 +71,7 @@ typedef struct {
     vorbis_floor1_entry *list;
 } vorbis_enc_floor;
 
-typedef struct {
+typedef struct vorbis_enc_residue {
     int type;
     int begin;
     int end;
@@ -82,7 +82,7 @@ typedef struct {
     float (*maxes)[2];
 } vorbis_enc_residue;
 
-typedef struct {
+typedef struct vorbis_enc_mapping {
     int submaps;
     int *mux;
     int *floor;
@@ -92,12 +92,12 @@ typedef struct {
     int *angle;
 } vorbis_enc_mapping;
 
-typedef struct {
+typedef struct vorbis_enc_mode {
     int blockflag;
     int mapping;
 } vorbis_enc_mode;
 
-typedef struct {
+typedef struct vorbis_enc_context {
     int channels;
     int sample_rate;
     int log2_blocksize[2];
@@ -1033,7 +1033,7 @@ static int vorbis_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
         return 0;
     samples = 1 << (venc->log2_blocksize[0] - 1);
 
-    if ((ret = ff_alloc_packet2(avctx, avpkt, 8192)) < 0)
+    if ((ret = ff_alloc_packet2(avctx, avpkt, 8192, 0)) < 0)
         return ret;
 
     init_put_bits(&pb, avpkt->data, avpkt->size);
@@ -1178,7 +1178,7 @@ static av_cold int vorbis_encode_init(AVCodecContext *avctx)
         goto error;
 
     avctx->bit_rate = 0;
-    if (avctx->flags & CODEC_FLAG_QSCALE)
+    if (avctx->flags & AV_CODEC_FLAG_QSCALE)
         venc->quality = avctx->global_quality / (float)FF_QP2LAMBDA;
     else
         venc->quality = 8;
@@ -1205,7 +1205,7 @@ AVCodec ff_vorbis_encoder = {
     .init           = vorbis_encode_init,
     .encode2        = vorbis_encode_frame,
     .close          = vorbis_encode_close,
-    .capabilities   = CODEC_CAP_DELAY | CODEC_CAP_EXPERIMENTAL,
+    .capabilities   = AV_CODEC_CAP_DELAY | AV_CODEC_CAP_EXPERIMENTAL,
     .sample_fmts    = (const enum AVSampleFormat[]){ AV_SAMPLE_FMT_FLTP,
                                                      AV_SAMPLE_FMT_NONE },
 };
