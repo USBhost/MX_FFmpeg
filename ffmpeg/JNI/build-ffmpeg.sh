@@ -4,6 +4,7 @@ CPU_CORE=12
 
 cd ffmpeg
 
+make distclean
 ../config-ffmpeg.sh $1
 make clean
 make -j$CPU_CORE
