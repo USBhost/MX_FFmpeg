@@ -8,26 +8,40 @@ LOCAL_CFLAGS += \
 -DANDROID \
 -march=$(ARCH) \
 -mfpmath=sse \
--mandroid \
--finline-functions \
--funswitch-loops \
--fpredictive-commoning \
--fgcse-after-reload \
--ftree-vectorize \
--fipa-cp-clone \
--ffunction-sections \
--Wno-psabi
+-finline-functions
 
-ifeq ($(ARCH),atom)
-LOCAL_CFLAGS += -msse3 -mssse3
+
+ifeq ($(findstring clang, $(NDK_TOOLCHAIN_VERSION)),)
+	# GCC only.
+	LOCAL_CFLAGS += \
+	-mandroid \
+	-fpredictive-commoning \
+	-fipa-cp-clone \
+	-funswitch-loops \
+	-fgcse-after-reload \
+	-ftree-vectorize \
+	-ffunction-sections \
+	-Wno-psabi
 else
-LOCAL_CFLAGS += -msse2 -mno-sse3 -mno-ssse3
+	# Clang only.
+	LOCAL_CFLAGS += \
+	-Wno-deprecated-register
 endif
 
+
+ifeq ($(ARCH),atom)
+	LOCAL_CFLAGS += -msse3 -mssse3
+else
+	LOCAL_CFLAGS += -msse2 -mno-sse3 -mno-ssse3
+endif
+
+
 ifeq ($(APP_OPTIM),debug)
-LOCAL_CFLAGS += -DDEBUG
+	LOCAL_CFLAGS += -DDEBUG
 endif
 
 LOCAL_CPPFLAGS += \
 -Werror=return-type
+
+LOCAL_LDLIBS += -Wl,--no-warn-shared-textrel
 

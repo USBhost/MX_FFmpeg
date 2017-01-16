@@ -27,8 +27,6 @@ prepare_x86()
 prepare_x86_64()
 {
 	rm -r ../obj/local
-	NDK_TOOLCHAIN_VERSION=4.9
-	MAKE=$NDK/ndk-build
 }
 
 # MIPS32 revision 2
@@ -118,6 +116,7 @@ arm64()
 		prepare
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
+				  -e APP_ABI=arm64-v8a \
 				  -e APP_PLATFORM=android-$PLATFORM \
 				  -e LINK_AGAINST=22-arm64 \
 				  -e APP_BUILD_SCRIPT=a-$TARGET.mk \
@@ -142,6 +141,7 @@ neon()
 		prepare
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
+				  -e APP_ABI=armeabi-v7a \
 				  -e APP_PLATFORM=android-$PLATFORM \
 				  -e LINK_AGAINST=16-arm \
 				  -e APP_BUILD_SCRIPT=a-$TARGET.mk \
@@ -166,6 +166,7 @@ tegra3()
 		prepare
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
+				  -e APP_ABI=armeabi-v7a \
 				  -e APP_PLATFORM=android-$PLATFORM \
 				  -e LINK_AGAINST=16-arm \
 				  -e APP_BUILD_SCRIPT=a-$TARGET.mk \
@@ -192,6 +193,7 @@ tegra2()
 		echo -ne '\nBUILDING '$TARGET'.tegra2...\n\n' 
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
+				  -e APP_ABI=armeabi-v7a \
 				  -e APP_PLATFORM=android-$PLATFORM \
 				  -e LINK_AGAINST=16-arm \
 				  -e APP_BUILD_SCRIPT=a-$TARGET.mk \
@@ -217,6 +219,7 @@ v7a()
 		echo -ne '\nBUILDING '$TARGET'.v7a...\n\n' 
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
+				  -e APP_ABI=armeabi-v7a \
 				  -e APP_PLATFORM=android-$PLATFORM \
 				  -e LINK_AGAINST=16-arm \
 				  -e APP_BUILD_SCRIPT=a-$TARGET.mk \
@@ -242,6 +245,7 @@ v6_vfp()
 		echo -ne '\nBUILDING '$TARGET'.v6+vfp...\n\n' 
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
+				  -e APP_ABI=armeabi \
 				  -e APP_PLATFORM=android-$PLATFORM \
 				  -e LINK_AGAINST=16-arm \
 				  -e APP_BUILD_SCRIPT=a-$TARGET.mk \
@@ -267,6 +271,7 @@ v6()
 		echo -ne '\nBUILDING '$TARGET'.v6...\n\n' 
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
+				  -e APP_ABI=armeabi \
 				  -e APP_PLATFORM=android-$PLATFORM \
 				  -e LINK_AGAINST=16-arm \
 				  -e APP_BUILD_SCRIPT=a-$TARGET.mk \
@@ -291,6 +296,7 @@ v5te()
 		echo -ne '\nBUILDING '$TARGET'.v5te...\n\n' 
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
+				  -e APP_ABI=armeabi \
 				  -e APP_PLATFORM=android-$PLATFORM \
 				  -e LINK_AGAINST=16-arm \
 				  -e APP_BUILD_SCRIPT=a-$TARGET.mk \

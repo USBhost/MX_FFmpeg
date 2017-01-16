@@ -8,20 +8,35 @@ LOCAL_CFLAGS += \
 -D_FILE_OFFSET_BITS=64 \
 -DANDROID \
 -march=$(ARCH) \
--mandroid \
 -finline-functions \
--fpredictive-commoning \
 -fgcse-after-reload \
--ftree-vectorize \
--fipa-cp-clone
+-ftree-vectorize
+
+ifeq ($(UNALIGNED_ACCESS),0)
+	LOCAL_CFLAGS += -mno-unaligned-access
+endif
+
+ifeq ($(findstring clang, $(NDK_TOOLCHAIN_VERSION)),)
+	# GCC only.
+	LOCAL_CFLAGS += \
+	-mandroid \
+	-fpredictive-commoning \
+	-fipa-cp-clone
+else
+	# Clang only.
+	LOCAL_CFLAGS += \
+	-Wno-deprecated-register
+endif
+
 
 ifeq ($(APP_OPTIM),debug)
-LOCAL_CFLAGS += -DDEBUG
+	LOCAL_CFLAGS += -DDEBUG
 endif
 
 LOCAL_CPPFLAGS += -Werror=return-type
 
 LOCAL_LDFLAGS += -march=$(ARCH)
+
 
 # architecture specific flags.
 
@@ -45,12 +60,14 @@ endif
 
 ifeq ($(VFP),neon)
 	LOCAL_ARM_NEON := true
-	LOCAL_CFLAGS += -mvectorize-with-neon-quad -mtune=cortex-a8 -D__NEON__
+	LOCAL_CFLAGS += -mtune=cortex-a8 -D__NEON__
+
+	# GCC only.
+	ifeq ($(findstring clang, $(NDK_TOOLCHAIN_VERSION)),)
+		LOCAL_CFLAGS += -mvectorize-with-neon-quad
+	endif
 else
 	LOCAL_ARM_NEON := false
-	LOCAL_CFLAGS += 
 endif
 
-ifeq ($(UNALIGNED_ACCESS),0)
-	LOCAL_CFLAGS += -mno-unaligned-access
-endif
+

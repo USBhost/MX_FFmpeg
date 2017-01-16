@@ -1,4 +1,5 @@
 MY_DIR := $(call my-dir)
+
 LOCAL_PATH := $(MY_DIR)/ffmpeg
 
 # avutil

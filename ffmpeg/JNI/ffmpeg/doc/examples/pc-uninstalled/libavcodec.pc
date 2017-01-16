@@ -1,0 +1,12 @@
+prefix=
+exec_prefix=
+libdir=${pcfiledir}/../../../libavcodec
+includedir=${pcfiledir}/../../..
+
+Name: libavcodec
+Description: FFmpeg codec library
+Version: 57.9.100
+Requires: libswresample >= 2.0.100, libavutil >= 55.4.100
+Conflicts:
+Libs: -L${libdir} -Wl,-rpath,${libdir} -lavcodec -lssl -lcrypto -lmxutil -lmxutil -lmxutil -lm -lz -pthread -L../libs/armeabi-v7a/vfpv3-d16 -L../libs/android/16-arm -lmxutil -lm
+Cflags: -I${includedir}

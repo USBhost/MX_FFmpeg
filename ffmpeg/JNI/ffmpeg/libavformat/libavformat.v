@@ -14,6 +14,7 @@ LIBAVFORMAT_$MAJOR {
                 ffurl_seek;
                 ffurl_size;
                 ffurl_write;
+		ff_isom_write_hvcc;
                 #those are deprecated, remove on next bump
                 url_feof;
         local: *;

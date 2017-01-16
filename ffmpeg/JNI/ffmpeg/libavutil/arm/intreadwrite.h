@@ -28,7 +28,7 @@
 #define AV_RN16 AV_RN16
 static av_always_inline unsigned AV_RN16(const void *p)
 {
-    const uint8_t *q = p;
+    const uint8_t *q = (const uint8_t *)p;						// jhkim (for Clang)
     unsigned v;
 #if AV_GCC_VERSION_AT_MOST(4,5)
     __asm__ ("ldrh %0, %1" : "=r"(v) : "m"(*(const uint16_t *)q));
@@ -46,10 +46,12 @@ static av_always_inline void AV_WN16(void *p, uint16_t v)
     __asm__ ("strh %1, %0" : "=m"(*(uint16_t *)p) : "r"(v));
 }
 
+struct __attribute__((packed)) intreadwrite_named_cast { uint32_t v; };			// jhkim (for Clang)
+
 #define AV_RN32 AV_RN32
 static av_always_inline uint32_t AV_RN32(const void *p)
 {
-    const struct __attribute__((packed)) { uint32_t v; } *q = p;
+    const struct intreadwrite_named_cast *q = (const struct intreadwrite_named_cast*)p;	// jhkim (for Clang)
     uint32_t v;
     __asm__ ("ldr  %0, %1" : "=r"(v) : "m"(*q));
     return v;
@@ -66,7 +68,7 @@ static av_always_inline void AV_WN32(void *p, uint32_t v)
 #define AV_RN64 AV_RN64
 static av_always_inline uint64_t AV_RN64(const void *p)
 {
-    const struct __attribute__((packed)) { uint32_t v; } *q = p;
+    const struct intreadwrite_named_cast *q = (const struct intreadwrite_named_cast*)p;	// jhkim (for Clang)
     uint64_t v;
     __asm__ ("ldr   %Q0, %1  \n\t"
              "ldr   %R0, %2  \n\t"
