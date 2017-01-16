@@ -3,7 +3,7 @@
 HOST_PLATFORM=linux-x86_64
 
 GCC_VER=4.9
-CLANG_VER=3.8
+CLANG_VER=
 
 case $1 in
 	arm64)
