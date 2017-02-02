@@ -2,7 +2,7 @@
 #set -x
 
 CPU_CORE="$(cat /proc/cpuinfo | grep -c processor)"
-NDK=~/android-ndk-r14-beta1
+NDK=~/android-ndk-r14-beta2
 
 cd ffmpeg
 
