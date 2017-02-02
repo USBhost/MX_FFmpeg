@@ -1,0 +1,15 @@
+#!/bin/bash
+v="1.8.6";
+
+mv ffmpeg_neon/*/libffmpeg.mx.so libffmpeg.mx.so.neon.$v;
+mv ffmpeg_tegra2/*/libffmpeg.mx.so libffmpeg.mx.so.tegra2.$v;
+mv ffmpeg_tegra3/*/libffmpeg.mx.so libffmpeg.mx.so.tegra3.$v;
+mv ffmpeg_x86/*/libffmpeg.mx.so libffmpeg.mx.so.x86.$v;
+
+zip -r mx_neon.zip libffmpeg.mx.so.neon.$v;
+zip -r mx_tegra2.zip libffmpeg.mx.so.tegra2.$v;
+zip -r mx_tegra3.zip libffmpeg.mx.so.tegra3.$v;
+zip -r mx_x86.zip libffmpeg.mx.so.x86.$v;
+zip -r mx_aio.zip libffmpeg.mx.so.x86.$v libffmpeg.mx.so.tegra3.$v libffmpeg.mx.so.tegra2.$v libffmpeg.mx.so.neon.$v;
+
+
