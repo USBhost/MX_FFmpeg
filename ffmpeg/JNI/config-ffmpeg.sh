@@ -1,6 +1,21 @@
 #!/bin/bash
 
-HOST_PLATFORM=linux-x86_64
+tolower(){
+    echo "$@" | tr ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz
+}
+
+function probe_host_platform(){
+    local host_os=$(tolower $(uname -s))
+    local host_platform=darwin-x86_64;
+    case $host_os in
+      linux)        host_platform=linux-x86_64 ;;
+      darwin)       host_platform=darwin-x86_64;;
+      *)        ;;
+    esac
+    echo $host_platform;
+}
+      
+HOST_PLATFORM=$(probe_host_platform)
 
 GCC_VER=4.9
 CLANG_VER=
@@ -140,6 +155,7 @@ then
 #	LINK_AGAINST=21-x86_64
 elif [ $ARCH == 'x86' ] 
 then
+    FFMPEG_CONFIGURATION="--disable-mmx --disable-mmxext --disable-inline-asm"
 	TOOLCHAIN=$NDK/toolchains/x86-$GCC_VER/prebuilt/$HOST_PLATFORM
 	CROSS_PREFIX=$TOOLCHAIN/bin/i686-linux-android-
 
@@ -151,7 +167,7 @@ then
 		EXTRA_CFLAGS+=" -fstack-protector-strong "
 	fi
 
-	OPTFLAGS="-O2 -fno-pic"
+	OPTFLAGS="-O2 -fpic"
 	APP_PLATFORM=android-19
 	LINK_AGAINST=16-x86
 #elif [ $ARCH == 'mips' ] 
@@ -184,6 +200,7 @@ fi
 
 
 ./configure \
+${FFMPEG_CONFIGURATION} \
 --enable-static \
 --disable-shared \
 --enable-pic \
