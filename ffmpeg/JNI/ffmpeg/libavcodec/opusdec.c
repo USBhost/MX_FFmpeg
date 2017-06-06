@@ -565,8 +565,8 @@ static int opus_decode_packet(AVCodecContext *avctx, void *data,
         if (buffer_samples) {
             float *buf[2] = { c->out[2 * i + 0] ? c->out[2 * i + 0] : (float*)frame->extended_data[0],
                               c->out[2 * i + 1] ? c->out[2 * i + 1] : (float*)frame->extended_data[0] };
-            buf[0] += buffer_samples;
-            buf[1] += buffer_samples;
+            buf[0] += decoded_samples;
+            buf[1] += decoded_samples;
             ret = av_audio_fifo_write(c->sync_buffers[i], (void**)buf, buffer_samples);
             if (ret < 0)
                 return ret;
@@ -585,7 +585,7 @@ static int opus_decode_packet(AVCodecContext *avctx, void *data,
             memset(frame->extended_data[i], 0, frame->linesize[0]);
         }
 
-        if (c->gain_i) {
+        if (c->gain_i && decoded_samples > 0) {
             c->fdsp->vector_fmul_scalar((float*)frame->extended_data[i],
                                        (float*)frame->extended_data[i],
                                        c->gain, FFALIGN(decoded_samples, 8));
@@ -671,8 +671,11 @@ static av_cold int opus_decode_init(AVCodecContext *avctx)
 
     /* find out the channel configuration */
     ret = ff_opus_parse_extradata(avctx, c);
-    if (ret < 0)
+    if (ret < 0) {
+        av_freep(&c->channel_maps);
+        av_freep(&c->fdsp);
         return ret;
+    }
 
     /* allocate and init each independent decoder */
     c->streams = av_mallocz_array(c->nb_streams, sizeof(*c->streams));

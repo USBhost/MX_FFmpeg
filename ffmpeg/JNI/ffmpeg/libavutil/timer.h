@@ -38,7 +38,9 @@
 
 #include "log.h"
 
-#if   ARCH_ARM
+#if   ARCH_AARCH64
+#   include "aarch64/timer.h"
+#elif ARCH_ARM
 #   include "arm/timer.h"
 #elif ARCH_PPC
 #   include "ppc/timer.h"
@@ -81,7 +83,7 @@
         if (((tcount + tskip_count) & (tcount + tskip_count - 1)) == 0) { \
             int i;                                                        \
             av_log(NULL, AV_LOG_ERROR,                                    \
-                   "%7"PRIu64" " FF_TIMER_UNITS " in %s,%8d runs,%7d skips",          \
+                   "%7" PRIu64 " " FF_TIMER_UNITS " in %s,%8d runs,%7d skips", \
                    tsum * 10 / tcount, id, tcount, tskip_count);          \
             for (i = 0; i < 32; i++)                                      \
                 av_log(NULL, AV_LOG_VERBOSE, " %2d", av_log2(2*thistogram[i]));\

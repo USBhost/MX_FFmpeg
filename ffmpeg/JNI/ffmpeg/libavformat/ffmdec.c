@@ -21,12 +21,15 @@
 
 #include <stdint.h>
 
+#include "libavutil/imgutils.h"
 #include "libavutil/internal.h"
 #include "libavutil/intreadwrite.h"
 #include "libavutil/intfloat.h"
 #include "libavutil/opt.h"
 #include "libavutil/avassert.h"
 #include "libavutil/avstring.h"
+#include "libavutil/pixdesc.h"
+#include "libavcodec/internal.h"
 #include "avformat.h"
 #include "internal.h"
 #include "ffm.h"
@@ -36,7 +39,7 @@ static int ffm_is_avail_data(AVFormatContext *s, int size)
 {
     FFMContext *ffm = s->priv_data;
     int64_t pos, avail_size;
-    int len;
+    ptrdiff_t len;
 
     len = ffm->packet_end - ffm->packet_ptr;
     if (size <= len)
@@ -49,7 +52,10 @@ static int ffm_is_avail_data(AVFormatContext *s, int size)
     } else {
     if (pos == ffm->write_index) {
         /* exactly at the end of stream */
-        return AVERROR(EAGAIN);
+        if (ffm->server_attached)
+            return AVERROR(EAGAIN);
+        else
+            return AVERROR_INVALIDDATA;
     } else if (pos < ffm->write_index) {
         avail_size = ffm->write_index - pos;
     } else {
@@ -59,11 +65,13 @@ static int ffm_is_avail_data(AVFormatContext *s, int size)
     avail_size = (avail_size / ffm->packet_size) * (ffm->packet_size - FFM_HEADER_SIZE) + len;
     if (size <= avail_size)
         return 1;
-    else
+    else if (ffm->server_attached)
         return AVERROR(EAGAIN);
+    else
+        return AVERROR_INVALIDDATA;
 }
 
-static int ffm_resync(AVFormatContext *s, int state)
+static int ffm_resync(AVFormatContext *s, uint32_t state)
 {
     av_log(s, AV_LOG_ERROR, "resyncing\n");
     while (state != PACKET_ID) {
@@ -82,7 +90,9 @@ static int ffm_read_data(AVFormatContext *s,
 {
     FFMContext *ffm = s->priv_data;
     AVIOContext *pb = s->pb;
-    int len, fill_size, size1, frame_offset, id;
+    int fill_size, size1, frame_offset;
+    uint32_t id;
+    ptrdiff_t len;
     int64_t last_pos = -1;
 
     size1 = size;
@@ -94,8 +104,12 @@ static int ffm_read_data(AVFormatContext *s,
         if (len > size)
             len = size;
         if (len == 0) {
-            if (avio_tell(pb) == ffm->file_size)
-                avio_seek(pb, ffm->packet_size, SEEK_SET);
+            if (avio_tell(pb) == ffm->file_size) {
+                if (ffm->server_attached) {
+                    avio_seek(pb, ffm->packet_size, SEEK_SET);
+                } else
+                    return AVERROR_EOF;
+            }
     retry_read:
             if (pb->buffer_size != ffm->packet_size) {
                 int64_t tell = avio_tell(pb);
@@ -114,9 +128,10 @@ static int ffm_read_data(AVFormatContext *s,
             ffm->dts = avio_rb64(pb);
             frame_offset = avio_rb16(pb);
             avio_read(pb, ffm->packet, ffm->packet_size - FFM_HEADER_SIZE);
-            ffm->packet_end = ffm->packet + (ffm->packet_size - FFM_HEADER_SIZE - fill_size);
-            if (ffm->packet_end < ffm->packet || frame_offset < 0)
+            if (ffm->packet_size < FFM_HEADER_SIZE + fill_size || frame_offset < 0) {
                 return -1;
+            }
+            ffm->packet_end = ffm->packet + (ffm->packet_size - FFM_HEADER_SIZE - fill_size);
             /* if first packet or resynchronization packet, we must
                handle it specifically */
             if (ffm->first_packet || (frame_offset & 0x8000)) {
@@ -132,8 +147,10 @@ static int ffm_read_data(AVFormatContext *s,
                     return 0;
                 }
                 ffm->first_packet = 0;
-                if ((frame_offset & 0x7fff) < FFM_HEADER_SIZE)
+                if ((frame_offset & 0x7fff) < FFM_HEADER_SIZE) {
+                    ffm->packet_end = ffm->packet_ptr;
                     return -1;
+                }
                 ffm->packet_ptr = ffm->packet + (frame_offset & 0x7fff) - FFM_HEADER_SIZE;
                 if (!header)
                     break;
@@ -262,13 +279,22 @@ static int ffm_append_recommended_configuration(AVStream *st, char **conf)
     return 0;
 }
 
+#define VALIDATE_PARAMETER(parameter, name, check) {                              \
+    if (check) {                                                                  \
+        av_log(codec, AV_LOG_ERROR, "Invalid " name " %d\n", codec->parameter);   \
+        ret = AVERROR_INVALIDDATA;                                                \
+        goto fail;                                                                \
+    }                                                                             \
+}
+
 static int ffm2_read_header(AVFormatContext *s)
 {
     FFMContext *ffm = s->priv_data;
     AVStream *st;
     AVIOContext *pb = s->pb;
     AVCodecContext *codec;
-    int ret;
+    const AVCodecDescriptor *codec_desc;
+    int ret, i;
     int f_main = 0, f_cprv = -1, f_stvi = -1, f_stau = -1;
     AVCodec *enc;
     char *buffer;
@@ -322,18 +348,47 @@ static int ffm2_read_header(AVFormatContext *s)
             codec = st->codec;
             /* generic info */
             codec->codec_id = avio_rb32(pb);
+            codec_desc = avcodec_descriptor_get(codec->codec_id);
+            if (!codec_desc) {
+                av_log(s, AV_LOG_ERROR, "Invalid codec id: %d\n", codec->codec_id);
+                codec->codec_id = AV_CODEC_ID_NONE;
+                ret = AVERROR_INVALIDDATA;
+                goto fail;
+            }
             codec->codec_type = avio_r8(pb);
+            if (codec->codec_type != codec_desc->type) {
+                av_log(s, AV_LOG_ERROR, "Codec type mismatch: expected %d, found %d\n",
+                       codec_desc->type, codec->codec_type);
+                codec->codec_id = AV_CODEC_ID_NONE;
+                codec->codec_type = AVMEDIA_TYPE_UNKNOWN;
+                ret = AVERROR_INVALIDDATA;
+                goto fail;
+            }
             codec->bit_rate = avio_rb32(pb);
+            if (codec->bit_rate < 0) {
+                av_log(codec, AV_LOG_ERROR, "Invalid bit rate %"PRId64"\n", codec->bit_rate);
+                ret = AVERROR_INVALIDDATA;
+                goto fail;
+            }
             codec->flags = avio_rb32(pb);
             codec->flags2 = avio_rb32(pb);
             codec->debug = avio_rb32(pb);
             if (codec->flags & AV_CODEC_FLAG_GLOBAL_HEADER) {
-                if (ff_get_extradata(codec, pb, avio_rb32(pb)) < 0)
+                int size = avio_rb32(pb);
+                if (size < 0 || size >= FF_MAX_EXTRADATA_SIZE) {
+                    av_log(s, AV_LOG_ERROR, "Invalid extradata size %d\n", size);
+                    ret = AVERROR_INVALIDDATA;
+                    goto fail;
+                }
+                codec->extradata = av_mallocz(size + AV_INPUT_BUFFER_PADDING_SIZE);
+                if (!codec->extradata)
                     return AVERROR(ENOMEM);
+                codec->extradata_size = size;
+                avio_read(pb, codec->extradata, size);
             }
             break;
         case MKBETAG('S', 'T', 'V', 'I'):
-            if (f_stvi++) {
+            if (f_stvi++ || codec->codec_type != AVMEDIA_TYPE_VIDEO) {
                 ret = AVERROR(EINVAL);
                 goto fail;
             }
@@ -347,8 +402,16 @@ static int ffm2_read_header(AVFormatContext *s)
             }
             codec->width = avio_rb16(pb);
             codec->height = avio_rb16(pb);
+            ret = av_image_check_size(codec->width, codec->height, 0, s);
+            if (ret < 0)
+                goto fail;
             codec->gop_size = avio_rb16(pb);
             codec->pix_fmt = avio_rb32(pb);
+            if (!av_pix_fmt_desc_get(codec->pix_fmt)) {
+                av_log(s, AV_LOG_ERROR, "Invalid pix fmt id: %d\n", codec->pix_fmt);
+                codec->pix_fmt = AV_PIX_FMT_NONE;
+                goto fail;
+            }
             codec->qmin = avio_r8(pb);
             codec->qmax = avio_r8(pb);
             codec->max_qdiff = avio_r8(pb);
@@ -389,13 +452,16 @@ static int ffm2_read_header(AVFormatContext *s)
             codec->refs = avio_rb32(pb);
             break;
         case MKBETAG('S', 'T', 'A', 'U'):
-            if (f_stau++) {
+            if (f_stau++ || codec->codec_type != AVMEDIA_TYPE_AUDIO) {
                 ret = AVERROR(EINVAL);
                 goto fail;
             }
             codec->sample_rate = avio_rb32(pb);
+            VALIDATE_PARAMETER(sample_rate, "sample rate",        codec->sample_rate < 0)
             codec->channels = avio_rl16(pb);
+            VALIDATE_PARAMETER(channels,    "number of channels", codec->channels < 0)
             codec->frame_size = avio_rl16(pb);
+            VALIDATE_PARAMETER(frame_size,  "frame size",         codec->frame_size < 0)
             break;
         case MKBETAG('C', 'P', 'R', 'V'):
             if (f_cprv++) {
@@ -415,7 +481,7 @@ static int ffm2_read_header(AVFormatContext *s)
             }
             break;
         case MKBETAG('S', '2', 'V', 'I'):
-            if (f_stvi++) {
+            if (f_stvi++ || !size || codec->codec_type != AVMEDIA_TYPE_VIDEO) {
                 ret = AVERROR(EINVAL);
                 goto fail;
             }
@@ -430,7 +496,7 @@ static int ffm2_read_header(AVFormatContext *s)
                 goto fail;
             break;
         case MKBETAG('S', '2', 'A', 'U'):
-            if (f_stau++) {
+            if (f_stau++ || !size || codec->codec_type != AVMEDIA_TYPE_AUDIO) {
                 ret = AVERROR(EINVAL);
                 goto fail;
             }
@@ -447,6 +513,9 @@ static int ffm2_read_header(AVFormatContext *s)
         }
         avio_seek(pb, next, SEEK_SET);
     }
+
+    for (i = 0; i < s->nb_streams; i++)
+        avcodec_parameters_from_context(s->streams[i]->codecpar, s->streams[i]->codec);
 
     /* get until end of block reached */
     while ((avio_tell(pb) % ffm->packet_size) != 0 && !pb->eof_reached)
@@ -471,7 +540,8 @@ static int ffm_read_header(AVFormatContext *s)
     AVStream *st;
     AVIOContext *pb = s->pb;
     AVCodecContext *codec;
-    int i, nb_streams;
+    const AVCodecDescriptor *codec_desc;
+    int i, nb_streams, ret;
     uint32_t tag;
 
     /* header */
@@ -508,8 +578,25 @@ static int ffm_read_header(AVFormatContext *s)
         codec = st->codec;
         /* generic info */
         codec->codec_id = avio_rb32(pb);
+        codec_desc = avcodec_descriptor_get(codec->codec_id);
+        if (!codec_desc) {
+            av_log(s, AV_LOG_ERROR, "Invalid codec id: %d\n", codec->codec_id);
+            codec->codec_id = AV_CODEC_ID_NONE;
+            goto fail;
+        }
         codec->codec_type = avio_r8(pb); /* codec_type */
+        if (codec->codec_type != codec_desc->type) {
+            av_log(s, AV_LOG_ERROR, "Codec type mismatch: expected %d, found %d\n",
+                   codec_desc->type, codec->codec_type);
+            codec->codec_id = AV_CODEC_ID_NONE;
+            codec->codec_type = AVMEDIA_TYPE_UNKNOWN;
+            goto fail;
+        }
         codec->bit_rate = avio_rb32(pb);
+        if (codec->bit_rate < 0) {
+            av_log(codec, AV_LOG_WARNING, "Invalid bit rate %"PRId64"\n", codec->bit_rate);
+            goto fail;
+        }
         codec->flags = avio_rb32(pb);
         codec->flags2 = avio_rb32(pb);
         codec->debug = avio_rb32(pb);
@@ -525,8 +612,15 @@ static int ffm_read_header(AVFormatContext *s)
             }
             codec->width = avio_rb16(pb);
             codec->height = avio_rb16(pb);
+            if (av_image_check_size(codec->width, codec->height, 0, s) < 0)
+                goto fail;
             codec->gop_size = avio_rb16(pb);
             codec->pix_fmt = avio_rb32(pb);
+            if (!av_pix_fmt_desc_get(codec->pix_fmt)) {
+                av_log(s, AV_LOG_ERROR, "Invalid pix fmt id: %d\n", codec->pix_fmt);
+                codec->pix_fmt = AV_PIX_FMT_NONE;
+                goto fail;
+            }
             codec->qmin = avio_r8(pb);
             codec->qmax = avio_r8(pb);
             codec->max_qdiff = avio_r8(pb);
@@ -568,16 +662,29 @@ static int ffm_read_header(AVFormatContext *s)
             break;
         case AVMEDIA_TYPE_AUDIO:
             codec->sample_rate = avio_rb32(pb);
+            VALIDATE_PARAMETER(sample_rate, "sample rate",        codec->sample_rate < 0)
             codec->channels = avio_rl16(pb);
+            VALIDATE_PARAMETER(channels,    "number of channels", codec->channels < 0)
             codec->frame_size = avio_rl16(pb);
+            VALIDATE_PARAMETER(frame_size,  "frame size",         codec->frame_size < 0)
             break;
         default:
             goto fail;
         }
         if (codec->flags & AV_CODEC_FLAG_GLOBAL_HEADER) {
-            if (ff_get_extradata(codec, pb, avio_rb32(pb)) < 0)
+            int size = avio_rb32(pb);
+            if (size < 0 || size >= FF_MAX_EXTRADATA_SIZE) {
+                av_log(s, AV_LOG_ERROR, "Invalid extradata size %d\n", size);
+                goto fail;
+            }
+            codec->extradata = av_mallocz(size + AV_INPUT_BUFFER_PADDING_SIZE);
+            if (!codec->extradata)
                 return AVERROR(ENOMEM);
+            codec->extradata_size = size;
+            avio_read(pb, codec->extradata, size);
         }
+
+        avcodec_parameters_from_context(st->codecpar, codec);
     }
 
     /* get until end of block reached */
@@ -632,7 +739,7 @@ static int ffm_read_packet(AVFormatContext *s, AVPacket *pkt)
         pkt->stream_index = ffm->header[0];
         if ((unsigned)pkt->stream_index >= s->nb_streams) {
             av_log(s, AV_LOG_ERROR, "invalid stream index %d\n", pkt->stream_index);
-            av_free_packet(pkt);
+            av_packet_unref(pkt);
             ffm->read_state = READ_HEADER;
             return -1;
         }
@@ -643,7 +750,7 @@ static int ffm_read_packet(AVFormatContext *s, AVPacket *pkt)
         ffm->read_state = READ_HEADER;
         if (ffm_read_data(s, pkt->data, size, 0) != size) {
             /* bad case: desynchronized packet. we cancel all the packet loading */
-            av_free_packet(pkt);
+            av_packet_unref(pkt);
             return -1;
         }
         pkt->pts = AV_RB64(ffm->header+8);
@@ -731,6 +838,19 @@ static int ffm_probe(AVProbeData *p)
     return 0;
 }
 
+static const AVOption options[] = {
+    {"server_attached", NULL, offsetof(FFMContext, server_attached), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, AV_OPT_FLAG_EXPORT },
+    {"ffm_write_index", NULL, offsetof(FFMContext, write_index), AV_OPT_TYPE_INT64, {.i64 = 0}, 0, INT64_MAX, AV_OPT_FLAG_EXPORT },
+    {"ffm_file_size", NULL, offsetof(FFMContext, file_size), AV_OPT_TYPE_INT64, {.i64 = 0}, 0, INT64_MAX, AV_OPT_FLAG_EXPORT },
+    { NULL },
+};
+
+static const AVClass ffm_class = {
+    .class_name = "ffm demuxer",
+    .item_name  = av_default_item_name,
+    .option     = options,
+    .version    = LIBAVUTIL_VERSION_INT,
+};
 AVInputFormat ff_ffm_demuxer = {
     .name           = "ffm",
     .long_name      = NULL_IF_CONFIG_SMALL("FFM (FFserver live feed)"),
@@ -740,4 +860,5 @@ AVInputFormat ff_ffm_demuxer = {
     .read_packet    = ffm_read_packet,
     .read_close     = ffm_close,
     .read_seek      = ffm_seek,
+    .priv_class     = &ffm_class,
 };

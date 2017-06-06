@@ -96,6 +96,8 @@ typedef struct AC3DecodeContext {
     int lfe_mix_level_exists;               ///< indicates if lfemixlevcod is specified (lfemixlevcode)
     int lfe_mix_level;                      ///< LFE mix level index                    (lfemixlevcod)
     int eac3;                               ///< indicates if current frame is E-AC-3
+    int eac3_frame_dependent_found;         ///< bitstream has E-AC-3 dependent frame(s)
+    int eac3_subsbtreamid_found;            ///< bitstream has E-AC-3 additional substream(s)
     int dolby_surround_mode;                ///< dolby surround mode                    (dsurmod)
     int dolby_surround_ex_mode;             ///< dolby surround ex mode                 (dsurexmod)
     int dolby_headphone_mode;               ///< dolby headphone mode                   (dheadphonmod)
@@ -257,5 +259,9 @@ static void ff_eac3_decode_transform_coeffs_aht_ch(AC3DecodeContext *s, int ch);
  * approximate the original high frequency signal.
  */
 static void ff_eac3_apply_spectral_extension(AC3DecodeContext *s);
+
+#if (!USE_FIXED)
+extern float ff_ac3_heavy_dynamic_range_tab[256];
+#endif
 
 #endif /* AVCODEC_AC3DEC_H */

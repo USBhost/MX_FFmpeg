@@ -63,9 +63,11 @@ static const uint8_t quantization_tab[16] = {
     5, 6, 7, 8, 9, 10, 11, 12, 14, 16
 };
 
+#if (!USE_FIXED)
 /** dynamic range table. converts codes to scale factors. */
 static float dynamic_range_tab[256];
-static float heavy_dynamic_range_tab[256];
+float ff_ac3_heavy_dynamic_range_tab[256];
+#endif
 
 /** Adjustments in dB gain */
 static const float gain_levels[9] = {
@@ -159,6 +161,7 @@ static av_cold void ac3_tables_init(void)
         b5_mantissas[i] = symmetric_dequant(i, 15);
     }
 
+#if (!USE_FIXED)
     /* generate dynamic range table
        reference: Section 7.7.1 Dynamic Range Control */
     for (i = 0; i < 256; i++) {
@@ -170,9 +173,9 @@ static av_cold void ac3_tables_init(void)
        reference: Section 7.7.2 Heavy Compression */
     for (i = 0; i < 256; i++) {
         int v = (i >> 4) - ((i >> 7) << 4) - 4;
-        heavy_dynamic_range_tab[i] = powf(2.0f, v) * ((i & 0xF) | 0x10);
+        ff_ac3_heavy_dynamic_range_tab[i] = powf(2.0f, v) * ((i & 0xF) | 0x10);
     }
-
+#endif
 }
 
 /**
@@ -185,7 +188,6 @@ static av_cold int ac3_decode_init(AVCodecContext *avctx)
 
     s->avctx = avctx;
 
-    ff_ac3_common_init();
     ac3_tables_init();
     ff_mdct_init(&s->imdct_256, 8, 1, 1.0);
     ff_mdct_init(&s->imdct_512, 9, 1, 1.0);
@@ -412,7 +414,8 @@ static void set_downmix_coeffs(AC3DecodeContext *s)
  * Decode the grouped exponents according to exponent strategy.
  * reference: Section 7.1.3 Exponent Decoding
  */
-static int decode_exponents(GetBitContext *gbc, int exp_strategy, int ngrps,
+static int decode_exponents(AC3DecodeContext *s,
+                            GetBitContext *gbc, int exp_strategy, int ngrps,
                             uint8_t absexp, int8_t *dexps)
 {
     int i, j, grp, group_size;
@@ -432,8 +435,10 @@ static int decode_exponents(GetBitContext *gbc, int exp_strategy, int ngrps,
     prevexp = absexp;
     for (i = 0, j = 0; i < ngrps * 3; i++) {
         prevexp += dexp[i] - 2;
-        if (prevexp > 24U)
+        if (prevexp > 24U) {
+            av_log(s->avctx, AV_LOG_ERROR, "exponent %d is out-of-range\n", prevexp);
             return -1;
+        }
         switch (group_size) {
         case 4: dexps[j++] = prevexp;
                 dexps[j++] = prevexp;
@@ -893,11 +898,13 @@ static int decode_audio_block(AC3DecodeContext *s, int blk)
                                   ff_eac3_default_spx_band_struct,
                                   &s->num_spx_bands,
                                   s->spx_band_sizes);
-        } else {
-            for (ch = 1; ch <= fbw_channels; ch++) {
-                s->channel_uses_spx[ch] = 0;
-                s->first_spx_coords[ch] = 1;
-            }
+        }
+    }
+    if (!s->eac3 || !s->spx_in_use) {
+        s->spx_in_use = 0;
+        for (ch = 1; ch <= fbw_channels; ch++) {
+            s->channel_uses_spx[ch] = 0;
+            s->first_spx_coords[ch] = 1;
         }
     }
 
@@ -1142,10 +1149,9 @@ static int decode_audio_block(AC3DecodeContext *s, int blk)
     for (ch = !cpl_in_use; ch <= s->channels; ch++) {
         if (s->exp_strategy[blk][ch] != EXP_REUSE) {
             s->dexps[ch][0] = get_bits(gbc, 4) << !ch;
-            if (decode_exponents(gbc, s->exp_strategy[blk][ch],
+            if (decode_exponents(s, gbc, s->exp_strategy[blk][ch],
                                  s->num_exp_groups[ch], s->dexps[ch][0],
                                  &s->dexps[ch][s->start_freq[ch]+!!ch])) {
-                av_log(s->avctx, AV_LOG_ERROR, "exponent out-of-range\n");
                 return AVERROR_INVALIDDATA;
             }
             if (ch != CPL_CH && ch != s->lfe_ch)
@@ -1442,8 +1448,9 @@ static int ac3_decode_frame(AVCodecContext * avctx, void *data,
             /* skip frame if CRC is ok. otherwise use error concealment. */
             /* TODO: add support for substreams and dependent frames */
             if (s->frame_type == EAC3_FRAME_TYPE_DEPENDENT || s->substreamid) {
-                av_log(avctx, AV_LOG_WARNING, "unsupported frame type : "
-                       "skipping frame\n");
+                av_log(avctx, AV_LOG_DEBUG,
+                       "unsupported frame type %d: skipping frame\n",
+                       s->frame_type);
                 *got_frame_ptr = 0;
                 return buf_size;
             } else {

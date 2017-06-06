@@ -1,5 +1,5 @@
 /*
- * MPEG1/2 demuxer
+ * MPEG-1/2 demuxer
  * Copyright (c) 2000, 2001, 2002 Fabrice Bellard
  *
  * This file is part of FFmpeg.
@@ -112,7 +112,7 @@ static int mpegps_probe(AVProbeData *p)
                           : AVPROBE_SCORE_EXTENSION / 2; // 1 more than .mpg
     if ((!!vid ^ !!audio) && (audio > 4 || vid > 1) && !sys &&
         !pspack && p->buf_size > 2048 && vid + audio > invalid) /* PES stream */
-        return (audio > 12 || vid > 3 + 2 * invalid) ? AVPROBE_SCORE_EXTENSION + 2
+        return (audio > 12 || vid > 6 + 2 * invalid) ? AVPROBE_SCORE_EXTENSION + 2
                                                      : AVPROBE_SCORE_EXTENSION / 2;
 
     // 02-Penguin.flac has sys:0 priv1:0 pspack:0 vid:0 audio:1
@@ -256,7 +256,7 @@ redo:
         if (avio_feof(s->pb))
             return AVERROR_EOF;
         // FIXME we should remember header_state
-        return AVERROR(EAGAIN);
+        return FFERROR_REDO;
     }
 
     if (startcode == PACK_START_CODE)
@@ -371,7 +371,7 @@ redo:
             goto error_redo;
         c = avio_r8(s->pb);
         len--;
-        /* XXX: for mpeg1, should test only bit 7 */
+        /* XXX: for MPEG-1, should test only bit 7 */
         if (c != 0xff)
             break;
     }
@@ -568,7 +568,7 @@ redo:
         codec_id = AV_CODEC_ID_DTS;
     } else if (startcode >= 0xa0 && startcode <= 0xaf) {
         type     = AVMEDIA_TYPE_AUDIO;
-        if (lpcm_header_len == 6) {
+        if (lpcm_header_len == 6 || startcode == 0xa1) {
             codec_id = AV_CODEC_ID_MLP;
         } else {
             codec_id = AV_CODEC_ID_PCM_DVD;
@@ -597,13 +597,13 @@ skip:
     if (!st)
         goto skip;
     st->id                = startcode;
-    st->codec->codec_type = type;
-    st->codec->codec_id   = codec_id;
-    if (   st->codec->codec_id == AV_CODEC_ID_PCM_MULAW
-        || st->codec->codec_id == AV_CODEC_ID_PCM_ALAW) {
-        st->codec->channels = 1;
-        st->codec->channel_layout = AV_CH_LAYOUT_MONO;
-        st->codec->sample_rate = 8000;
+    st->codecpar->codec_type = type;
+    st->codecpar->codec_id   = codec_id;
+    if (   st->codecpar->codec_id == AV_CODEC_ID_PCM_MULAW
+        || st->codecpar->codec_id == AV_CODEC_ID_PCM_ALAW) {
+        st->codecpar->channels = 1;
+        st->codecpar->channel_layout = AV_CH_LAYOUT_MONO;
+        st->codecpar->sample_rate = 8000;
     }
     st->request_probe     = request_probe;
     st->need_parsing      = AVSTREAM_PARSE_FULL;
@@ -612,7 +612,7 @@ found:
     if (st->discard >= AVDISCARD_ALL)
         goto skip;
     if (startcode >= 0xa0 && startcode <= 0xaf) {
-      if (st->codec->codec_id == AV_CODEC_ID_MLP) {
+      if (st->codecpar->codec_id == AV_CODEC_ID_MLP) {
             if (len < 6)
                 goto skip;
             avio_skip(s->pb, 6);
@@ -735,7 +735,7 @@ static int vobsub_read_header(AVFormatContext *s)
     // jhkim 2014-8-21 Setup interrupt callback for network source.
     vobsub->sub_ctx->interrupt_callback = s->interrupt_callback;
 
-    if ((ret = ff_copy_whitelists(vobsub->sub_ctx, s)) < 0)
+    if ((ret = ff_copy_whiteblacklists(vobsub->sub_ctx, s)) < 0)
         goto end;
 
     ret = avformat_open_input(&vobsub->sub_ctx, vobsub->sub_name, iformat, NULL);
@@ -794,8 +794,8 @@ static int vobsub_read_header(AVFormatContext *s)
                     goto end;
                 }
                 st->id = stream_id;
-                st->codec->codec_type = AVMEDIA_TYPE_SUBTITLE;
-                st->codec->codec_id   = AV_CODEC_ID_DVD_SUBTITLE;
+                st->codecpar->codec_type = AVMEDIA_TYPE_SUBTITLE;
+                st->codecpar->codec_id   = AV_CODEC_ID_DVD_SUBTITLE;
                 avpriv_set_pts_info(st, 64, 1, 1000);
                 av_dict_set(&st->metadata, "language", id, 0);
                 if (alt[0])
@@ -872,11 +872,11 @@ static int vobsub_read_header(AVFormatContext *s)
     av_bprint_finalize(&header, &header_str);
     for (i = 0; i < s->nb_streams; i++) {
         AVStream *sub_st = s->streams[i];
-        sub_st->codec->extradata      = av_strdup(header_str);
-        sub_st->codec->extradata_size = header.len;
+        sub_st->codecpar->extradata      = av_strdup(header_str);
+        sub_st->codecpar->extradata_size = header.len;
 
-        // jhkim 2014-8-21
-        sub_st->duration = av_rescale_q( 24 * 60 * 60, av_make_q(1,1), sub_st->time_base );	// 24 hours will be enough for most source videos.
+        // jhkim 2014-8-21                                                                                                                                                                             
+        sub_st->duration = av_rescale_q( 24 * 60 * 60, av_make_q(1,1), sub_st->time_base ); // 24 hours will be enough for most source videos.
     }
     av_free(header_str);
 
@@ -962,12 +962,12 @@ static int vobsub_read_packet(AVFormatContext *s, AVPacket *pkt)
     pkt->pos = idx_pkt.pos;
     pkt->stream_index = idx_pkt.stream_index;
 
-    av_free_packet(&idx_pkt);
+    av_packet_unref(&idx_pkt);
     return 0;
 
 fail:
-    av_free_packet(pkt);
-    av_free_packet(&idx_pkt);
+    av_packet_unref(pkt);
+    av_packet_unref(&idx_pkt);
     return ret;
 }
 

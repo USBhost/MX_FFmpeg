@@ -24,6 +24,7 @@
 #include "libavutil/avassert.h"
 #include "libavutil/channel_layout.h"
 #include "libavutil/common.h"
+#include "libavutil/ffmath.h"
 #include "avcodec.h"
 #include "dca.h"
 #include "dcadata.h"
@@ -136,9 +137,9 @@ static int encode_init(AVCodecContext *avctx)
 
     if (c->lfe_channel) {
         c->fullband_channels--;
-        c->channel_order_tab = ff_dca_channel_reorder_lfe[c->channel_config];
+        c->channel_order_tab = channel_reorder_lfe[c->channel_config];
     } else {
-        c->channel_order_tab = ff_dca_channel_reorder_nolfe[c->channel_config];
+        c->channel_order_tab = channel_reorder_nolfe[c->channel_config];
     }
 
     for (i = 0; i < 9; i++) {
@@ -156,7 +157,6 @@ static int encode_init(AVCodecContext *avctx)
     for (i = 0; ff_dca_bit_rates[i] < avctx->bit_rate; i++)
         ;
     c->bitrate_index = i;
-    avctx->bit_rate = ff_dca_bit_rates[i];
     c->frame_bits = FFALIGN((avctx->bit_rate * 512 + avctx->sample_rate - 1) / avctx->sample_rate, 32);
     min_frame_bits = 132 + (493 + 28 * 32) * c->fullband_channels + c->lfe_channel * 72;
     if (c->frame_bits < min_frame_bits || c->frame_bits > (DCA_MAX_FRAME_SIZE << 3))
@@ -169,9 +169,17 @@ static int encode_init(AVCodecContext *avctx)
     if (!cos_table[0]) {
         int j, k;
 
-        for (i = 0; i < 2048; i++) {
+        cos_table[0] = 0x7fffffff;
+        cos_table[512] = 0;
+        cos_table[1024] = -cos_table[0];
+        for (i = 1; i < 512; i++) {
             cos_table[i]   = (int32_t)(0x7fffffff * cos(M_PI * i / 1024));
-            cb_to_level[i] = (int32_t)(0x7fffffff * pow(10, -0.005 * i));
+            cos_table[1024-i] = -cos_table[i];
+            cos_table[1024+i] = -cos_table[i];
+            cos_table[2048-i] = cos_table[i];
+        }
+        for (i = 0; i < 2048; i++) {
+            cb_to_level[i] = (int32_t)(0x7fffffff * ff_exp10(-0.005 * i));
         }
 
         for (k = 0; k < 32; k++) {
@@ -197,7 +205,7 @@ static int encode_init(AVCodecContext *avctx)
         }
 
         for (i = 0; i < 256; i++) {
-            double add = 1 + pow(10, -0.01 * i);
+            double add = 1 + ff_exp10(-0.01 * i);
             cb_to_add[i] = (int32_t)(100 * log10(add));
         }
         for (j = 0; j < 8; j++) {
@@ -295,7 +303,7 @@ static void subband_transform(DCAEncContext *c, const int32_t *input)
 static void lfe_downsample(DCAEncContext *c, const int32_t *input)
 {
     /* FIXME: make 128x LFE downsampling possible */
-    const int lfech = ff_dca_lfe_index[c->channel_config];
+    const int lfech = lfe_index[c->channel_config];
     int i, j, lfes;
     int32_t hist[512];
     int32_t accum;
@@ -675,7 +683,7 @@ static int calc_one_scale(int32_t peak_cb, int abits, softfloat *quant)
             continue;
         our_quant.m = mul32(scalefactor_inv[our_nscale - try_remove].m, stepsize_inv[abits].m);
         our_quant.e = scalefactor_inv[our_nscale - try_remove].e + stepsize_inv[abits].e - 17;
-        if ((quant_levels[abits] - 1) / 2 < quantize_value(peak, our_quant))
+        if ((ff_dca_quant_levels[abits] - 1) / 2 < quantize_value(peak, our_quant))
             continue;
         our_nscale -= try_remove;
     }
@@ -685,7 +693,7 @@ static int calc_one_scale(int32_t peak_cb, int abits, softfloat *quant)
 
     quant->m = mul32(scalefactor_inv[our_nscale].m, stepsize_inv[abits].m);
     quant->e = scalefactor_inv[our_nscale].e + stepsize_inv[abits].e - 17;
-    av_assert0((quant_levels[abits] - 1) / 2 >= quantize_value(peak, *quant));
+    av_assert0((ff_dca_quant_levels[abits] - 1) / 2 >= quantize_value(peak, *quant));
 
     return our_nscale;
 }
@@ -850,9 +858,9 @@ static void put_subframe_samples(DCAEncContext *c, int ss, int band, int ch)
         for (i = 0; i < 8; i += 4) {
             sum = 0;
             for (j = 3; j >= 0; j--) {
-                sum *= quant_levels[c->abits[band][ch]];
+                sum *= ff_dca_quant_levels[c->abits[band][ch]];
                 sum += c->quantized[ss * 8 + i + j][band][ch];
-                sum += (quant_levels[c->abits[band][ch]] - 1) / 2;
+                sum += (ff_dca_quant_levels[c->abits[band][ch]] - 1) / 2;
             }
             put_bits(&c->pb, bit_consumption[c->abits[band][ch]] / 4, sum);
         }
@@ -929,7 +937,7 @@ static int encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
     const int32_t *samples;
     int ret, i;
 
-    if ((ret = ff_alloc_packet2(avctx, avpkt, c->frame_size , 0)) < 0)
+    if ((ret = ff_alloc_packet2(avctx, avpkt, c->frame_size, 0)) < 0)
         return ret;
 
     samples = (const int32_t *)frame->data[0];
@@ -959,7 +967,7 @@ static int encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
 
     avpkt->pts      = frame->pts;
     avpkt->duration = ff_samples_to_time_base(avctx, frame->nb_samples);
-    avpkt->size     = c->frame_size + 1;
+    avpkt->size     = put_bits_count(&c->pb) >> 3;
     *got_packet_ptr = 1;
     return 0;
 }

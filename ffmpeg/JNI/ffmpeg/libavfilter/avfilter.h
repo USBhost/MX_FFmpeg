@@ -29,7 +29,9 @@
  */
 
 /**
- * @defgroup lavfi Libavfilter - graph-based frame editing library
+ * @defgroup lavfi libavfilter
+ * Graph-based frame editing library.
+ *
  * @{
  */
 
@@ -37,6 +39,7 @@
 
 #include "libavutil/attributes.h"
 #include "libavutil/avutil.h"
+#include "libavutil/buffer.h"
 #include "libavutil/dict.h"
 #include "libavutil/frame.h"
 #include "libavutil/log.h"
@@ -349,6 +352,22 @@ struct AVFilterContext {
     void *enable;                   ///< parsed expression (AVExpr*)
     double *var_values;             ///< variable values for the enable expression
     int is_disabled;                ///< the enabled state from the last expression evaluation
+
+    /**
+     * For filters which will create hardware frames, sets the device the
+     * filter should create them in.  All other filters will ignore this field:
+     * in particular, a filter which consumes or processes hardware frames will
+     * instead use the hw_frames_ctx field in AVFilterLink to carry the
+     * hardware context information.
+     */
+    AVBufferRef *hw_device_ctx;
+
+    /**
+     * Max number of threads allowed in this filter instance.
+     * If <= 0, its value is ignored.
+     * Overrides global number of threads set per filter graph.
+     */
+    int nb_threads;
 };
 
 /**
@@ -435,9 +454,15 @@ struct AVFilterLink {
 
     /**
      * Current timestamp of the link, as defined by the most recent
-     * frame(s), in AV_TIME_BASE units.
+     * frame(s), in link time_base units.
      */
     int64_t current_pts;
+
+    /**
+     * Current timestamp of the link, as defined by the most recent
+     * frame(s), in AV_TIME_BASE units.
+     */
+    int64_t current_pts_us;
 
     /**
      * Index in the age array.
@@ -445,11 +470,12 @@ struct AVFilterLink {
     int age_index;
 
     /**
-     * Frame rate of the stream on the link, or 1/0 if unknown;
-     * if left to 0/0, will be automatically be copied from the first input
+     * Frame rate of the stream on the link, or 1/0 if unknown or variable;
+     * if left to 0/0, will be automatically copied from the first input
      * of the source filter if it exists.
      *
      * Sources should set it to the best estimation of the real frame rate.
+     * If the source frame rate is unknown or variable, set this to 1/0.
      * Filters should update it if necessary depending on their function.
      * Sinks can use it to set a default output frame rate.
      * It is similar to the r_frame_rate field in AVStream.
@@ -483,16 +509,16 @@ struct AVFilterLink {
     int max_samples;
 
     /**
-     * True if the link is closed.
-     * If set, all attempts of start_frame, filter_frame or request_frame
-     * will fail with AVERROR_EOF, and if necessary the reference will be
-     * destroyed.
-     * If request_frame returns AVERROR_EOF, this flag is set on the
+     * Link status.
+     * If not zero, all attempts of filter_frame or request_frame
+     * will fail with the corresponding code, and if necessary the reference
+     * will be destroyed.
+     * If request_frame returns an error, the status is set on the
      * corresponding link.
      * It can be set also be set by either the source or the destination
      * filter.
      */
-    int closed;
+    int status;
 
     /**
      * Number of channels.
@@ -508,6 +534,31 @@ struct AVFilterLink {
      * Number of past frames sent through the link.
      */
     int64_t frame_count;
+
+    /**
+     * A pointer to a FFVideoFramePool struct.
+     */
+    void *video_frame_pool;
+
+    /**
+     * True if a frame is currently wanted on the input of this filter.
+     * Set when ff_request_frame() is called by the output,
+     * cleared when the request is handled or forwarded.
+     */
+    int frame_wanted_in;
+
+    /**
+     * True if a frame is currently wanted on the output of this filter.
+     * Set when ff_request_frame() is called by the output,
+     * cleared when a frame is filtered.
+     */
+    int frame_wanted_out;
+
+    /**
+     * For hwaccel pixel formats, this should be a reference to the
+     * AVHWFramesContext describing the frames.
+     */
+    AVBufferRef *hw_frames_ctx;
 };
 
 /**
@@ -534,7 +585,10 @@ int avfilter_link_get_channels(AVFilterLink *link);
 
 /**
  * Set the closed field of a link.
+ * @deprecated applications are not supposed to mess with links, they should
+ * close the sinks.
  */
+attribute_deprecated
 void avfilter_link_set_closed(AVFilterLink *link, int closed);
 
 /**

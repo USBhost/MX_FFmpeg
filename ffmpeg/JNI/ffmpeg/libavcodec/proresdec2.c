@@ -180,7 +180,10 @@ static int decode_picture_header(AVCodecContext *avctx, const uint8_t *buf, cons
     else
         ctx->mb_height = (avctx->height + 15) >> 4;
 
-    slice_count = AV_RB16(buf + 5);
+    // QT ignores the written value
+    // slice_count = AV_RB16(buf + 5);
+    slice_count = ctx->mb_height * ((ctx->mb_width >> log2_slice_mb_width) +
+                                    av_popcount(ctx->mb_width & (1 << log2_slice_mb_width) - 1));
 
     if (ctx->slice_count != slice_count || !ctx->slices) {
         av_freep(&ctx->slices);
@@ -575,7 +578,7 @@ static int decode_slice_thread(AVCodecContext *avctx, void *arg, int jobnr, int 
     if (ret < 0)
         return ret;
 
-    if (!(avctx->flags & AV_CODEC_FLAG_GRAY)) {
+    if (!(avctx->flags & AV_CODEC_FLAG_GRAY) && (u_data_size + v_data_size) > 0) {
         ret = decode_slice_chroma(avctx, slice, (uint16_t*)dest_u, chroma_stride,
                                   buf + y_data_size, u_data_size,
                                   qmat_chroma_scaled, log2_chroma_blocks_per_mb);
@@ -588,6 +591,15 @@ static int decode_slice_thread(AVCodecContext *avctx, void *arg, int jobnr, int 
         if (ret < 0)
             return ret;
     }
+    else {
+        size_t mb_max_x = slice->mb_count << (mb_x_shift - 1);
+        for (size_t i = 0; i < 16; ++i)
+            for (size_t j = 0; j < mb_max_x; ++j) {
+                *(uint16_t*)(dest_u + (i * chroma_stride) + (j << 1)) = 511;
+                *(uint16_t*)(dest_v + (i * chroma_stride) + (j << 1)) = 511;
+            }
+    }
+
     /* decode alpha plane if available */
     if (ctx->alpha_info && pic->data[3] && a_data_size)
         decode_slice_alpha(ctx, (uint16_t*)dest_a, luma_stride,

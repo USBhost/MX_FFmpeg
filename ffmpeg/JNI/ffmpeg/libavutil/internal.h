@@ -39,6 +39,7 @@
 #include "timer.h"
 #include "cpu.h"
 #include "dict.h"
+#include "macros.h"
 #include "pixfmt.h"
 #include "version.h"
 
@@ -243,6 +244,7 @@ void avpriv_request_sample(void *avc,
 #endif
 
 #define avpriv_open ff_open
+#define avpriv_tempfile ff_tempfile
 #define PTRDIFF_SPECIFIER "Id"
 #define SIZE_SPECIFIER "Iu"
 #else
@@ -257,10 +259,59 @@ void avpriv_request_sample(void *avc,
 #endif
 
 /**
+ * Clip and convert a double value into the long long amin-amax range.
+ * This function is needed because conversion of floating point to integers when
+ * it does not fit in the integer's representation does not necessarily saturate
+ * correctly (usually converted to a cvttsd2si on x86) which saturates numbers
+ * > INT64_MAX to INT64_MIN. The standard marks such conversions as undefined
+ * behavior, allowing this sort of mathematically bogus conversions. This provides
+ * a safe alternative that is slower obviously but assures safety and better
+ * mathematical behavior.
+ * @param a value to clip
+ * @param amin minimum value of the clip range
+ * @param amax maximum value of the clip range
+ * @return clipped value
+ */
+static av_always_inline av_const int64_t ff_rint64_clip(double a, int64_t amin, int64_t amax)
+{
+    int64_t res;
+#if defined(HAVE_AV_CONFIG_H) && defined(ASSERT_LEVEL) && ASSERT_LEVEL >= 2
+    if (amin > amax) abort();
+#endif
+    // INT64_MAX+1,INT64_MIN are exactly representable as IEEE doubles
+    // do range checks first
+    if (a >=  9223372036854775808.0)
+        return amax;
+    if (a <= -9223372036854775808.0)
+        return amin;
+
+    // safe to call llrint and clip accordingly
+    res = llrint(a);
+    if (res > amax)
+        return amax;
+    if (res < amin)
+        return amin;
+    return res;
+}
+
+/**
  * A wrapper for open() setting O_CLOEXEC.
  */
 av_warn_unused_result
 int avpriv_open(const char *filename, int flags, ...);
+
+/**
+ * Wrapper to work around the lack of mkstemp() on mingw.
+ * Also, tries to create file in /tmp first, if possible.
+ * *prefix can be a character constant; *filename will be allocated internally.
+ * @return file descriptor of opened file (or negative value corresponding to an
+ * AVERROR code on error)
+ * and opened file name in **filename.
+ * @note On very old libcs it is necessary to set a secure umask before
+ *       calling this, av_tempfile() can't call umask itself as it is used in
+ *       libraries and could interfere with the calling application.
+ */
+int avpriv_tempfile(const char *prefix, char **filename, int log_offset, void *log_ctx);
 
 int avpriv_set_systematic_pal2(uint32_t pal[256], enum AVPixelFormat pix_fmt);
 
@@ -278,6 +329,16 @@ static av_always_inline av_const int avpriv_mirror(int x, int w)
 }
 
 void ff_check_pixfmt_descriptors(void);
+
+/**
+ * Set a dictionary value to an ISO-8601 compliant timestamp string.
+ *
+ * @param s AVFormatContext
+ * @param key metadata key
+ * @param timestamp unix timestamp in microseconds
+ * @return <0 on error
+ */
+int avpriv_dict_set_timestamp(AVDictionary **dict, const char *key, int64_t timestamp);
 
 extern const uint8_t ff_reverse[256];
 

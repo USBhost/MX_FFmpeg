@@ -35,10 +35,6 @@
 #include "mpegvideo.h"
 #include "libavutil/eval.h"
 
-#ifndef M_E
-#define M_E 2.718281828
-#endif
-
 static int init_pass2(MpegEncContext *s);
 static double get_qscale(MpegEncContext *s, RateControlEntry *rce,
                          double rate_factor, int frame_num);
@@ -186,8 +182,8 @@ FF_ENABLE_DEPRECATION_WARNINGS
             return AVERROR(ENOMEM);
         rcc->num_entries = i;
 
-        /* init all to skipped p frames
-         * (with b frames we might have a not encoded frame at the end FIXME) */
+        /* init all to skipped P-frames
+         * (with B-frames we might have a not encoded frame at the end FIXME) */
         for (i = 0; i < rcc->num_entries; i++) {
             RateControlEntry *rce = &rcc->entry[i];
 
@@ -207,7 +203,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
 
             next = strchr(p, ';');
             if (next) {
-                (*next) = 0; // sscanf in unbelievably slow on looong strings // FIXME copy / do not write
+                (*next) = 0; // sscanf is unbelievably slow on looong strings // FIXME copy / do not write
                 next++;
             }
             e = sscanf(p, " in:%d ", &picture_number);
@@ -237,8 +233,12 @@ FF_ENABLE_DEPRECATION_WARNINGS
             return -1;
         }
 
+#if FF_API_RC_STRATEGY
+        av_assert0(MPV_RC_STRATEGY_XVID == FF_RC_STRATEGY_XVID);
+#endif
+
         // FIXME maybe move to end
-        if ((s->avctx->flags & AV_CODEC_FLAG_PASS2) && s->rc_strategy == 1) {
+        if ((s->avctx->flags & AV_CODEC_FLAG_PASS2) && s->rc_strategy == MPV_RC_STRATEGY_XVID) {
 #if CONFIG_LIBXVID
             return ff_xvid_rate_control_init(s);
 #else
@@ -318,7 +318,7 @@ av_cold void ff_rate_control_uninit(MpegEncContext *s)
     av_freep(&rcc->entry);
 
 #if CONFIG_LIBXVID
-    if ((s->avctx->flags & AV_CODEC_FLAG_PASS2) && s->rc_strategy == 1)
+    if ((s->avctx->flags & AV_CODEC_FLAG_PASS2) && s->rc_strategy == MPV_RC_STRATEGY_XVID)
         ff_xvid_rate_control_uninit(s);
 #endif
 }
@@ -652,9 +652,9 @@ static void adaptive_quantization(MpegEncContext *s, double q)
         int mb_distance;
         float mb_factor = 0.0;
         if (spat_cplx < 4)
-            spat_cplx = 4;              // FIXME finetune
+            spat_cplx = 4;              // FIXME fine-tune
         if (temp_cplx < 4)
-            temp_cplx = 4;              // FIXME finetune
+            temp_cplx = 4;              // FIXME fine-tune
 
         if ((s->mb_type[mb_xy] & CANDIDATE_MB_TYPE_INTRA)) { // FIXME hq mode
             cplx   = spat_cplx;
@@ -771,7 +771,7 @@ float ff_rate_estimate_qscale(MpegEncContext *s, int dry_run)
     emms_c();
 
 #if CONFIG_LIBXVID
-    if ((s->avctx->flags & AV_CODEC_FLAG_PASS2) && s->rc_strategy == 1)
+    if ((s->avctx->flags & AV_CODEC_FLAG_PASS2) && s->rc_strategy == MPV_RC_STRATEGY_XVID)
         return ff_xvid_rate_estimate_qscale(s, dry_run);
 #endif
 

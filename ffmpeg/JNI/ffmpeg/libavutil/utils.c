@@ -53,7 +53,7 @@ unsigned avutil_version(void)
     av_assert0(((size_t)-1) > 0); // C guarantees this but if false on a platform we care about revert at least b284e1ffe343d6697fb950d1ee517bafda8a9844
 
     if (av_sat_dadd32(1, 2) != 5) {
-        av_log(NULL, AV_LOG_FATAL, "Libavutil has been build with a broken binutils, please upgrade binutils and rebuild\n");
+        av_log(NULL, AV_LOG_FATAL, "Libavutil has been built with a broken binutils, please upgrade binutils and rebuild\n");
         abort();
     }
 
@@ -124,4 +124,17 @@ unsigned av_int_list_length_for_size(unsigned elsize,
 AVRational av_get_time_base_q(void)
 {
     return (AVRational){1, AV_TIME_BASE};
+}
+
+void av_assert0_fpu(void) {
+#if HAVE_MMX_INLINE
+    uint16_t state[14];
+     __asm volatile (
+        "fstenv %0 \n\t"
+        : "+m" (state)
+        :
+        : "memory"
+    );
+    av_assert0((state[4] & 3) == 3);
+#endif
 }

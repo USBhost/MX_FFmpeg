@@ -65,7 +65,7 @@ static inline void smv_img_pnt(uint8_t *dst_data[4], uint8_t *src_data[4],
     for (i = 0; i < planes_nb; i++) {
         int h = height;
         if (i == 1 || i == 2) {
-            h = FF_CEIL_RSHIFT(height, desc->log2_chroma_h);
+            h = AV_CEIL_RSHIFT(height, desc->log2_chroma_h);
         }
         smv_img_pnt_plane(&dst_data[i], src_data[i],
             src_linesizes[i], h, nlines);
@@ -151,6 +151,10 @@ static int smvjpeg_decode_frame(AVCodecContext *avctx, void *data, int *data_siz
     int i, cur_frame = 0, ret = 0;
 
     cur_frame = avpkt->pts % s->frames_per_jpeg;
+
+    /* cur_frame is later used to calculate the buffer offset, so it mustn't be negative */
+    if (cur_frame < 0)
+        cur_frame += s->frames_per_jpeg;
 
     /* Are we at the start of a block? */
     if (!cur_frame) {

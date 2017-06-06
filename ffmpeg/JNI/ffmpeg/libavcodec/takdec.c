@@ -27,13 +27,15 @@
 
 #include "libavutil/internal.h"
 #include "libavutil/samplefmt.h"
-#include "tak.h"
-#include "takdsp.h"
+
+#define BITSTREAM_READER_LE
 #include "audiodsp.h"
 #include "thread.h"
 #include "avcodec.h"
 #include "internal.h"
 #include "unary.h"
+#include "tak.h"
+#include "takdsp.h"
 
 #define MAX_SUBFRAMES     8                         ///< max number of subframes per channel
 #define MAX_PREDICTORS  256
@@ -163,8 +165,17 @@ static int set_bps_params(AVCodecContext *avctx)
 static void set_sample_rate_params(AVCodecContext *avctx)
 {
     TAKDecContext *s  = avctx->priv_data;
-    int shift         = 3 - (avctx->sample_rate / 11025);
-    shift             = FFMAX(0, shift);
+    int shift;
+
+    if (avctx->sample_rate < 11025) {
+        shift = 3;
+    } else if (avctx->sample_rate < 22050) {
+        shift = 2;
+    } else if (avctx->sample_rate < 44100) {
+        shift = 1;
+    } else {
+        shift = 0;
+    }
     s->uval           = FFALIGN(avctx->sample_rate + 511 >> 9, 4) << shift;
     s->subframe_scale = FFALIGN(avctx->sample_rate + 511 >> 9, 4) << 1;
 }
@@ -227,6 +238,7 @@ static void decode_lpc(int32_t *coeffs, int mode, int length)
             int a3  = coeffs[2];
             int a4  = a3 + a1;
             int a5  = a4 + a2;
+            coeffs[2] = a5;
             coeffs += 3;
             for (i = 0; i < length - 3; i++) {
                 a3     += *coeffs;
@@ -621,7 +633,7 @@ static int decorrelate(TAKDecContext *s, int c1, int c2, int length)
         for (; length2 > 0; length2 -= tmp) {
             tmp = FFMIN(length2, x);
 
-            for (i = 0; i < tmp; i++)
+            for (i = 0; i < tmp - (tmp == length2); i++)
                 s->residues[filter_order + i] = *p2++ >> dshift;
 
             for (i = 0; i < tmp; i++) {
@@ -645,7 +657,7 @@ static int decorrelate(TAKDecContext *s, int c1, int c2, int length)
                 *p1++ = v;
             }
 
-            memcpy(s->residues, &s->residues[tmp], 2 * filter_order);
+            memmove(s->residues, &s->residues[tmp], 2 * filter_order);
         }
 
         emms_c();

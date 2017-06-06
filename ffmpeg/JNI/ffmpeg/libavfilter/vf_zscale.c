@@ -88,6 +88,12 @@ typedef struct ZScaleContext {
     int trc;
     int primaries;
     int range;
+    int chromal;
+    int colorspace_in;
+    int trc_in;
+    int primaries_in;
+    int range_in;
+    int chromal_in;
     char *size_str;
 
     char *w_expr;               ///< width  expression string
@@ -112,6 +118,7 @@ typedef struct ZScaleContext {
     enum AVColorTransferCharacteristic in_trc, out_trc;
     enum AVColorPrimaries in_primaries, out_primaries;
     enum AVColorRange in_range, out_range;
+    enum AVChromaLocation in_chromal, out_chromal;
 } ZScaleContext;
 
 static av_cold int init_dict(AVFilterContext *ctx, AVDictionary **opts)
@@ -312,6 +319,26 @@ static int print_zimg_error(AVFilterContext *ctx)
     return err_code;
 }
 
+static int convert_chroma_location(enum AVChromaLocation chroma_location)
+{
+    switch (chroma_location) {
+    case AVCHROMA_LOC_UNSPECIFIED:
+    case AVCHROMA_LOC_LEFT:
+        return ZIMG_CHROMA_LEFT;
+    case AVCHROMA_LOC_CENTER:
+        return ZIMG_CHROMA_CENTER;
+    case AVCHROMA_LOC_TOPLEFT:
+        return ZIMG_CHROMA_TOP_LEFT;
+    case AVCHROMA_LOC_TOP:
+        return ZIMG_CHROMA_TOP;
+    case AVCHROMA_LOC_BOTTOMLEFT:
+        return ZIMG_CHROMA_BOTTOM_LEFT;
+    case AVCHROMA_LOC_BOTTOM:
+        return ZIMG_CHROMA_BOTTOM;
+    }
+    return ZIMG_CHROMA_LEFT;
+}
+
 static int convert_matrix(enum AVColorSpace colorspace)
 {
     switch (colorspace) {
@@ -416,7 +443,9 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
        || s->out_colorspace != out->colorspace
        || s->out_trc  != out->color_trc
        || s->out_primaries != out->color_primaries
-       || s->out_range != out->color_range) {
+       || s->out_range != out->color_range
+       || s->in_chromal != in->chroma_location
+       || s->out_chromal != out->chroma_location) {
         snprintf(buf, sizeof(buf)-1, "%d", outlink->w);
         av_opt_set(s, "w", buf, 0);
         snprintf(buf, sizeof(buf)-1, "%d", outlink->h);
@@ -448,10 +477,11 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         s->src_format.depth = desc->comp[0].depth;
         s->src_format.pixel_type = desc->comp[0].depth > 8 ? ZIMG_PIXEL_WORD : ZIMG_PIXEL_BYTE;
         s->src_format.color_family = (desc->flags & AV_PIX_FMT_FLAG_RGB) ? ZIMG_COLOR_RGB : ZIMG_COLOR_YUV;
-        s->src_format.matrix_coefficients = (desc->flags & AV_PIX_FMT_FLAG_RGB) ? ZIMG_MATRIX_RGB : convert_matrix(in->colorspace);
-        s->src_format.transfer_characteristics = (desc->flags & AV_PIX_FMT_FLAG_RGB) ? ZIMG_TRANSFER_UNSPECIFIED : convert_trc(in->color_trc);
-        s->src_format.color_primaries = (desc->flags & AV_PIX_FMT_FLAG_RGB) ? ZIMG_PRIMARIES_UNSPECIFIED : convert_primaries(in->color_primaries);
-        s->src_format.pixel_range = (desc->flags & AV_PIX_FMT_FLAG_RGB) ? ZIMG_RANGE_FULL : convert_range(in->color_range);
+        s->src_format.matrix_coefficients = (desc->flags & AV_PIX_FMT_FLAG_RGB) ? ZIMG_MATRIX_RGB : s->colorspace_in == -1 ? convert_matrix(in->colorspace) : s->colorspace_in;
+        s->src_format.transfer_characteristics = s->trc_in == - 1 ? convert_trc(in->color_trc) : s->trc_in;
+        s->src_format.color_primaries = s->primaries_in == -1 ? convert_primaries(in->color_primaries) : s->primaries_in;
+        s->src_format.pixel_range = (desc->flags & AV_PIX_FMT_FLAG_RGB) ? ZIMG_RANGE_FULL : s->range_in == -1 ? convert_range(in->color_range) : s->range_in;
+        s->src_format.chroma_location = s->chromal_in == -1 ? convert_chroma_location(in->chroma_location) : s->chromal_in;
 
         s->dst_format.width = out->width;
         s->dst_format.height = out->height;
@@ -461,9 +491,10 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         s->dst_format.pixel_type = odesc->comp[0].depth > 8 ? ZIMG_PIXEL_WORD : ZIMG_PIXEL_BYTE;
         s->dst_format.color_family = (odesc->flags & AV_PIX_FMT_FLAG_RGB) ? ZIMG_COLOR_RGB : ZIMG_COLOR_YUV;
         s->dst_format.matrix_coefficients = (odesc->flags & AV_PIX_FMT_FLAG_RGB) ? ZIMG_MATRIX_RGB : s->colorspace == -1 ? convert_matrix(out->colorspace) : s->colorspace;
-        s->dst_format.transfer_characteristics = (odesc->flags & AV_PIX_FMT_FLAG_RGB) ? ZIMG_TRANSFER_UNSPECIFIED : s->trc == -1 ? convert_trc(out->color_trc) : s->trc;
-        s->dst_format.color_primaries = (odesc->flags & AV_PIX_FMT_FLAG_RGB) ? ZIMG_PRIMARIES_UNSPECIFIED : s->primaries == -1 ? convert_primaries(out->color_primaries) : s->primaries;
+        s->dst_format.transfer_characteristics = s->trc == -1 ? convert_trc(out->color_trc) : s->trc;
+        s->dst_format.color_primaries = s->primaries == -1 ? convert_primaries(out->color_primaries) : s->primaries;
         s->dst_format.pixel_range = (odesc->flags & AV_PIX_FMT_FLAG_RGB) ? ZIMG_RANGE_FULL : s->range == -1 ? convert_range(out->color_range) : s->range;
+        s->dst_format.chroma_location = s->chromal == -1 ? convert_chroma_location(out->chroma_location) : s->chromal;
 
         if (s->colorspace != -1)
             out->colorspace = (int)s->dst_format.matrix_coefficients;
@@ -476,6 +507,9 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
         if (s->trc != -1)
             out->color_trc = (int)s->dst_format.transfer_characteristics;
+
+        if (s->chromal != -1)
+            out->chroma_location = (int)s->dst_format.chroma_location - 1;
 
         zimg_filter_graph_free(s->graph);
         s->graph = zimg_filter_graph_build(&s->src_format, &s->dst_format, &s->params);
@@ -693,6 +727,25 @@ static const AVOption zscale_options[] = {
     {     "ycgco",            0,       0,                 AV_OPT_TYPE_CONST, {.i64 = ZIMG_MATRIX_YCGCO},       0, 0, FLAGS, "matrix" },
     {     "2020_ncl",         0,       0,                 AV_OPT_TYPE_CONST, {.i64 = ZIMG_MATRIX_2020_NCL},    0, 0, FLAGS, "matrix" },
     {     "2020_cl",          0,       0,                 AV_OPT_TYPE_CONST, {.i64 = ZIMG_MATRIX_2020_CL},     0, 0, FLAGS, "matrix" },
+    { "rangein", "set input color range", OFFSET(range_in),     AV_OPT_TYPE_INT, {.i64 = -1}, -1, ZIMG_RANGE_FULL, FLAGS, "range" },
+    { "rin",     "set input color range", OFFSET(range_in),     AV_OPT_TYPE_INT, {.i64 = -1}, -1, ZIMG_RANGE_FULL, FLAGS, "range" },
+    { "primariesin", "set input color primaries", OFFSET(primaries_in), AV_OPT_TYPE_INT, {.i64 = -1}, -1, ZIMG_PRIMARIES_2020, FLAGS, "primaries" },
+    { "pin",         "set input color primaries", OFFSET(primaries_in), AV_OPT_TYPE_INT, {.i64 = -1}, -1, ZIMG_PRIMARIES_2020, FLAGS, "primaries" },
+    { "transferin", "set input transfer characteristic", OFFSET(trc_in), AV_OPT_TYPE_INT, {.i64 = -1}, -1, ZIMG_TRANSFER_2020_12, FLAGS, "transfer" },
+    { "tin",        "set input transfer characteristic", OFFSET(trc_in), AV_OPT_TYPE_INT, {.i64 = -1}, -1, ZIMG_TRANSFER_2020_12, FLAGS, "transfer" },
+    { "matrixin", "set input colorspace matrix", OFFSET(colorspace_in), AV_OPT_TYPE_INT, {.i64 = -1}, -1, ZIMG_MATRIX_2020_CL, FLAGS, "matrix" },
+    { "min",      "set input colorspace matrix", OFFSET(colorspace_in), AV_OPT_TYPE_INT, {.i64 = -1}, -1, ZIMG_MATRIX_2020_CL, FLAGS, "matrix" },
+    { "chromal",  "set output chroma location", OFFSET(chromal), AV_OPT_TYPE_INT, {.i64 = -1}, -1, ZIMG_CHROMA_BOTTOM, FLAGS, "chroma" },
+    { "c",        "set output chroma location", OFFSET(chromal), AV_OPT_TYPE_INT, {.i64 = -1}, -1, ZIMG_CHROMA_BOTTOM, FLAGS, "chroma" },
+    {     "input",     0, 0, AV_OPT_TYPE_CONST, {.i64 = -1},                       0, 0, FLAGS, "chroma" },
+    {     "left",      0, 0, AV_OPT_TYPE_CONST, {.i64 = ZIMG_CHROMA_LEFT},         0, 0, FLAGS, "chroma" },
+    {     "center",    0, 0, AV_OPT_TYPE_CONST, {.i64 = ZIMG_CHROMA_CENTER},       0, 0, FLAGS, "chroma" },
+    {     "topleft",   0, 0, AV_OPT_TYPE_CONST, {.i64 = ZIMG_CHROMA_TOP_LEFT},     0, 0, FLAGS, "chroma" },
+    {     "top",       0, 0, AV_OPT_TYPE_CONST, {.i64 = ZIMG_CHROMA_TOP},          0, 0, FLAGS, "chroma" },
+    {     "bottomleft",0, 0, AV_OPT_TYPE_CONST, {.i64 = ZIMG_CHROMA_BOTTOM_LEFT},  0, 0, FLAGS, "chroma" },
+    {     "bottom",    0, 0, AV_OPT_TYPE_CONST, {.i64 = ZIMG_CHROMA_BOTTOM},       0, 0, FLAGS, "chroma" },
+    { "chromalin",  "set input chroma location", OFFSET(chromal_in), AV_OPT_TYPE_INT, {.i64 = -1}, -1, ZIMG_CHROMA_BOTTOM, FLAGS, "chroma" },
+    { "cin",        "set input chroma location", OFFSET(chromal_in), AV_OPT_TYPE_INT, {.i64 = -1}, -1, ZIMG_CHROMA_BOTTOM, FLAGS, "chroma" },
     { NULL }
 };
 

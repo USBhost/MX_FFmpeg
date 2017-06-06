@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef FFMPEG_CMDUTILS_H
-#define FFMPEG_CMDUTILS_H
+#ifndef CMDUTILS_H
+#define CMDUTILS_H
 
 #include <stdint.h>
 
@@ -60,6 +60,11 @@ void register_exit(void (*cb)(int ret));
  * Wraps exit with a program-specific cleanup routine.
  */
 void exit_program(int ret) av_noreturn;
+
+/**
+ * Initialize dynamic library loading
+ */
+void init_dynload(void);
 
 /**
  * Initialize the cmdutils option system, in particular
@@ -445,13 +450,13 @@ int show_devices(void *optctx, const char *opt, const char *arg);
 
 #if CONFIG_AVDEVICE
 /**
- * Print a listing containing audodetected sinks of the output device.
+ * Print a listing containing autodetected sinks of the output device.
  * Device name with options may be passed as an argument to limit results.
  */
 int show_sinks(void *optctx, const char *opt, const char *arg);
 
 /**
- * Print a listing containing audodetected sources of the input device.
+ * Print a listing containing autodetected sources of the input device.
  * Device name with options may be passed as an argument to limit results.
  */
 int show_sources(void *optctx, const char *opt, const char *arg);

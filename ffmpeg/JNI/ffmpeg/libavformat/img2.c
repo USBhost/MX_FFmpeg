@@ -45,7 +45,6 @@ const IdStrMap ff_img_tags[] = {
     { AV_CODEC_ID_MPEG1VIDEO, "mpg1-img" },
     { AV_CODEC_ID_MPEG2VIDEO, "mpg2-img" },
     { AV_CODEC_ID_MPEG4,      "mpg4-img" },
-    { AV_CODEC_ID_FFV1,       "ffv1-img" },
     { AV_CODEC_ID_RAWVIDEO,   "y"        },
     { AV_CODEC_ID_RAWVIDEO,   "raw"      },
     { AV_CODEC_ID_BMP,        "bmp"      },
@@ -81,7 +80,7 @@ const IdStrMap ff_img_tags[] = {
     { AV_CODEC_ID_NONE,       NULL       }
 };
 
-static enum AVCodecID av_str2id(const IdStrMap *tags, const char *str)
+static enum AVCodecID str2id(const IdStrMap *tags, const char *str)
 {
     str = strrchr(str, '.');
     if (!str)
@@ -99,5 +98,5 @@ static enum AVCodecID av_str2id(const IdStrMap *tags, const char *str)
 
 enum AVCodecID ff_guess_image2_codec(const char *filename)
 {
-    return av_str2id(ff_img_tags, filename);
+    return str2id(ff_img_tags, filename);
 }

@@ -113,7 +113,7 @@ static int udp_join_multicast_group(int sockfd, struct sockaddr *addr)
         struct ip_mreq mreq;
 
         mreq.imr_multiaddr.s_addr = ((struct sockaddr_in *)addr)->sin_addr.s_addr;
-        mreq.imr_interface.s_addr= INADDR_ANY;
+            mreq.imr_interface.s_addr= INADDR_ANY;
         if (setsockopt(sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const void *)&mreq, sizeof(mreq)) < 0) {
             log_net_error(NULL, AV_LOG_ERROR, "setsockopt(IP_ADD_MEMBERSHIP)");
             return -1;
@@ -142,7 +142,7 @@ static int udp_leave_multicast_group(int sockfd, struct sockaddr *addr)
         struct ip_mreq mreq;
 
         mreq.imr_multiaddr.s_addr = ((struct sockaddr_in *)addr)->sin_addr.s_addr;
-        mreq.imr_interface.s_addr= INADDR_ANY;
+            mreq.imr_interface.s_addr= INADDR_ANY;
         if (setsockopt(sockfd, IPPROTO_IP, IP_DROP_MEMBERSHIP, (const void *)&mreq, sizeof(mreq)) < 0) {
             log_net_error(NULL, AV_LOG_ERROR, "setsockopt(IP_DROP_MEMBERSHIP)");
             return -1;
@@ -354,9 +354,9 @@ static void *circular_buffer_task( void *_URLContext)
         if (ret < 0) {
             if (ff_neterrno() == AVERROR(EINTR))
                 continue;
-            s->circular_buffer_error = AVERROR(EIO);
-            goto end;
-        }
+        s->circular_buffer_error = AVERROR(EIO);
+        goto end;
+    }
 
         if (!(ret > 0 && FD_ISSET(s->udp_fd, &rfds)))
             continue;
@@ -391,7 +391,7 @@ static void *circular_buffer_task( void *_URLContext)
         pthread_mutex_lock(&s->mutex);
         av_fifo_generic_write(s->fifo, s->tmp, len+4, NULL);
         pthread_cond_signal(&s->cond);
-        pthread_mutex_unlock(&s->mutex);
+                    pthread_mutex_unlock(&s->mutex);
     }
 
 end:
@@ -522,7 +522,7 @@ static int udp_open(URLContext *h, const char *uri, int flags)
         if (h->flags & AVIO_FLAG_READ) {
             /* input */
             if (udp_join_multicast_group(udp_fd, (struct sockaddr *)&s->dest_addr) < 0)
-                goto fail;
+                    goto fail;
         }
     }
 
@@ -678,8 +678,8 @@ static int udp_close(URLContext *h)
             av_log(h, AV_LOG_ERROR, "pthread_join(): %s\n", strerror(ret));
     }
 
-    pthread_mutex_destroy(&s->mutex);
-    pthread_cond_destroy(&s->cond);
+        pthread_mutex_destroy(&s->mutex);
+        pthread_cond_destroy(&s->cond);
 #endif
     return 0;
 }

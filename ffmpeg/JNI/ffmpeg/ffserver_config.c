@@ -323,6 +323,8 @@ done:
     av_dict_free(&recommended);
     av_stream_set_recommended_encoder_configuration(st, enc_config);
     st->codec = av;
+    st->codecpar = avcodec_parameters_alloc();
+    avcodec_parameters_from_context(st->codecpar, av);
     stream->streams[stream->nb_streams++] = st;
 }
 
@@ -1138,6 +1140,8 @@ static int ffserver_parse_config_stream(FFServerConfig *config, const char *cmd,
         av_dict_free(&config->audio_opts);
         avcodec_free_context(&config->dummy_vctx);
         avcodec_free_context(&config->dummy_actx);
+        config->no_video = 0;
+        config->no_audio = 0;
         *pstream = NULL;
     } else if (!av_strcasecmp(cmd, "File") ||
                !av_strcasecmp(cmd, "ReadOnlyFile")) {
