@@ -17,8 +17,7 @@ die(){
     exit 1
 }
 
-CPU_CORE="$(cat /proc/cpuinfo | grep -c processor)"
-NDK=~/android-ndk-r14b
+. ENV # Environment
 
 # if [ $1 == 'tegra3' ]
 # then

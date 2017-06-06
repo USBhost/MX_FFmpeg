@@ -1,4 +1,7 @@
-#!/bin/bash 
+#!/bin/bash
+
+. ENV # Environment
+
 ROOT=$(cd "$(dirname "$0")"; pwd)
 source ${ROOT}/util.sh
 
