@@ -27,7 +27,6 @@
 
 const AVCodecTag ff_nut_subtitle_tags[] = {
     { AV_CODEC_ID_TEXT,             MKTAG('U', 'T', 'F', '8') },
-    { AV_CODEC_ID_SSA,              MKTAG('S', 'S', 'A',  0 ) },
     { AV_CODEC_ID_DVD_SUBTITLE,     MKTAG('D', 'V', 'D', 'S') },
     { AV_CODEC_ID_DVB_SUBTITLE,     MKTAG('D', 'V', 'B', 'S') },
     { AV_CODEC_ID_DVB_TELETEXT,     MKTAG('D', 'V', 'B', 'T') },
@@ -88,6 +87,12 @@ const AVCodecTag ff_nut_video_tags[] = {
     { AV_CODEC_ID_RAWVIDEO,         MKTAG('B', 'R', 'A', 64 ) },
     { AV_CODEC_ID_RAWVIDEO,         MKTAG(64 , 'R', 'B', 'A') },
     { AV_CODEC_ID_RAWVIDEO,         MKTAG(64 , 'B', 'R', 'A') },
+    { AV_CODEC_ID_RAWVIDEO,         MKTAG('Y', '3', 11 ,  9 ) },
+    { AV_CODEC_ID_RAWVIDEO,         MKTAG( 9 , 11 , '3', 'Y') },
+    { AV_CODEC_ID_RAWVIDEO,         MKTAG('Y', '3', 10 ,  9 ) },
+    { AV_CODEC_ID_RAWVIDEO,         MKTAG( 9 , 10 , '3', 'Y') },
+    { AV_CODEC_ID_RAWVIDEO,         MKTAG('Y', '3',  0 ,  9 ) },
+    { AV_CODEC_ID_RAWVIDEO,         MKTAG( 9 ,  0 , '3', 'Y') },
     { AV_CODEC_ID_RAWVIDEO,         MKTAG('Y', '3', 11 , 10 ) },
     { AV_CODEC_ID_RAWVIDEO,         MKTAG(10 , 11 , '3', 'Y') },
     { AV_CODEC_ID_RAWVIDEO,         MKTAG('Y', '3', 10 , 10 ) },
@@ -159,8 +164,19 @@ const AVCodecTag ff_nut_video_tags[] = {
     { AV_CODEC_ID_RAWVIDEO,         MKTAG('G', '3',   0,  16) },
     { AV_CODEC_ID_RAWVIDEO,         MKTAG(16,    0, '3', 'G') },
 
+    { AV_CODEC_ID_RAWVIDEO,         MKTAG('G', '4',   0,   8) },
+
+    { AV_CODEC_ID_RAWVIDEO,         MKTAG('G', '4', 00 , 10 ) },
+    { AV_CODEC_ID_RAWVIDEO,         MKTAG(10 , 00 , '4', 'G') },
+    { AV_CODEC_ID_RAWVIDEO,         MKTAG('G', '4', 00 , 12 ) },
+    { AV_CODEC_ID_RAWVIDEO,         MKTAG(12 , 00 , '4', 'G') },
+    { AV_CODEC_ID_RAWVIDEO,         MKTAG('G', '4', 00 , 16 ) },
+    { AV_CODEC_ID_RAWVIDEO,         MKTAG(16 , 00 , '4', 'G') },
+
     { AV_CODEC_ID_RAWVIDEO,         MKTAG('X', 'Y', 'Z' , 36 ) },
     { AV_CODEC_ID_RAWVIDEO,         MKTAG(36 , 'Z' , 'Y', 'X') },
+
+    { AV_CODEC_ID_RAWVIDEO,         MKTAG('P', 'A', 'L', 8 ) },
 
     { AV_CODEC_ID_RAWVIDEO, MKTAG(0xBA, 'B', 'G', 8   ) },
     { AV_CODEC_ID_RAWVIDEO, MKTAG(0xBA, 'B', 'G', 16  ) },
@@ -282,8 +298,10 @@ static int enu_free(void *opaque, void *elem)
 
 void ff_nut_free_sp(NUTContext *nut)
 {
-    av_tree_enumerate(nut->syncpoints, NULL, NULL, enu_free);
-    av_tree_destroy(nut->syncpoints);
+    if (nut->syncpoints) {
+        av_tree_enumerate(nut->syncpoints, NULL, NULL, enu_free);
+        av_tree_destroy(nut->syncpoints);
+    }
 }
 
 const Dispositions ff_nut_dispositions[] = {

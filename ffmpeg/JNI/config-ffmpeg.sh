@@ -14,11 +14,16 @@ function probe_host_platform(){
     esac
     echo $host_platform;
 }
-      
+
 HOST_PLATFORM=$(probe_host_platform)
 
+# gcc 4.9로는 일부 4.2, 4.3대 x86 장비에서 crash되는 것으로 추측되어 4.8로 내린다.
+# --> NDK r13b에서 수정됨.
 GCC_VER=4.9
-CLANG_VER=
+
+# NDKr12b에서의 Inline assembly 문제등으로 사용하지 않음.
+# --> NDK r13b에서 수정됨.
+CLANG_VER=3.8
 
 case $1 in
 	arm64)
@@ -40,10 +45,14 @@ case $1 in
 		;;
 
 	tegra3)
+		# Unset CLANG_VER to use GCC
+		CLANG_VER=
+
 		ARCH=arm
 		CPU=armv7-a
 		LIB_MX="../libs/armeabi-v7a/neon"
 		EXTRA_CFLAGS="-mfloat-abi=softfp -mfpu=neon -mtune=cortex-a8 -mno-unaligned-access"
+
 		EXTRA_LDFLAGS="-Wl,--fix-cortex-a8"
 		EXTRA_PARAMETERS="--disable-fast-unaligned"
 
@@ -90,15 +99,23 @@ case $1 in
 
 #	x86_64)
 #		ARCH=x86_64
+#		CPU=atom
 #		LIB_MX="../libs/x86_64"
 #		EXTRA_CFLAGS="-mtune=atom -msse3 -mssse3 -mfpmath=sse"
 #		;;
 
+# pic는 동작하지 않으며, Android toolchain에도 누락되어있다.
+# 아래 링크에 몇가지 빌드 옵션이 있으나, Atom이 아닌 경우 돌아가지 않을 수 있어 사용하지 않는다.
+# 특히 CPU를 atom으로 주는 경우 emulator에서도 돌아가지 않는다.
+# https://software.intel.com/en-us/android/blogs/2013/12/06/building-ffmpeg-for-android-on-x86
 	x86)
 		ARCH=x86
 		CPU=atom
 		LIB_MX="../libs/x86"
 		EXTRA_CFLAGS="-mtune=atom -msse3 -mssse3 -mfpmath=sse"
+
+# 실제로는 sse4.2까지도 내부적으로 cpu feature에 따라 다른 코드를 실행하는 방식으로 지원된다.
+#		EXTRA_PARAMETERS="--disable-sse4"
 		;;
 
 #	x86_sse2)
@@ -122,7 +139,7 @@ case $1 in
 		exit
 esac
 
-INC_OPENSSL=../openssl-1.0.1g/include
+INC_OPENSSL=../openssl-1.0.2j/include
 INC_OPUS=../opus-1.1/include
 INC_SPEEX=../speex-1.2rc1/include
 INC_ZVBI=../zvbi-0.2.35/src
@@ -144,12 +161,22 @@ then
 	fi
 
 	OPTFLAGS="-O2"
-	APP_PLATFORM=android-19
+	APP_PLATFORM=android-16
 	LINK_AGAINST=16-arm
 #elif [ $ARCH == 'x86_64' ] 
 #then
-#	CROSS_PREFIX=$NDK/toolchains/x86_64-$GCC_VER/prebuilt/$HOST_PLATFORM/bin/x86_64-linux-android-
+#    FFMPEG_CONFIGURATION="--disable-mmx --disable-mmxext --disable-inline-asm"
+#	TOOLCHAIN=$NDK/toolchains/x86_64-$GCC_VER/prebuilt/$HOST_PLATFORM
+#	CROSS_PREFIX=$TOOLCHAIN/bin/x86_64-linux-android-
+#
 #	EXTRA_CFLAGS+=" -fstrict-aliasing"
+#
+#	if [ -n "${CLANG_VER}" ]
+#	then
+#		CLANG_TARGET=x86_64-none-linux-android
+#		EXTRA_CFLAGS+=" -fstack-protector-strong "
+#	fi
+#
 #	OPTFLAGS="-O2 -fpic"
 #	APP_PLATFORM=android-21
 #	LINK_AGAINST=21-x86_64
@@ -168,7 +195,7 @@ then
 	fi
 
 	OPTFLAGS="-O2 -fpic"
-	APP_PLATFORM=android-19
+	APP_PLATFORM=android-16
 	LINK_AGAINST=16-x86
 #elif [ $ARCH == 'mips' ] 
 #then
@@ -221,7 +248,6 @@ ${FFMPEG_CONFIGURATION} \
 --enable-filter=yadif \
 --enable-filter=w3fdif \
 --disable-protocol=bluray \
---disable-protocol=crypto \
 --disable-protocol=data \
 --disable-protocol=gopher \
 --disable-protocol=md5 \
@@ -272,7 +298,7 @@ ${FFMPEG_CONFIGURATION} \
 --enable-cross-compile \
 --sysroot=$NDK/platforms/$APP_PLATFORM/arch-$ARCH \
 --target-os=linux \
---extra-cflags="-I$INC_ICONV -I$INC_ZVBI -I$INC_OPENSSL -I$INC_OPUS -I$INC_SPEEX -I$INC_MODPLUG -DNDEBUG -DMXTECHS -DFF_API_AVPICTURE=0 -ftree-vectorize -ffunction-sections -funwind-tables -fomit-frame-pointer $EXTRA_CFLAGS -no-canonical-prefixes -pipe" \
+--extra-cflags="-I$INC_ICONV -I$INC_ZVBI -I$INC_OPENSSL -I$INC_OPUS -I$INC_SPEEX -I$INC_MODPLUG -DNDEBUG -DMXTECHS -DFF_API_AVPICTURE=1 -ftree-vectorize -ffunction-sections -funwind-tables -fomit-frame-pointer $EXTRA_CFLAGS -no-canonical-prefixes -pipe" \
 --extra-libs="-L$LIB_MX -L../libs/android/$LINK_AGAINST -lmxutil -lm" \
 --extra-ldflags="$EXTRA_LDFLAGS" \
 --optflags="$OPTFLAGS" \

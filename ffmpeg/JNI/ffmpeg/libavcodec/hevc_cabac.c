@@ -831,11 +831,13 @@ static av_always_inline int mvd_decode(HEVCContext *s)
     int k = 1;
 
     while (k < CABAC_MAX_BIN && get_cabac_bypass(&s->HEVClc->cc)) {
-        ret += 1 << k;
+        ret += 1U << k;
         k++;
     }
-    if (k == CABAC_MAX_BIN)
+    if (k == CABAC_MAX_BIN) {
         av_log(s->avctx, AV_LOG_ERROR, "CABAC_MAX_BIN : %d\n", k);
+        return 0;
+    }
     while (k--)
         ret += get_cabac_bypass(&s->HEVClc->cc) << k;
     return get_cabac_bypass_sign(&s->HEVClc->cc, -ret);
@@ -973,8 +975,10 @@ static av_always_inline int coeff_abs_level_remaining_decode(HEVCContext *s, int
 
     while (prefix < CABAC_MAX_BIN && get_cabac_bypass(&s->HEVClc->cc))
         prefix++;
-    if (prefix == CABAC_MAX_BIN)
+    if (prefix == CABAC_MAX_BIN) {
         av_log(s->avctx, AV_LOG_ERROR, "CABAC_MAX_BIN : %d\n", prefix);
+        return 0;
+    }
     if (prefix < 3) {
         for (i = 0; i < rc_rice_param; i++)
             suffix = (suffix << 1) | get_cabac_bypass(&s->HEVClc->cc);
@@ -1035,7 +1039,7 @@ void ff_hevc_hls_residual_coding(HEVCContext *s, int x0, int y0,
     int trafo_size = 1 << log2_trafo_size;
     int i;
     int qp,shift,add,scale,scale_m;
-    const uint8_t level_scale[] = { 40, 45, 51, 57, 64, 72 };
+    static const uint8_t level_scale[] = { 40, 45, 51, 57, 64, 72 };
     const uint8_t *scale_matrix = NULL;
     uint8_t dc_scale;
     int pred_mode_intra = (c_idx == 0) ? lc->tu.intra_pred_mode :

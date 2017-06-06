@@ -40,10 +40,14 @@
 
 #include "libavutil/frame.h"
 
+#include "avcodec.h"
+
 #define QSV_VERSION_MAJOR 1
 #define QSV_VERSION_MINOR 9
 
 #define ASYNC_DEPTH_DEFAULT 4       // internal parallelism
+
+#define QSV_MAX_ENC_PAYLOAD 2       // # of mfxEncodeCtrl payloads supported
 
 #define QSV_VERSION_ATLEAST(MAJOR, MINOR)   \
     (MFX_VERSION_MAJOR > (MAJOR) ||         \
@@ -52,6 +56,7 @@
 typedef struct QSVFrame {
     AVFrame *frame;
     mfxFrameSurface1 *surface;
+    mfxEncodeCtrl enc_ctrl;
 
     mfxFrameSurface1 surface_internal;
 

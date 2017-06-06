@@ -41,9 +41,20 @@ unsigned ff_dxva2_get_surface_index(const AVCodecContext *avctx,
     void *surface = ff_dxva2_get_surface(frame);
     unsigned i;
 
-    for (i = 0; i < DXVA_CONTEXT_COUNT(avctx, ctx); i++)
-        if (DXVA_CONTEXT_SURFACE(avctx, ctx, i) == surface)
+    for (i = 0; i < DXVA_CONTEXT_COUNT(avctx, ctx); i++) {
+#if CONFIG_D3D11VA
+        if (avctx->pix_fmt == AV_PIX_FMT_D3D11VA_VLD && ctx->d3d11va.surface[i] == surface)
+        {
+            D3D11_VIDEO_DECODER_OUTPUT_VIEW_DESC viewDesc;
+            ID3D11VideoDecoderOutputView_GetDesc(ctx->d3d11va.surface[i], &viewDesc);
+            return viewDesc.Texture2D.ArraySlice;
+        }
+#endif
+#if CONFIG_DXVA2
+        if (avctx->pix_fmt == AV_PIX_FMT_DXVA2_VLD && ctx->dxva2.surface[i] == surface)
             return i;
+#endif
+    }
 
     assert(0);
     return 0;
@@ -158,9 +169,15 @@ int ff_dxva2_common_end_frame(AVCodecContext *avctx, AVFrame *frame,
                                                  ff_dxva2_get_surface(frame),
                                                  NULL);
 #endif
-        if (hr == E_PENDING)
-            av_usleep(2000);
-    } while (hr == E_PENDING && ++runs < 50);
+        if (hr != E_PENDING || ++runs > 50)
+            break;
+#if CONFIG_D3D11VA
+        if (avctx->pix_fmt == AV_PIX_FMT_D3D11VA_VLD)
+            if (D3D11VA_CONTEXT(ctx)->context_mutex != INVALID_HANDLE_VALUE)
+                ReleaseMutex(D3D11VA_CONTEXT(ctx)->context_mutex);
+#endif
+        av_usleep(2000);
+    } while(1);
 
     if (FAILED(hr)) {
         av_log(avctx, AV_LOG_ERROR, "Failed to begin frame: 0x%lx\n", hr);

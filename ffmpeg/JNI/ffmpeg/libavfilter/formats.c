@@ -289,6 +289,17 @@ AVFilterFormats *ff_make_format_list(const int *fmts)
     return formats;
 }
 
+AVFilterChannelLayouts *ff_make_formatu64_list(const uint64_t *fmts)
+{
+    MAKE_FORMAT_LIST(AVFilterChannelLayouts,
+                     channel_layouts, nb_channel_layouts);
+    if (count)
+        memcpy(formats->channel_layouts, fmts,
+               sizeof(*formats->channel_layouts) * count);
+
+    return formats;
+}
+
 AVFilterChannelLayouts *avfilter_make_format64_list(const int64_t *fmts)
 {
     MAKE_FORMAT_LIST(AVFilterChannelLayouts,
@@ -445,7 +456,7 @@ do {                                        \
 do {                                                               \
     int idx = -1;                                                  \
                                                                    \
-    if (!*ref)                                                     \
+    if (!*ref || !(*ref)->refs)                                    \
         return;                                                    \
                                                                    \
     FIND_REF_INDEX(ref, idx);                                      \
@@ -507,6 +518,8 @@ void ff_formats_changeref(AVFilterFormats **oldref, AVFilterFormats **newref)
             int ret = ref_fn(fmts, &ctx->inputs[i]->out_fmts);      \
             if (ret < 0) {                                          \
                 unref_fn(&fmts);                                    \
+                av_freep(&fmts->list);                              \
+                av_freep(&fmts);                                    \
                 return ret;                                         \
             }                                                       \
             count++;                                                \
@@ -517,6 +530,8 @@ void ff_formats_changeref(AVFilterFormats **oldref, AVFilterFormats **newref)
             int ret = ref_fn(fmts, &ctx->outputs[i]->in_fmts);      \
             if (ret < 0) {                                          \
                 unref_fn(&fmts);                                    \
+                av_freep(&fmts->list);                              \
+                av_freep(&fmts);                                    \
                 return ret;                                         \
             }                                                       \
             count++;                                                \
@@ -668,52 +683,3 @@ int ff_parse_channel_layout(int64_t *ret, int *nret, const char *arg,
         *nret = av_get_channel_layout_nb_channels(chlayout);
     return 0;
 }
-
-#ifdef TEST
-
-#undef printf
-
-int main(void)
-{
-    const int64_t *cl;
-    char buf[512];
-    int i;
-    const char *teststrings[] ={
-        "blah",
-        "1",
-        "2",
-        "-1",
-        "60",
-        "65",
-        "1c",
-        "2c",
-        "-1c",
-        "60c",
-        "65c",
-        "5.1",
-        "stereo",
-        "1+1+1+1",
-        "1c+1c+1c+1c",
-        "2c+1c",
-        "0x3",
-    };
-
-    for (cl = avfilter_all_channel_layouts; *cl != -1; cl++) {
-        av_get_channel_layout_string(buf, sizeof(buf), -1, *cl);
-        printf("%s\n", buf);
-    }
-
-    for ( i = 0; i<FF_ARRAY_ELEMS(teststrings); i++) {
-        int64_t layout = -1;
-        int count = -1;
-        int ret;
-        ret = ff_parse_channel_layout(&layout, &count, teststrings[i], NULL);
-
-        printf ("%d = ff_parse_channel_layout(%016"PRIX64", %2d, %s);\n", ret ? -1 : 0, layout, count, teststrings[i]);
-    }
-
-    return 0;
-}
-
-#endif
-

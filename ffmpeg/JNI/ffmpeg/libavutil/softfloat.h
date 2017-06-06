@@ -27,7 +27,7 @@
 #include "avassert.h"
 #include "softfloat_tables.h"
 
-#define MIN_EXP -126
+#define MIN_EXP -149
 #define MAX_EXP  126
 #define ONE_BITS 29
 
@@ -36,14 +36,18 @@ typedef struct SoftFloat{
     int32_t  exp;
 }SoftFloat;
 
-static const SoftFloat FLOAT_0          = {          0,   0};
-static const SoftFloat FLOAT_05         = { 0x20000000,   0};
-static const SoftFloat FLOAT_1          = { 0x20000000,   1};
-static const SoftFloat FLOAT_EPSILON    = { 0x29F16B12, -16};
-static const SoftFloat FLOAT_1584893192 = { 0x32B771ED,   1};
-static const SoftFloat FLOAT_100000     = { 0x30D40000,  17};
-static const SoftFloat FLOAT_0999999    = { 0x3FFFFBCE,   0};
+static const SoftFloat FLOAT_0          = {          0,   MIN_EXP};             ///< 0.0
+static const SoftFloat FLOAT_05         = { 0x20000000,   0};                   ///< 0.5
+static const SoftFloat FLOAT_1          = { 0x20000000,   1};                   ///< 1.0
+static const SoftFloat FLOAT_EPSILON    = { 0x29F16B12, -16};                   ///< A small value
+static const SoftFloat FLOAT_1584893192 = { 0x32B771ED,   1};                   ///< 1.584893192 (10^.2)
+static const SoftFloat FLOAT_100000     = { 0x30D40000,  17};                   ///< 100000
+static const SoftFloat FLOAT_0999999    = { 0x3FFFFBCE,   0};                   ///< 0.999999
 
+
+/**
+ * Convert a SoftFloat to a double precision float.
+ */
 static inline av_const double av_sf2double(SoftFloat v) {
     v.exp -= ONE_BITS +1;
     if(v.exp > 0) return (double)v.mant * (double)(1 << v.exp);
@@ -79,6 +83,7 @@ static inline av_const SoftFloat av_normalize1_sf(SoftFloat a){
         a.mant>>=1;
     }
     av_assert2(a.mant < 0x40000000 && a.mant > -0x40000000);
+    av_assert2(a.exp <= MAX_EXP);
     return a;
 #elif 1
     int t= a.mant + 0x40000000 < 0;
@@ -90,7 +95,7 @@ static inline av_const SoftFloat av_normalize1_sf(SoftFloat a){
 }
 
 /**
- * @return Will not be more denormalized than a+b. So if either input is
+ * @return Will not be more denormalized than a*b. So if either input is
  *         normalized, then the output will not be worse then the other input.
  *         If both are normalized, then the output will be normalized.
  */
@@ -98,7 +103,10 @@ static inline av_const SoftFloat av_mul_sf(SoftFloat a, SoftFloat b){
     a.exp += b.exp;
     av_assert2((int32_t)((a.mant * (int64_t)b.mant) >> ONE_BITS) == (a.mant * (int64_t)b.mant) >> ONE_BITS);
     a.mant = (a.mant * (int64_t)b.mant) >> ONE_BITS;
-    return av_normalize1_sf((SoftFloat){a.mant, a.exp - 1});
+    a = av_normalize1_sf((SoftFloat){a.mant, a.exp - 1});
+    if (!a.mant || a.exp < MIN_EXP)
+        return FLOAT_0;
+    return a;
 }
 
 /**
@@ -108,22 +116,42 @@ static inline av_const SoftFloat av_mul_sf(SoftFloat a, SoftFloat b){
 static inline av_const SoftFloat av_div_sf(SoftFloat a, SoftFloat b){
     a.exp -= b.exp;
     a.mant = ((int64_t)a.mant<<(ONE_BITS+1)) / b.mant;
-    return av_normalize1_sf(a);
+    a = av_normalize1_sf(a);
+    if (!a.mant || a.exp < MIN_EXP)
+        return FLOAT_0;
+    return a;
 }
 
+/**
+ * Compares two SoftFloats.
+ * @returns < 0 if the first is less
+ *          > 0 if the first is greater
+ *            0 if they are equal
+ */
 static inline av_const int av_cmp_sf(SoftFloat a, SoftFloat b){
     int t= a.exp - b.exp;
-    if(t<0) return (a.mant >> (-t)) -  b.mant      ;
-    else    return  a.mant          - (b.mant >> t);
+    if      (t <-31) return                  -  b.mant      ;
+    else if (t <  0) return (a.mant >> (-t)) -  b.mant      ;
+    else if (t < 32) return  a.mant          - (b.mant >> t);
+    else             return  a.mant                         ;
 }
 
+/**
+ * Compares two SoftFloats.
+ * @returns 1 if a is greater than b, 0 otherwise
+ */
 static inline av_const int av_gt_sf(SoftFloat a, SoftFloat b)
 {
     int t= a.exp - b.exp;
-    if(t<0) return (a.mant >> (-t)) >  b.mant      ;
-    else    return  a.mant          > (b.mant >> t);
+    if      (t <-31) return 0                >  b.mant      ;
+    else if (t <  0) return (a.mant >> (-t)) >  b.mant      ;
+    else if (t < 32) return  a.mant          > (b.mant >> t);
+    else             return  a.mant          >  0           ;
 }
 
+/**
+ * @returns the sum of 2 SoftFloats.
+ */
 static inline av_const SoftFloat av_add_sf(SoftFloat a, SoftFloat b){
     int t= a.exp - b.exp;
     if      (t <-31) return b;
@@ -132,6 +160,9 @@ static inline av_const SoftFloat av_add_sf(SoftFloat a, SoftFloat b){
     else             return a;
 }
 
+/**
+ * @returns the difference of 2 SoftFloats.
+ */
 static inline av_const SoftFloat av_sub_sf(SoftFloat a, SoftFloat b){
     return av_add_sf(a, (SoftFloat){ -b.mant, b.exp});
 }
@@ -143,10 +174,16 @@ static inline av_const SoftFloat av_sub_sf(SoftFloat a, SoftFloat b){
  * @returns a SoftFloat with value v * 2^frac_bits
  */
 static inline av_const SoftFloat av_int2sf(int v, int frac_bits){
-    return av_normalize_sf((SoftFloat){v, ONE_BITS + 1 - frac_bits});
+    int exp_offset = 0;
+    if(v <= INT_MIN + 1){
+        exp_offset = 1;
+        v>>=1;
+    }
+    return av_normalize_sf(av_normalize1_sf((SoftFloat){v, ONE_BITS + 1 - frac_bits + exp_offset}));
 }
 
 /**
+ * Converts a SoftFloat to an integer.
  * Rounding is to -inf.
  */
 static inline av_const int av_sf2int(SoftFloat v, int frac_bits){
@@ -163,7 +200,9 @@ static av_always_inline SoftFloat av_sqrt_sf(SoftFloat val)
     int tabIndex, rem;
 
     if (val.mant == 0)
-        val.exp = 0;
+        val.exp = MIN_EXP;
+    else if (val.mant < 0)
+        abort();
     else
     {
         tabIndex = (val.mant - 0x20000000) >> 20;

@@ -168,20 +168,30 @@ static void ac3_downmix_c_fixed16(int16_t **samples, int16_t (*matrix)[2],
 #include "ac3dec.c"
 
 static const AVOption options[] = {
+#ifndef MXTECHS
     { "drc_scale", "percentage of dynamic range compression to apply", OFFSET(drc_scale), AV_OPT_TYPE_FLOAT, {.dbl = 1.0}, 0.0, 6.0, PAR },
-    { "heavy_compr", "heavy dynamic range compression enabled", OFFSET(heavy_compression), AV_OPT_TYPE_INT, {.i64 = 0 }, 0, 1, PAR },
+    { "heavy_compr", "enable heavy dynamic range compression", OFFSET(heavy_compression), AV_OPT_TYPE_BOOL, {.i64 = 0 }, 0, 1, PAR },
+#endif
     { NULL},
 };
 
 static const AVClass ac3_decoder_class = {
+#ifndef MXTECHS
     .class_name = "Fixed-Point AC-3 Decoder",
+#else
+    .class_name = "Fixed-Point EGGPLANT Decoder",
+#endif
     .item_name  = av_default_item_name,
     .option     = options,
     .version    = LIBAVUTIL_VERSION_INT,
 };
 
 AVCodec ff_ac3_fixed_decoder = {
+#ifndef MXTECHS
     .name           = "ac3_fixed",
+#else
+    .name           = "eggplant_fixed",
+#endif
     .type           = AVMEDIA_TYPE_AUDIO,
     .id             = AV_CODEC_ID_AC3,
     .priv_data_size = sizeof (AC3DecodeContext),
@@ -189,7 +199,11 @@ AVCodec ff_ac3_fixed_decoder = {
     .close          = ac3_decode_end,
     .decode         = ac3_decode_frame,
     .capabilities   = AV_CODEC_CAP_DR1,
+#ifndef MXTECHS
     .long_name      = NULL_IF_CONFIG_SMALL("ATSC A/52A (AC-3)"),
+#else
+    .long_name      = NULL_IF_CONFIG_SMALL("EGGPLANT"),
+#endif
     .sample_fmts    = (const enum AVSampleFormat[]) { AV_SAMPLE_FMT_S16P,
                                                       AV_SAMPLE_FMT_NONE },
     .priv_class     = &ac3_decoder_class,

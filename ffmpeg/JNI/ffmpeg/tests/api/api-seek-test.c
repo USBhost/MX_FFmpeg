@@ -129,25 +129,25 @@ static int compute_crc_of_packets(AVFormatContext *fmt_ctx, int video_stream,
                     av_log(NULL, AV_LOG_ERROR, "Can't copy image to buffer\n");
                     return number_of_written_bytes;
                 }
-                if ((fr->pkt_pts > ts_end) && (!no_seeking))
+                if ((fr->pts > ts_end) && (!no_seeking))
                     break;
                 crc = av_adler32_update(0, (const uint8_t*)byte_buffer, number_of_written_bytes);
-                printf("%10"PRId64", 0x%08lx\n", fr->pkt_pts, crc);
+                printf("%10"PRId64", 0x%08lx\n", fr->pts, crc);
                 if (no_seeking) {
-                    if (add_crc_to_array(crc, fr->pkt_pts) < 0)
+                    if (add_crc_to_array(crc, fr->pts) < 0)
                         return -1;
                 }
                 else {
-                    if (compare_crc_in_array(crc, fr->pkt_pts) < 0)
+                    if (compare_crc_in_array(crc, fr->pts) < 0)
                         return -1;
                 }
             }
         }
-        av_free_packet(&pkt);
+        av_packet_unref(&pkt);
         av_init_packet(&pkt);
-    } while ((!end_of_stream || got_frame) && (no_seeking || (fr->pkt_pts + av_frame_get_pkt_duration(fr) <= ts_end)));
+    } while ((!end_of_stream || got_frame) && (no_seeking || (fr->pts + av_frame_get_pkt_duration(fr) <= ts_end)));
 
-    av_free_packet(&pkt);
+    av_packet_unref(&pkt);
     av_freep(&byte_buffer);
 
     return 0;
@@ -174,7 +174,8 @@ static long int read_seek_range(const char *string_with_number)
 static int seek_test(const char *input_filename, const char *start, const char *end)
 {
     AVCodec *codec = NULL;
-    AVCodecContext *origin_ctx = NULL, *ctx= NULL;
+    AVCodecContext *ctx= NULL;
+    AVCodecParameters *origin_par = NULL;
     AVFrame *fr = NULL;
     AVFormatContext *fmt_ctx = NULL;
     int video_stream;
@@ -210,9 +211,9 @@ static int seek_test(const char *input_filename, const char *start, const char *
       return -1;
     }
 
-    origin_ctx = fmt_ctx->streams[video_stream]->codec;
+    origin_par = fmt_ctx->streams[video_stream]->codecpar;
 
-    codec = avcodec_find_decoder(origin_ctx->codec_id);
+    codec = avcodec_find_decoder(origin_par->codec_id);
     if (!codec) {
         av_log(NULL, AV_LOG_ERROR, "Can't find decoder\n");
         return -1;
@@ -224,7 +225,7 @@ static int seek_test(const char *input_filename, const char *start, const char *
         return AVERROR(ENOMEM);
     }
 
-    result = avcodec_copy_context(ctx, origin_ctx);
+    result = avcodec_parameters_to_context(ctx, origin_par);
     if (result) {
         av_log(NULL, AV_LOG_ERROR, "Can't copy decoder context\n");
         return result;

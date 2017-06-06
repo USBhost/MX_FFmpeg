@@ -110,6 +110,10 @@ static int config_input(AVFilterLink *inlink)
     StereoToolsContext *s = ctx->priv;
 
     s->length = 2 * inlink->sample_rate * 0.05;
+    if (s->length <= 1 || s->length & 1) {
+        av_log(ctx, AV_LOG_ERROR, "sample rate is too small\n");
+        return AVERROR(EINVAL);
+    }
     s->buffer = av_calloc(s->length, sizeof(*s->buffer));
     if (!s->buffer)
         return AVERROR(ENOMEM);
@@ -139,10 +143,10 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     const double sc_level = s->sc_level;
     const double delay = s->delay;
     const int length = s->length;
-    const int mute_l = floor(s->mute_l + 0.5);
-    const int mute_r = floor(s->mute_r + 0.5);
-    const int phase_l = floor(s->phase_l + 0.5);
-    const int phase_r = floor(s->phase_r + 0.5);
+    const int mute_l = s->mute_l;
+    const int mute_r = s->mute_r;
+    const int phase_l = s->phase_l;
+    const int phase_r = s->phase_r;
     double *buffer = s->buffer;
     AVFrame *out;
     double *dst;

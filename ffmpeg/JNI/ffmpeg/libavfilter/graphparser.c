@@ -27,7 +27,7 @@
 #include "libavutil/mem.h"
 #include "avfilter.h"
 
-#define WHITESPACES " \n\t"
+#define WHITESPACES " \n\t\r"
 
 /**
  * Link two filters together.
@@ -165,12 +165,12 @@ static int parse_filter(AVFilterContext **filt_ctx, const char **buf, AVFilterGr
                         int index, void *log_ctx)
 {
     char *opts = NULL;
-    char *name = av_get_token(buf, "=,;[\n");
+    char *name = av_get_token(buf, "=,;[");
     int ret;
 
     if (**buf == '=') {
         (*buf)++;
-        opts = av_get_token(buf, "[],;\n");
+        opts = av_get_token(buf, "[],;");
     }
 
     ret = create_filter(filt_ctx, graph, index, name, opts, log_ctx);
@@ -354,7 +354,7 @@ static int parse_outputs(const char **buf, AVFilterInOut **curr_inputs,
             av_freep(&match);
             av_freep(&input);
         } else {
-            /* Not in the list, so add the first input as a open_output */
+            /* Not in the list, so add the first input as an open_output */
             input->name = name;
             insert_inout(open_outputs, input);
         }

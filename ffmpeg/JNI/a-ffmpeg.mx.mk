@@ -41,13 +41,6 @@ include $(PREBUILT_STATIC_LIBRARY)
 # Merge all static libraries.
 include $(CLEAR_VARS)
 
-LIBS := $(MY_DIR)/libs
-
-ifeq ($(ARCH),$(filter $(ARCH),armv5te armv6))
-	LIBS_EXTRA := -L$(LIBS)/android/16-$(TARGET_ARCH) -lssl -lcrypto
-endif
-
-
 LOCAL_LDLIBS := \
 -L$(NDK_APP_DST_DIR) \
 -lmxutil \

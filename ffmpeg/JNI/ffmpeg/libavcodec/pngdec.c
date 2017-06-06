@@ -24,6 +24,8 @@
 #include "libavutil/avassert.h"
 #include "libavutil/bprint.h"
 #include "libavutil/imgutils.h"
+#include "libavutil/stereo3d.h"
+
 #include "avcodec.h"
 #include "bytestream.h"
 #include "internal.h"
@@ -435,13 +437,13 @@ static int decode_zbuf(AVBPrint *bp, const uint8_t *data,
     av_bprint_init(bp, 0, -1);
 
     while (zstream.avail_in > 0) {
-        av_bprint_get_buffer(bp, 1, &buf, &buf_size);
-        if (!buf_size) {
+        av_bprint_get_buffer(bp, 2, &buf, &buf_size);
+        if (buf_size < 2) {
             ret = AVERROR(ENOMEM);
             goto fail;
         }
         zstream.next_out  = buf;
-        zstream.avail_out = buf_size;
+        zstream.avail_out = buf_size - 1;
         ret = inflate(&zstream, Z_PARTIAL_FLUSH);
         if (ret != Z_OK && ret != Z_STREAM_END) {
             ret = AVERROR_EXTERNAL;
@@ -663,7 +665,10 @@ static int decode_idat_chunk(AVCodecContext *avctx, PNGDecContext *s,
                 break;
 
             default:
-                av_assert0(0);
+                avpriv_request_sample(avctx, "bit depth %d "
+                        "and color type %d with TRNS",
+                        s->bit_depth, s->color_type);
+                return AVERROR_INVALIDDATA;
             }
 
             s->bpp += byte_depth;
@@ -767,6 +772,16 @@ static int decode_trns_chunk(AVCodecContext *avctx, PNGDecContext *s,
 {
     int v, i;
 
+    if (!(s->state & PNG_IHDR)) {
+        av_log(avctx, AV_LOG_ERROR, "trns before IHDR\n");
+        return AVERROR_INVALIDDATA;
+    }
+
+    if (s->state & PNG_IDAT) {
+        av_log(avctx, AV_LOG_ERROR, "trns after IDAT\n");
+        return AVERROR_INVALIDDATA;
+    }
+
     if (s->color_type == PNG_COLOR_TYPE_PALETTE) {
         if (length > 256 || !(s->state & PNG_PLTE))
             return AVERROR_INVALIDDATA;
@@ -777,12 +792,13 @@ static int decode_trns_chunk(AVCodecContext *avctx, PNGDecContext *s,
         }
     } else if (s->color_type == PNG_COLOR_TYPE_GRAY || s->color_type == PNG_COLOR_TYPE_RGB) {
         if ((s->color_type == PNG_COLOR_TYPE_GRAY && length != 2) ||
-            (s->color_type == PNG_COLOR_TYPE_RGB && length != 6))
+            (s->color_type == PNG_COLOR_TYPE_RGB && length != 6) ||
+            s->bit_depth == 1)
             return AVERROR_INVALIDDATA;
 
         for (i = 0; i < length / 2; i++) {
             /* only use the least significant bits */
-            v = bytestream2_get_be16(&s->gb) & ((1 << s->bit_depth) - 1);
+            v = av_mod_uintp2(bytestream2_get_be16(&s->gb), s->bit_depth);
 
             if (s->bit_depth > 8)
                 AV_WB16(&s->transparent_color_be[2 * i], v);
@@ -1014,7 +1030,7 @@ static int handle_p_frame_apng(AVCodecContext *avctx, PNGDecContext *s,
             for (x = s->x_offset; x < s->x_offset + s->cur_w; ++x, foreground += s->bpp, background += s->bpp) {
                 size_t b;
                 uint8_t foreground_alpha, background_alpha, output_alpha;
-                uint8_t output[4];
+                uint8_t output[10];
 
                 // Since we might be blending alpha onto alpha, we use the following equations:
                 // output_alpha = foreground_alpha + (1 - foreground_alpha) * background_alpha
@@ -1054,6 +1070,8 @@ static int handle_p_frame_apng(AVCodecContext *avctx, PNGDecContext *s,
 
                 output_alpha = foreground_alpha + FAST_DIV255((255 - foreground_alpha) * background_alpha);
 
+                av_assert0(s->bpp <= 10);
+
                 for (b = 0; b < s->bpp - 1; ++b) {
                     if (output_alpha == 0) {
                         output[b] = 0;
@@ -1087,6 +1105,13 @@ static int decode_frame_common(AVCodecContext *avctx, PNGDecContext *s,
     for (;;) {
         length = bytestream2_get_bytes_left(&s->gb);
         if (length <= 0) {
+
+            if (avctx->codec_id == AV_CODEC_ID_PNG &&
+                avctx->skip_frame == AVDISCARD_ALL) {
+                av_frame_set_metadata(p, metadata);
+                return 0;
+            }
+
             if (CONFIG_APNG_DECODER && avctx->codec_id == AV_CODEC_ID_APNG && length == 0) {
                 if (!(s->state & PNG_IDAT))
                     return 0;
@@ -1114,6 +1139,21 @@ static int decode_frame_common(AVCodecContext *avctx, PNGDecContext *s,
                 ((tag >> 8) & 0xff),
                 ((tag >> 16) & 0xff),
                 ((tag >> 24) & 0xff), length);
+
+        if (avctx->codec_id == AV_CODEC_ID_PNG &&
+            avctx->skip_frame == AVDISCARD_ALL) {
+            switch(tag) {
+            case MKTAG('I', 'H', 'D', 'R'):
+            case MKTAG('p', 'H', 'Y', 's'):
+            case MKTAG('t', 'E', 'X', 't'):
+            case MKTAG('I', 'D', 'A', 'T'):
+            case MKTAG('t', 'R', 'N', 'S'):
+                break;
+            default:
+                goto skip_tag;
+            }
+        }
+
         switch (tag) {
         case MKTAG('I', 'H', 'D', 'R'):
             if ((ret = decode_ihdr_chunk(avctx, s, length)) < 0)
@@ -1164,6 +1204,22 @@ static int decode_frame_common(AVCodecContext *avctx, PNGDecContext *s,
                 av_log(avctx, AV_LOG_WARNING, "Broken zTXt chunk\n");
             bytestream2_skip(&s->gb, length + 4);
             break;
+        case MKTAG('s', 'T', 'E', 'R'): {
+            int mode = bytestream2_get_byte(&s->gb);
+            AVStereo3D *stereo3d = av_stereo3d_create_side_data(p);
+            if (!stereo3d)
+                goto fail;
+
+            if (mode == 0 || mode == 1) {
+                stereo3d->type  = AV_STEREO3D_SIDEBYSIDE;
+                stereo3d->flags = mode ? 0 : AV_STEREO3D_FLAG_INVERT;
+            } else {
+                 av_log(avctx, AV_LOG_WARNING,
+                        "Unknown value in sTER chunk (%d)\n", mode);
+            }
+            bytestream2_skip(&s->gb, 4); /* crc */
+            break;
+        }
         case MKTAG('I', 'E', 'N', 'D'):
             if (!(s->state & PNG_ALLIMAGE))
                 av_log(avctx, AV_LOG_ERROR, "IEND without all image\n");
@@ -1181,6 +1237,11 @@ skip_tag:
         }
     }
 exit_loop:
+    if (avctx->codec_id == AV_CODEC_ID_PNG &&
+        avctx->skip_frame == AVDISCARD_ALL) {
+        av_frame_set_metadata(p, metadata);
+        return 0;
+    }
 
     if (s->bits_per_pixel <= 4)
         handle_small_bpp(s, p);
@@ -1190,6 +1251,8 @@ exit_loop:
         size_t byte_depth = s->bit_depth > 8 ? 2 : 1;
         size_t raw_bpp = s->bpp - byte_depth;
         unsigned x, y;
+
+        av_assert0(s->bit_depth > 1);
 
         for (y = 0; y < s->height; ++y) {
             uint8_t *row = &s->image_buf[s->image_linesize * y];
@@ -1208,7 +1271,7 @@ exit_loop:
         }
     }
 
-    /* handle p-frames only if a predecessor frame is available */
+    /* handle P-frames only if a predecessor frame is available */
     if (s->last_picture.f->data[0]) {
         if (   !(avpkt->flags & AV_PKT_FLAG_KEY) && avctx->codec_tag != AV_RL32("MPNG")
             && s->last_picture.f->width == p->width
@@ -1277,6 +1340,12 @@ static int decode_frame_png(AVCodecContext *avctx,
 
     if ((ret = decode_frame_common(avctx, s, p, avpkt)) < 0)
         goto the_end;
+
+    if (avctx->skip_frame == AVDISCARD_ALL) {
+        *got_frame = 0;
+        ret = bytestream2_tell(&s->gb);
+        goto the_end;
+    }
 
     if ((ret = av_frame_ref(data, s->picture.f)) < 0)
         return ret;
@@ -1471,5 +1540,6 @@ AVCodec ff_png_decoder = {
     .init_thread_copy = ONLY_IF_THREADS_ENABLED(png_dec_init),
     .update_thread_context = ONLY_IF_THREADS_ENABLED(update_thread_context),
     .capabilities   = AV_CODEC_CAP_DR1 | AV_CODEC_CAP_FRAME_THREADS /*| AV_CODEC_CAP_DRAW_HORIZ_BAND*/,
+    .caps_internal  = FF_CODEC_CAP_SKIP_FRAME_FILL_PARAM,
 };
 #endif

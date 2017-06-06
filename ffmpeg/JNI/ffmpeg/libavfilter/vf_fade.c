@@ -244,10 +244,10 @@ static int filter_slice_chroma(AVFilterContext *ctx, void *arg, int jobnr,
     FadeContext *s = ctx->priv;
     AVFrame *frame = arg;
     int i, j, plane;
-    const int width = FF_CEIL_RSHIFT(frame->width, s->hsub);
-    const int height= FF_CEIL_RSHIFT(frame->height, s->vsub);
+    const int width = AV_CEIL_RSHIFT(frame->width, s->hsub);
+    const int height= AV_CEIL_RSHIFT(frame->height, s->vsub);
     int slice_start = (height *  jobnr   ) / nb_jobs;
-    int slice_end   = (height * (jobnr+1)) / nb_jobs;
+    int slice_end   = FFMIN(((height * (jobnr+1)) / nb_jobs), frame->height);
 
     for (plane = 1; plane < 3; plane++) {
         for (i = slice_start; i < slice_end; i++) {
@@ -347,19 +347,19 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *frame)
     if (s->factor < UINT16_MAX) {
         if (s->alpha) {
             ctx->internal->execute(ctx, filter_slice_alpha, frame, NULL,
-                                FFMIN(frame->height, ctx->graph->nb_threads));
+                                FFMIN(frame->height, ff_filter_get_nb_threads(ctx)));
         } else if (s->is_packed_rgb && !s->black_fade) {
             ctx->internal->execute(ctx, filter_slice_rgb, frame, NULL,
-                                   FFMIN(frame->height, ctx->graph->nb_threads));
+                                   FFMIN(frame->height, ff_filter_get_nb_threads(ctx)));
         } else {
             /* luma, or rgb plane in case of black */
             ctx->internal->execute(ctx, filter_slice_luma, frame, NULL,
-                                FFMIN(frame->height, ctx->graph->nb_threads));
+                                FFMIN(frame->height, ff_filter_get_nb_threads(ctx)));
 
             if (frame->data[1] && frame->data[2]) {
                 /* chroma planes */
                 ctx->internal->execute(ctx, filter_slice_chroma, frame, NULL,
-                                    FFMIN(frame->height, ctx->graph->nb_threads));
+                                    FFMIN(frame->height, ff_filter_get_nb_threads(ctx)));
             }
         }
     }

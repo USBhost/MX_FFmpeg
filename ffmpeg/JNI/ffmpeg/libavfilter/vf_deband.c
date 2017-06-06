@@ -218,9 +218,9 @@ static int config_input(AVFilterLink *inlink)
 
     s->nb_components = desc->nb_components;
 
-    s->planeheight[1] = s->planeheight[2] = FF_CEIL_RSHIFT(inlink->h, desc->log2_chroma_h);
+    s->planeheight[1] = s->planeheight[2] = AV_CEIL_RSHIFT(inlink->h, desc->log2_chroma_h);
     s->planeheight[0] = s->planeheight[3] = inlink->h;
-    s->planewidth[1]  = s->planewidth[2]  = FF_CEIL_RSHIFT(inlink->w, desc->log2_chroma_w);
+    s->planewidth[1]  = s->planewidth[2]  = AV_CEIL_RSHIFT(inlink->w, desc->log2_chroma_w);
     s->planewidth[0]  = s->planewidth[3]  = inlink->w;
 
     s->deband = desc->comp[0].depth > 8 ? deband_16_c : deband_8_c;
@@ -267,7 +267,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     td.in = in; td.out = out;
     ctx->internal->execute(ctx, s->deband, &td, NULL, FFMIN3(s->planeheight[1],
                                                              s->planeheight[2],
-                                                             ctx->graph->nb_threads));
+                                                             ff_filter_get_nb_threads(ctx)));
 
     av_frame_free(&in);
     return ff_filter_frame(outlink, out);

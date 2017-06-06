@@ -42,6 +42,7 @@
 #define AV_CPU_FLAG_ATOM     0x10000000 ///< Atom processor, some SSSE3 instructions are slower
 #define AV_CPU_FLAG_SSE4         0x0100 ///< Penryn SSE4.1 functions
 #define AV_CPU_FLAG_SSE42        0x0200 ///< Nehalem SSE4.2 functions
+#define AV_CPU_FLAG_AESNI       0x80000 ///< Advanced Encryption Standard functions
 #define AV_CPU_FLAG_AVX          0x4000 ///< AVX functions: requires OS support even if YMM registers aren't used
 #define AV_CPU_FLAG_AVXSLOW   0x8000000 ///< AVX supported, but slow when using YMM registers (e.g. Bulldozer)
 #define AV_CPU_FLAG_XOP          0x0400 ///< Bulldozer XOP functions
@@ -63,12 +64,13 @@
 #define AV_CPU_FLAG_VFPV3        (1 << 4)
 #define AV_CPU_FLAG_NEON         (1 << 5)
 #define AV_CPU_FLAG_ARMV8        (1 << 6)
+#define AV_CPU_FLAG_VFP_VM       (1 << 7) ///< VFPv2 vector mode, deprecated in ARMv7-A and unavailable in various CPUs implementations
 #define AV_CPU_FLAG_SETEND       (1 <<16)
 
 /**
  * Return the flags which specify extensions supported by the CPU.
  * The returned value is affected by av_force_cpu_flags() if that was used
- * before. So av_get_cpu_flags() can easily be used in a application to
+ * before. So av_get_cpu_flags() can easily be used in an application to
  * detect the enabled cpu flags.
  */
 int av_get_cpu_flags(void);

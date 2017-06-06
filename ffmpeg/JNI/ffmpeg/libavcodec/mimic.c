@@ -395,7 +395,7 @@ static int mimic_decode_frame(AVCodecContext *avctx, void *data,
         avctx->height  = height;
         avctx->pix_fmt = AV_PIX_FMT_YUV420P;
         for (i = 0; i < 3; i++) {
-            ctx->num_vblocks[i] = FF_CEIL_RSHIFT(height,   3 + !!i);
+            ctx->num_vblocks[i] = AV_CEIL_RSHIFT(height,   3 + !!i);
             ctx->num_hblocks[i] =                width >> (3 + !!i);
         }
     } else if (width != ctx->avctx->width || height != ctx->avctx->height) {
@@ -432,10 +432,9 @@ static int mimic_decode_frame(AVCodecContext *avctx, void *data,
     res = decode(ctx, quality, num_coeffs, !is_pframe);
     ff_thread_report_progress(&ctx->frames[ctx->cur_index], INT_MAX, 0);
     if (res < 0) {
-        if (!(avctx->active_thread_type & FF_THREAD_FRAME)) {
+        if (!(avctx->active_thread_type & FF_THREAD_FRAME))
             ff_thread_release_buffer(avctx, &ctx->frames[ctx->cur_index]);
-            return res;
-        }
+        return res;
     }
 
     if ((res = av_frame_ref(data, ctx->frames[ctx->cur_index].f)) < 0)

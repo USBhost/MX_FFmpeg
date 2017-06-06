@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003 The FFmpeg Project
+ * Copyright (C) 2003 The FFmpeg project
  *
  * This file is part of FFmpeg.
  *
@@ -204,14 +204,15 @@ static int roq_decode_frame(AVCodecContext *avctx,
     const uint8_t *buf = avpkt->data;
     int buf_size = avpkt->size;
     RoqContext *s = avctx->priv_data;
-    int copy= !s->current_frame->data[0] && s->last_frame->data[0];
+    int copy = !s->current_frame->data[0] && s->last_frame->data[0];
     int ret;
 
     if ((ret = ff_reget_buffer(avctx, s->current_frame)) < 0)
         return ret;
 
-    if(copy) {
-        if ((ret = av_frame_copy(s->current_frame, s->last_frame)) < 0)
+    if (copy) {
+        ret = av_frame_copy(s->current_frame, s->last_frame);
+        if (ret < 0)
             return ret;
     }
 

@@ -19,15 +19,15 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#define BITSTREAM_READER_LE
-
 #include "libavutil/channel_layout.h"
+
+#define BITSTREAM_READER_LE
 #include "avcodec.h"
+#include "bytestream.h"
 #include "get_bits.h"
 #include "internal.h"
 #include "thread.h"
 #include "unary.h"
-#include "bytestream.h"
 #include "wavpack.h"
 
 /**
@@ -93,7 +93,7 @@ static av_always_inline int get_tail(GetBitContext *gb, int k)
         return 0;
     p   = av_log2(k);
     e   = (1 << (p + 1)) - k - 1;
-    res = p ? get_bits(gb, p) : 0;
+    res = get_bitsz(gb, p);
     if (res >= e)
         res = (res << 1) - e + get_bits1(gb);
     return res;

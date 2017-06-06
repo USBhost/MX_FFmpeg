@@ -26,8 +26,8 @@
  * w32threads to pthreads wrapper
  */
 
-#ifndef FFMPEG_COMPAT_W32PTHREADS_H
-#define FFMPEG_COMPAT_W32PTHREADS_H
+#ifndef COMPAT_W32PTHREADS_H
+#define COMPAT_W32PTHREADS_H
 
 /* Build up a pthread-like API using underlying Windows API. Have only static
  * methods so as to not conflict with a potentially linked in pthread-win32
@@ -39,9 +39,9 @@
 #include <windows.h>
 #include <process.h>
 
-/* MinGW requires the intrinsics header for the pthread_once fallback code */
 #if _WIN32_WINNT < 0x0600 && defined(__MINGW32__)
-#include <intrin.h>
+#undef MemoryBarrier
+#define MemoryBarrier __sync_synchronize
 #endif
 
 #include "libavutil/attributes.h"
@@ -415,4 +415,4 @@ static av_unused void w32thread_init(void)
 
 }
 
-#endif /* FFMPEG_COMPAT_W32PTHREADS_H */
+#endif /* COMPAT_W32PTHREADS_H */
