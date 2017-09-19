@@ -5,3 +5,4 @@ mv libs/armeabi-v7a/vfpv3-d16/lib$1.so libs/output/ffmpeg_tegra2/armeabi
 #cp libs/armeabi-v6/lib$1.so libs/output/ffmpeg_v6/armeabi
 #cp libs/armeabi-v5/lib$1.so libs/output/ffmpeg_v5te/armeabi
 
+echo "0"

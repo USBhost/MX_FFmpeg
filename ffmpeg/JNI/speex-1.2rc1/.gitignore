@@ -26,7 +26,6 @@ Speex.spec
 config.h
 config.log
 config.status
-include/speex/speex_config_types.h
 *.swp
 testdenoise
 testecho
