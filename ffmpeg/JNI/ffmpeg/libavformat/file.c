@@ -357,7 +357,12 @@ const URLProtocol ff_file_protocol = {
     .url_open_dir        = file_open_dir,
     .url_read_dir        = file_read_dir,
     .url_close_dir       = file_close_dir,
-    .default_whitelist   = "file,crypto"
+#ifdef MXTECHS
+    //This will prohibit the playback of local text based media file.
+    //For example:.m3u .sdp and so on.And URLContext's protocol_whitelist
+    //will not be set until user specified or protocol default list found.
+    //.default_whitelist   = "file,crypto"
+#endif
 };
 
 #endif /* CONFIG_FILE_PROTOCOL */
