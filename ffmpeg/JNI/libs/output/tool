@@ -1,5 +1,5 @@
 #!/bin/bash
-v="1.9.0";
+v="1.9.8";
 
 mv ffmpeg_neon/*/libffmpeg.mx.so libffmpeg.mx.so.neon.$v;
 mv ffmpeg_tegra2/*/libffmpeg.mx.so libffmpeg.mx.so.tegra2.$v;
