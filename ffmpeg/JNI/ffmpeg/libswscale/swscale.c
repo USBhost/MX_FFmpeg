@@ -254,7 +254,7 @@ static int swscale(SwsContext *c, const uint8_t *src[],
     yuv2anyX_fn yuv2anyX             = c->yuv2anyX;
     const int chrSrcSliceY           =                srcSliceY >> c->chrSrcVSubSample;
     const int chrSrcSliceH           = AV_CEIL_RSHIFT(srcSliceH,   c->chrSrcVSubSample);
-    int should_dither                = is9_OR_10BPS(c->srcFormat) ||
+    int should_dither                = isNBPS(c->srcFormat) ||
                                        is16BPS(c->srcFormat);
     int lastDstY;
 
@@ -326,7 +326,7 @@ static int swscale(SwsContext *c, const uint8_t *src[],
         static int warnedAlready=0;
         int cpu_flags = av_get_cpu_flags();
         if (HAVE_MMXEXT && (cpu_flags & AV_CPU_FLAG_SSE2) && !warnedAlready){
-            av_log(c, AV_LOG_WARNING, "Warning: data is not aligned! This can lead to a speedloss\n");
+            av_log(c, AV_LOG_WARNING, "Warning: data is not aligned! This can lead to a speed loss\n");
             warnedAlready=1;
         }
     }

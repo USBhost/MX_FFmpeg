@@ -65,11 +65,11 @@ static void scale_coefs (
     int len)
 {
     int i, shift, round;
-    int16_t mul;
+    unsigned mul;
     int temp, temp1, temp2, temp3, temp4, temp5, temp6, temp7;
 
     mul = (dynrng & 0x1f) + 0x20;
-    shift = 4 - ((dynrng << 23) >> 28);
+    shift = 4 - (sign_extend(dynrng, 9) >> 5);
     if (shift > 0 ) {
       round = 1 << (shift-1);
       for (i=0; i<len; i+=8) {
@@ -139,7 +139,7 @@ static void scale_coefs (
  * Downmix samples from original signal to stereo or mono (this is for 16-bit samples
  * and fixed point decoder - original (for 32-bit samples) is in ac3dsp.c).
  */
-static void ac3_downmix_c_fixed16(int16_t **samples, int16_t (*matrix)[2],
+static void ac3_downmix_c_fixed16(int16_t **samples, int16_t **matrix,
                                   int out_ch, int in_ch, int len)
 {
     int i, j;
@@ -148,8 +148,8 @@ static void ac3_downmix_c_fixed16(int16_t **samples, int16_t (*matrix)[2],
         for (i = 0; i < len; i++) {
             v0 = v1 = 0;
             for (j = 0; j < in_ch; j++) {
-                v0 += samples[j][i] * matrix[j][0];
-                v1 += samples[j][i] * matrix[j][1];
+                v0 += samples[j][i] * matrix[0][j];
+                v1 += samples[j][i] * matrix[1][j];
             }
             samples[0][i] = (v0+2048)>>12;
             samples[1][i] = (v1+2048)>>12;
@@ -158,7 +158,7 @@ static void ac3_downmix_c_fixed16(int16_t **samples, int16_t (*matrix)[2],
         for (i = 0; i < len; i++) {
             v0 = 0;
             for (j = 0; j < in_ch; j++)
-                v0 += samples[j][i] * matrix[j][0];
+                v0 += samples[j][i] * matrix[0][j];
             samples[0][i] = (v0+2048)>>12;
         }
     }
@@ -168,30 +168,21 @@ static void ac3_downmix_c_fixed16(int16_t **samples, int16_t (*matrix)[2],
 #include "ac3dec.c"
 
 static const AVOption options[] = {
-#ifndef MXTECHS
+    { "cons_noisegen", "enable consistent noise generation", OFFSET(consistent_noise_generation), AV_OPT_TYPE_BOOL, {.i64 = 0 }, 0, 1, PAR },
     { "drc_scale", "percentage of dynamic range compression to apply", OFFSET(drc_scale), AV_OPT_TYPE_FLOAT, {.dbl = 1.0}, 0.0, 6.0, PAR },
     { "heavy_compr", "enable heavy dynamic range compression", OFFSET(heavy_compression), AV_OPT_TYPE_BOOL, {.i64 = 0 }, 0, 1, PAR },
-#endif
     { NULL},
 };
 
 static const AVClass ac3_decoder_class = {
-#ifndef MXTECHS
     .class_name = "Fixed-Point AC-3 Decoder",
-#else
-    .class_name = "Fixed-Point EGGPLANT Decoder",
-#endif
     .item_name  = av_default_item_name,
     .option     = options,
     .version    = LIBAVUTIL_VERSION_INT,
 };
 
 AVCodec ff_ac3_fixed_decoder = {
-#ifndef MXTECHS
     .name           = "ac3_fixed",
-#else
-    .name           = "eggplant_fixed",
-#endif
     .type           = AVMEDIA_TYPE_AUDIO,
     .id             = AV_CODEC_ID_AC3,
     .priv_data_size = sizeof (AC3DecodeContext),
@@ -199,11 +190,7 @@ AVCodec ff_ac3_fixed_decoder = {
     .close          = ac3_decode_end,
     .decode         = ac3_decode_frame,
     .capabilities   = AV_CODEC_CAP_DR1,
-#ifndef MXTECHS
     .long_name      = NULL_IF_CONFIG_SMALL("ATSC A/52A (AC-3)"),
-#else
-    .long_name      = NULL_IF_CONFIG_SMALL("EGGPLANT"),
-#endif
     .sample_fmts    = (const enum AVSampleFormat[]) { AV_SAMPLE_FMT_S16P,
                                                       AV_SAMPLE_FMT_NONE },
     .priv_class     = &ac3_decoder_class,

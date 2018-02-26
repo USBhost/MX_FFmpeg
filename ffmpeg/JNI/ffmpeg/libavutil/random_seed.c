@@ -26,7 +26,7 @@
 #if HAVE_IO_H
 #include <io.h>
 #endif
-#if HAVE_CRYPTGENRANDOM
+#if HAVE_WINCRYPT
 #include <windows.h>
 #include <wincrypt.h>
 #endif
@@ -64,10 +64,11 @@ static int read_random(uint32_t *dst, const char *file)
 
 static uint32_t get_generic_seed(void)
 {
-    uint8_t tmp[120];
+    uint64_t tmp[120/8];
     struct AVSHA *sha = (void*)tmp;
     clock_t last_t  = 0;
     clock_t last_td = 0;
+    clock_t init_t = 0;
     static uint64_t i = 0;
     static uint32_t buffer[512] = { 0 };
     unsigned char digest[20];
@@ -93,10 +94,13 @@ static uint32_t get_generic_seed(void)
         } else {
             last_td = t - last_t;
             buffer[++i & 511] += last_td % 3294638521U;
-            if (last_i && i - last_i > 4 || i - last_i > 64 || TEST && i - last_i > 8)
-                break;
+            if ((t - init_t) >= CLOCKS_PER_SEC>>5)
+                if (last_i && i - last_i > 4 || i - last_i > 64 || TEST && i - last_i > 8)
+                    break;
         }
         last_t = t;
+        if (!init_t)
+            init_t = t;
     }
 
     if(TEST) {
@@ -117,7 +121,7 @@ uint32_t av_get_random_seed(void)
 {
     uint32_t seed;
 
-#if HAVE_CRYPTGENRANDOM
+#if HAVE_WINCRYPT
     HCRYPTPROV provider;
     if (CryptAcquireContext(&provider, NULL, NULL, PROV_RSA_FULL,
                             CRYPT_VERIFYCONTEXT | CRYPT_SILENT)) {

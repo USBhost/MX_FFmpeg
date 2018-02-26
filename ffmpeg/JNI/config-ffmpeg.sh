@@ -1,4 +1,6 @@
 #!/bin/bash
+#DISABLE_IILEGAL_COMPONENTS=false
+DISABLE_IILEGAL_COMPONENTS=true
 
 tolower(){
     echo "$@" | tr ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz
@@ -27,6 +29,19 @@ CLANG_VER=3.8
 
 case $1 in
 	arm64)
+		ARCH=arm64
+		CPU=armv8-a
+		LIB_MX="../libs/arm64-v8a"
+        #There is no soft-float ABI for A64.For more information, please check
+        #http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.faqs/ka16242.html
+		#EXTRA_CFLAGS="-mfloat-abi=softfp -mfpu=neon -mtune=cortex-a8"
+
+		if [ -z "${CLANG_VER}" ]
+		then
+			# GCC only.
+			EXTRA_CFLAGS+=" -mvectorize-with-neon-quad"
+		fi
+
 		;;
 
 	neon)
@@ -97,12 +112,12 @@ case $1 in
 #		EXTRA_PARAMETERS="--disable-neon --disable-armv6"
 #		;;
 
-#	x86_64)
-#		ARCH=x86_64
-#		CPU=atom
-#		LIB_MX="../libs/x86_64"
-#		EXTRA_CFLAGS="-mtune=atom -msse3 -mssse3 -mfpmath=sse"
-#		;;
+	x86_64)
+		ARCH=x86_64
+		CPU=atom
+		LIB_MX="../libs/x86_64"
+		EXTRA_CFLAGS="-mtune=atom -msse3 -mssse3 -mfpmath=sse"
+		;;
 
 # pic는 동작하지 않으며, Android toolchain에도 누락되어있다.
 # 아래 링크에 몇가지 빌드 옵션이 있으나, Atom이 아닌 경우 돌아가지 않을 수 있어 사용하지 않는다.
@@ -145,9 +160,26 @@ INC_SPEEX=../speex-1.2rc1/include
 INC_ZVBI=../zvbi-0.2.35/src
 INC_ICONV=../modified_src/iconv
 INC_MODPLUG=../libmodplug/src
+INC_LIBMXL2=../libxml2/include
 
 
-if [ $ARCH == 'arm' ] 
+if [ $ARCH == 'arm64' ] 
+then
+	TOOLCHAIN=$NDK/toolchains/aarch64-linux-android-$GCC_VER/prebuilt/$HOST_PLATFORM
+	CROSS_PREFIX=$TOOLCHAIN/bin/aarch64-linux-android-
+
+	EXTRA_CFLAGS+=" -fstack-protector -fstrict-aliasing"
+	EXTRA_LDFLAGS+=" -march=$CPU"
+
+	if [ -n "${CLANG_VER}" ]
+	then
+        CLANG_TARGET=aarch64-none-linux-android
+	fi
+
+	OPTFLAGS="-O2"
+	APP_PLATFORM=android-22
+	LINK_AGAINST=22-arm
+elif [ $ARCH == 'arm' ] 
 then
 	TOOLCHAIN=$NDK/toolchains/arm-linux-androideabi-$GCC_VER/prebuilt/$HOST_PLATFORM
 	CROSS_PREFIX=$TOOLCHAIN/bin/arm-linux-androideabi-
@@ -163,23 +195,22 @@ then
 	OPTFLAGS="-O2"
 	APP_PLATFORM=android-16
 	LINK_AGAINST=16-arm
-#elif [ $ARCH == 'x86_64' ] 
-#then
-#    FFMPEG_CONFIGURATION="--disable-mmx --disable-mmxext --disable-inline-asm"
-#	TOOLCHAIN=$NDK/toolchains/x86_64-$GCC_VER/prebuilt/$HOST_PLATFORM
-#	CROSS_PREFIX=$TOOLCHAIN/bin/x86_64-linux-android-
-#
-#	EXTRA_CFLAGS+=" -fstrict-aliasing"
-#
-#	if [ -n "${CLANG_VER}" ]
-#	then
-#		CLANG_TARGET=x86_64-none-linux-android
-#		EXTRA_CFLAGS+=" -fstack-protector-strong "
-#	fi
-#
-#	OPTFLAGS="-O2 -fpic"
-#	APP_PLATFORM=android-21
-#	LINK_AGAINST=21-x86_64
+elif [ $ARCH == 'x86_64' ] 
+then
+	TOOLCHAIN=$NDK/toolchains/x86_64-$GCC_VER/prebuilt/$HOST_PLATFORM
+	CROSS_PREFIX=$TOOLCHAIN/bin/x86_64-linux-android-
+
+	EXTRA_CFLAGS+=" -fstrict-aliasing"
+
+	if [ -n "${CLANG_VER}" ]
+	then
+		CLANG_TARGET=x86_64-none-linux-android
+		EXTRA_CFLAGS+=" -fstack-protector-strong "
+	fi
+
+	OPTFLAGS="-O2 -fpic"
+	APP_PLATFORM=android-21
+	LINK_AGAINST=21-x86_64
 elif [ $ARCH == 'x86' ] 
 then
     FFMPEG_CONFIGURATION="--disable-mmx --disable-mmxext --disable-inline-asm"
@@ -216,6 +247,7 @@ then
 	LD=${CROSS_PREFIX}gcc
 	AS=${CROSS_PREFIX}gcc
 
+	#EXTRA_CFLAGS+="-target $CLANG_TARGET -gcc-toolchain $TOOLCHAIN"
 	EXTRA_CFLAGS+=" -Wno-deprecated-declarations -Wno-unused-variable -Wno-unused-function"
 else
 	# GCC only.
@@ -226,27 +258,191 @@ else
 fi
 
 
-./configure \
-${FFMPEG_CONFIGURATION} \
---enable-static \
---disable-shared \
---enable-pic \
---enable-optimizations \
---enable-pthreads \
+#configure common options
+FFCOMMON="\
+--enable-asm \
 --disable-debug \
 --disable-doc \
 --disable-programs \
+--disable-shared \
 --disable-symver \
+--enable-optimizations \
+--enable-pic \
+--enable-pthreads \
+--enable-static \
+" 
+FF_FEATURE_CLASS="\
 --disable-avdevice \
---disable-postproc \
---enable-avfilter \
---disable-swscale-alpha \
---disable-encoders \
---disable-muxers \
 --disable-devices \
+--disable-encoders \
 --disable-filters \
---enable-filter=yadif \
+--disable-muxers \
+--disable-postproc \
+--disable-swscale-alpha \
+--enable-avfilter \
+"
+FF_FEATURE_DEMUXER="\
+--disable-demuxer=jacosub \
+--disable-demuxer=microdvd \
+--disable-demuxer=mpl2 \
+--disable-demuxer=pjs \
+--disable-demuxer=realtext \
+--disable-demuxer=sami \
+--disable-demuxer=srt \
+--disable-demuxer=stl \
+--disable-demuxer=subviewer \
+--disable-demuxer=subviewer1 \
+--disable-demuxer=vplayer \
+--disable-demuxer=webvtt \
+"
+FF_FEATURE_DECODER="\
+--disable-decoder=jacosub \
+--disable-decoder=microdvd \
+--disable-decoder=mpl2 \
+--disable-decoder=pjs \
+--disable-decoder=realtext \
+--disable-decoder=sami \
+--disable-decoder=srt \
+--disable-decoder=stl \
+--disable-decoder=subrip \
+--disable-decoder=subviewer \
+--disable-decoder=subviewer1 \
+--disable-decoder=text \
+--disable-decoder=vplayer \
+--disable-decoder=webvtt \
+\
+--disable-decoder=rv10 \
+--disable-decoder=rv20 \
+--disable-decoder=rv30 \
+--disable-decoder=rv40 \
+--disable-decoder=cook \
+--disable-decoder=ra_144 \
+--disable-decoder=ra_288 \
+\
+--disable-decoder=wmv1 \
+--disable-decoder=wmv2 \
+--disable-decoder=wmv3 \
+--disable-decoder=wmv3image \
+--disable-decoder=wmav1 \
+--disable-decoder=wmav2 \
+--disable-decoder=wmavoice \
+--disable-decoder=wmalossless \
+--disable-decoder=wmapro \
+--disable-decoder=gsm_ms \
+--disable-decoder=msmpeg4v1 \
+--disable-decoder=msmpeg4v2 \
+--disable-decoder=msmpeg4v3 \
+--disable-decoder=msrle \
+--disable-decoder=mss1 \
+--disable-decoder=mss2 \
+--disable-decoder=msa1 \
+--disable-decoder=mszh \
+--disable-decoder=msvideo1 \
+--disable-decoder=adpcm_ms \
+--disable-decoder=vc1 \
+--disable-decoder=vc1image \
+--disable-decoder=dvvideo \
+\
+--disable-decoder=indeo2 \
+--disable-decoder=indeo3 \
+--disable-decoder=indeo4 \
+--disable-decoder=indeo5 \
+\
+--disable-decoder=mpeg2video \
+--disable-decoder=mpegvideo \
+\
+--disable-decoder=qtrle \
+\
+--disable-decoder=tscc \
+--disable-decoder=tscc2 \
+--disable-decoder=cinepak \
+--disable-decoder=bink \
+--disable-decoder=binkaudio_dct \
+--disable-decoder=binkaudio_rdft \
+--disable-decoder=prores \
+--disable-decoder=prores_lgpl \
+--disable-decoder=svq1 \
+--disable-decoder=svq3 \
+--disable-decoder=hq_hqa \
+--disable-decoder=fraps \
+--disable-decoder=nellymoser \
+--disable-decoder=qcelp \
+--disable-decoder=evrc \
+--disable-decoder=atrac1 \
+--disable-decoder=atrac3 \
+--disable-decoder=atrac3p \
+--disable-decoder=truespeech \
+--disable-decoder=metasound \
+--disable-decoder=gsm \
+--disable-decoder=wavpack \
+--disable-decoder=mace3 \
+--disable-decoder=mace6 \
+--disable-decoder=smackaud \
+--disable-decoder=smacker \
+--disable-decoder=ffwavesynth \
+--disable-decoder=dss_sp \
+--disable-decoder=tak \
+--disable-decoder=dst \
+--disable-decoder=imc \
+--disable-decoder=roq \
+--disable-decoder=roq_dpcm \
+--disable-decoder=ralf \
+--disable-decoder=g723_1 \
+--disable-decoder=bmv_video \
+--disable-decoder=bmv_audio \
+--disable-decoder=sipr \
+\
+--disable-decoder=dsd_lsbf \
+--disable-decoder=dsd_lsbf_planar \
+--disable-decoder=dsd_msbf \
+--disable-decoder=dsd_msbf_planar \
+\
+--disable-decoder=adpcm_4xm \
+--disable-decoder=adpcm_adx \
+--disable-decoder=adpcm_afc \
+--disable-decoder=adpcm_aica \
+--disable-decoder=adpcm_ct \
+--disable-decoder=adpcm_dtk \
+--disable-decoder=adpcm_ea \
+--disable-decoder=adpcm_ea_maxis_xa \
+--disable-decoder=adpcm_ea_r1 \
+--disable-decoder=adpcm_ea_r2 \
+--disable-decoder=adpcm_ea_r3 \
+--disable-decoder=adpcm_ea_xas \
+--disable-decoder=adpcm_g722 \
+--disable-decoder=adpcm_g726 \
+--disable-decoder=adpcm_g726le \
+--disable-decoder=adpcm_ima_amv \
+--disable-decoder=adpcm_ima_apc \
+--disable-decoder=adpcm_ima_dat4 \
+--disable-decoder=adpcm_ima_dk3 \
+--disable-decoder=adpcm_ima_dk4 \
+--disable-decoder=adpcm_ima_ea_eacs \
+--disable-decoder=adpcm_ima_ea_sead \
+--disable-decoder=adpcm_ima_iss \
+--disable-decoder=adpcm_ima_oki \
+--disable-decoder=adpcm_ima_qt \
+--disable-decoder=adpcm_ima_rad \
+--disable-decoder=adpcm_ima_smjpeg \
+--disable-decoder=adpcm_ima_wav \
+--disable-decoder=adpcm_ima_ws \
+--disable-decoder=adpcm_mtaf \
+--disable-decoder=adpcm_psx \
+--disable-decoder=adpcm_sbpro_2 \
+--disable-decoder=adpcm_sbpro_3 \
+--disable-decoder=adpcm_sbpro_4 \
+--disable-decoder=adpcm_swf \
+--disable-decoder=adpcm_thp \
+--disable-decoder=adpcm_thp_le \
+--disable-decoder=adpcm_vima \
+--disable-decoder=adpcm_xa \
+--disable-decoder=adpcm_yamaha 
+"
+FF_FEATURE_FILTER="\
 --enable-filter=w3fdif \
+--enable-filter=yadif \
+"
+FF_FEATURE_PROTOCOL="\
 --disable-protocol=bluray \
 --disable-protocol=data \
 --disable-protocol=gopher \
@@ -254,52 +450,57 @@ ${FFMPEG_CONFIGURATION} \
 --disable-protocol=pipe \
 --disable-protocol=udplite \
 --disable-protocol=unix \
---disable-demuxer=srt \
---disable-demuxer=microdvd \
---disable-demuxer=jacosub \
---disable-demuxer=sami \
---disable-demuxer=realtext \
---disable-demuxer=stl \
---disable-demuxer=subviewer \
---disable-demuxer=subviewer1 \
---disable-demuxer=pjs \
---disable-demuxer=vplayer \
---disable-demuxer=mpl2 \
---disable-demuxer=webvtt \
---disable-decoder=text \
---disable-decoder=srt \
---disable-decoder=subrip \
---disable-decoder=microdvd \
---disable-decoder=jacosub \
---disable-decoder=sami \
---disable-decoder=realtext \
---disable-decoder=stl \
---disable-decoder=subviewer \
---disable-decoder=subviewer1 \
---disable-decoder=pjs \
---disable-decoder=vplayer \
---disable-decoder=mpl2 \
---disable-decoder=webvtt \
---enable-openssl \
---enable-zlib \
+"
+FF_FEATURE_MISC="\
+--disable-bsf=dca_core \
+--disable-parser=mlp \
+" 
+FF_FEATURES=""
+FF_FEATURES+=$FF_FEATURE_CLASS
+if [ "$DISABLE_IILEGAL_COMPONENTS" = true ];
+then
+    FF_FEATURES+=$FF_FEATURE_DEMUXER
+    FF_FEATURES+=$FF_FEATURE_DECODER
+    FF_FEATURES+=$FF_FEATURE_MISC
+fi
+
+FF_FEATURES+=$FF_FEATURE_PROTOCOL
+FF_FEATURES+=$FF_FEATURE_FILTER
+
+
+FF_OUTDEP="\
+--enable-libmodplug \
 --enable-libopus \
 --enable-libspeex \
 --enable-libzvbi \
---enable-libmodplug \
+--enable-openssl \
+--enable-zlib \
+--enable-libxml2 \
+"
+#configure compiler,ld and relevant parameters
+FFCOMPILER="\
 --arch=$ARCH \
 --cpu=$CPU \
 --cross-prefix=$CROSS_PREFIX \
---cc="$CC" \
---cxx="$CXX" \
 --ld=$LD \
 --nm=$NM \
 --ar=$AR \
 --as=$AS \
+--target-os=android \
 --enable-cross-compile \
 --sysroot=$NDK/platforms/$APP_PLATFORM/arch-$ARCH \
---target-os=linux \
---extra-cflags="-I$INC_ICONV -I$INC_ZVBI -I$INC_OPENSSL -I$INC_OPUS -I$INC_SPEEX -I$INC_MODPLUG -DNDEBUG -DMXTECHS -DFF_API_AVPICTURE=1 -ftree-vectorize -ffunction-sections -funwind-tables -fomit-frame-pointer $EXTRA_CFLAGS -no-canonical-prefixes -pipe" \
---extra-libs="-L$LIB_MX -L../libs/android/$LINK_AGAINST -lmxutil -lm" \
+$EXTRA_PARAMETERS \
+"
+
+EXTRA_CFLAGS+=" -I$INC_ICONV -I$INC_ZVBI -I$INC_OPENSSL -I$INC_OPUS -I$INC_SPEEX -I$INC_MODPLUG -I$INC_LIBMXL2 -DNDEBUG -DMXTECHS -DFF_API_AVPICTURE=1 -ftree-vectorize -ffunction-sections -funwind-tables -fomit-frame-pointer -no-canonical-prefixes -pipe"
+EXTRA_LIBS="-L$LIB_MX -L$ANDROID_SDKS_LIBRARY_PATH/$LINK_AGAINST -lmxutil -lm"
+
+./configure ${FFCOMPILER} ${FFCOMMON} ${FF_FEATURES} \
+${FFMPEG_CONFIGURATION}  ${FF_OUTDEP} \
+--cc="$CC" \
+--cxx="$CXX" \
+--extra-cflags="$EXTRA_CFLAGS" \
+--extra-libs="$EXTRA_LIBS" \
 --extra-ldflags="$EXTRA_LDFLAGS" \
---optflags="$OPTFLAGS" \
-$EXTRA_PARAMETERS
+--optflags="$OPTFLAGS" 
+

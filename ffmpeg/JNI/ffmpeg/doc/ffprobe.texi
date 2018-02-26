@@ -208,6 +208,13 @@ multimedia stream.
 The information for each single frame is printed within a dedicated
 section with name "FRAME" or "SUBTITLE".
 
+@item -show_log @var{loglevel}
+Show logging information from the decoder about each frame according to
+the value set in @var{loglevel}, (see @code{-loglevel}). This option requires @code{-show_frames}.
+
+The information for each log message is printed within a dedicated
+section with name "LOG".
+
 @item -show_streams
 Show information about each media stream contained in the input
 multimedia stream.
@@ -464,7 +471,7 @@ Perform no escaping.
 @end table
 
 @item print_section, p
-Print the section name at the begin of each line if the value is
+Print the section name at the beginning of each line if the value is
 @code{1}, disable it with value set to @code{0}. Default value is
 @code{1}.
 
