@@ -814,7 +814,7 @@ static int mpegts_set_stream_info(AVStream *st, PESContext *pes,
     st->codecpar->codec_tag = pes->stream_type;
 
     mpegts_find_stream_type(st, pes->stream_type, ISO_types);
-    if (pes->stream_type == 4)
+    if (pes->stream_type == 4 || pes->stream_type == 0x0f)
         st->request_probe = 50;
     if ((prog_reg_desc == AV_RL32("HDMV") ||
          prog_reg_desc == AV_RL32("HDPR")) &&
@@ -881,7 +881,7 @@ static void reset_pes_packet_state(PESContext *pes)
 static void new_data_packet(const uint8_t *buffer, int len, AVPacket *pkt)
 {
     av_init_packet(pkt);
-    pkt->data = buffer;
+    pkt->data = (uint8_t *)buffer;
     pkt->size = len;
 }
 
@@ -2605,7 +2605,7 @@ static void seek_back(AVFormatContext *s, AVIOContext *pb, int64_t pos) {
      * probe buffer usually is big enough. Only warn if the seek failed
      * on files where the seek should work. */
     if (avio_seek(pb, pos, SEEK_SET) < 0)
-        av_log(s, pb->seekable ? AV_LOG_ERROR : AV_LOG_INFO, "Unable to seek back to the start\n");
+        av_log(s, (pb->seekable & AVIO_SEEKABLE_NORMAL) ? AV_LOG_ERROR : AV_LOG_INFO, "Unable to seek back to the start\n");
 }
 
 static int mpegts_read_header(AVFormatContext *s)
@@ -2615,6 +2615,8 @@ static int mpegts_read_header(AVFormatContext *s)
     uint8_t buf[8 * 1024] = {0};
     int len;
     int64_t pos, probesize = s->probesize;
+
+    s->internal->prefer_codec_framerate = 1;
 
     if (ffio_ensure_seekback(pb, probesize) < 0)
         av_log(s, AV_LOG_WARNING, "Failed to allocate buffers for seekback\n");
