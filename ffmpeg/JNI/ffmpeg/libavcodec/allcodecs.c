@@ -401,8 +401,8 @@ static void register_all(void)
     REGISTER_ENCDEC (AAC,               aac);
     REGISTER_DECODER(AAC_FIXED,         aac_fixed);
     REGISTER_DECODER(AAC_LATM,          aac_latm);
-    //REGISTER_ENCDEC (AC3,               ac3);
-    //REGISTER_ENCDEC (AC3_FIXED,         ac3_fixed);
+    REGISTER_ENCDEC (AC3,               ac3);
+    REGISTER_ENCDEC (AC3_FIXED,         ac3_fixed);
     REGISTER_ENCDEC (ALAC,              alac);
     REGISTER_DECODER(ALS,               als);
     REGISTER_DECODER(AMRNB,             amrnb);
@@ -732,18 +732,6 @@ static void register_all(void)
     REGISTER_PARSER(VP8,                vp8);
     REGISTER_PARSER(VP9,                vp9);
     REGISTER_PARSER(XMA,                xma);
-}
-
-void avcodec_register_more(void)
-{
-    static int initialized;
-
-    if (initialized)
-        return;
-    initialized = 1;
-
-    REGISTER_ENCDEC (AC3,               ac3);
-    REGISTER_ENCDEC (AC3_FIXED,         ac3_fixed);
 }
 
 void avcodec_register_all(void)

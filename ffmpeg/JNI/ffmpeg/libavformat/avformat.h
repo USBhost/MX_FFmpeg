@@ -1988,7 +1988,6 @@ const char *avformat_license(void);
  * @see av_register_output_format()
  */
 void av_register_all(void);
-void av_register_more(void);
 
 void av_register_input_format(AVInputFormat *format);
 void av_register_output_format(AVOutputFormat *format);
