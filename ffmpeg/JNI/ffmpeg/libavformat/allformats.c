@@ -397,15 +397,3 @@ void av_register_all(void)
 
     ff_thread_once(&control, register_all);
 }
-
-void av_register_more(void)
-{
-    static int initialized;
-
-    if (initialized)
-        return;
-    initialized = 1;
-
-    avcodec_register_more();
-}
-

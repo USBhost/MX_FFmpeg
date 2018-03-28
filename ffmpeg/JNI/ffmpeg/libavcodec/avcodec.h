@@ -3883,7 +3883,6 @@ void avcodec_register(AVCodec *codec);
  * @see av_register_bitstream_filter
  */
 void avcodec_register_all(void);
-void avcodec_register_more(void);
 
 /**
  * Allocate an AVCodecContext and set its fields to default values. The
