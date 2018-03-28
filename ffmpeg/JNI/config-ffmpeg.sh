@@ -1,6 +1,5 @@
 #!/bin/bash
-#DISABLE_IILEGAL_COMPONENTS=false
-DISABLE_IILEGAL_COMPONENTS=true
+DISABLE_IILEGAL_COMPONENTS=false
 
 tolower(){
     echo "$@" | tr ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz
