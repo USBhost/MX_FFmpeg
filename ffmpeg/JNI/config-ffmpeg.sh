@@ -1,6 +1,6 @@
 #!/bin/bash
-#DISABLE_IILEGAL_COMPONENTS=false
-DISABLE_IILEGAL_COMPONENTS=true
+#DISABLE_ILLEGAL_COMPONENTS=false
+DISABLE_ILLEGAL_COMPONENTS=true
 
 tolower(){
     echo "$@" | tr ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz
@@ -154,7 +154,7 @@ case $1 in
 		exit
 esac
 
-INC_OPENSSL=../openssl-1.0.2j/include
+INC_OPENSSL=../openssl-1.0.2s/include
 INC_OPUS=../opus-1.1/include
 INC_SPEEX=../speex-1.2rc1/include
 INC_ZVBI=../zvbi-0.2.35/src
@@ -197,6 +197,7 @@ then
 	LINK_AGAINST=16-arm
 elif [ $ARCH == 'x86_64' ] 
 then
+    FFMPEG_CONFIGURATION="--disable-mmx --disable-mmxext --disable-inline-asm"
 	TOOLCHAIN=$NDK/toolchains/x86_64-$GCC_VER/prebuilt/$HOST_PLATFORM
 	CROSS_PREFIX=$TOOLCHAIN/bin/x86_64-linux-android-
 
@@ -466,7 +467,7 @@ FF_FEATURE_MISC="\
 " 
 FF_FEATURES=""
 FF_FEATURES+=$FF_FEATURE_CLASS
-if [ "$DISABLE_IILEGAL_COMPONENTS" = true ];
+if [ "$DISABLE_ILLEGAL_COMPONENTS" = true ];
 then
     FF_FEATURES+=$FF_FEATURE_DEMUXER
     FF_FEATURES+=$FF_FEATURE_DECODER

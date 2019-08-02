@@ -547,6 +547,7 @@ OBJS-$(CONFIG_XWMA_DEMUXER)              += xwma.o
 OBJS-$(CONFIG_YOP_DEMUXER)               += yop.o
 OBJS-$(CONFIG_YUV4MPEGPIPE_DEMUXER)      += yuv4mpegdec.o
 OBJS-$(CONFIG_YUV4MPEGPIPE_MUXER)        += yuv4mpegenc.o
+OBJS-$(CONFIG_PLS_DEMUXER)               += pls.o
 
 # external libraries
 OBJS-$(CONFIG_AVISYNTH_DEMUXER)          += avisynth.o

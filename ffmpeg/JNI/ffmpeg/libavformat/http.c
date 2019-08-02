@@ -115,7 +115,6 @@ typedef struct HTTPContext {
     int reconnect;
     int reconnect_at_eof;
     int reconnect_streamed;
-    int reconnect_delay;
     int reconnect_delay_max;
     int listen;
     char *resource;
@@ -131,7 +130,7 @@ typedef struct HTTPContext {
 #ifndef MXTECHS
 #define DEFAULT_USER_AGENT "Lavf/" AV_STRINGIFY(LIBAVFORMAT_VERSION)
 #else
-#define DEFAULT_USER_AGENT "Mozilla/5.0 (Linux; Android) MXPlayer/1.8"
+#define DEFAULT_USER_AGENT "MXPlayer/1.10 (Linux; Android)"
 #endif //MXTECHS
 
 static const AVOption options[] = {
@@ -1326,7 +1325,7 @@ static int http_buf_read(URLContext *h, uint8_t *buf, int size)
         if ((!s->willclose || s->chunksize == UINT64_MAX) && s->off >= target_end)
             return AVERROR_EOF;
         len = ffurl_read(s->hd, buf, size);
-        if (!len && (!s->willclose || s->chunksize == UINT64_MAX) && s->off < target_end) {
+        if ( ( AVERROR_EOF == len ) && (!s->willclose || s->chunksize == UINT64_MAX) && s->off < target_end) {
             av_log(h, AV_LOG_ERROR,
                    "Stream ends prematurely at %"PRIu64", should be %"PRIu64"\n",
                    s->off, target_end
@@ -1384,6 +1383,7 @@ static int http_read_stream(URLContext *h, uint8_t *buf, int size)
     HTTPContext *s = h->priv_data;
     int err, new_location, read_ret;
     int64_t seek_ret;
+    int reconnect_delay = 0;
 
     if (!s->hd)
         return AVERROR_EOF;
@@ -1399,25 +1399,35 @@ static int http_read_stream(URLContext *h, uint8_t *buf, int size)
         return http_buf_read_compressed(h, buf, size);
 #endif /* CONFIG_ZLIB */
     read_ret = http_buf_read(h, buf, size);
-    if (   (read_ret  < 0 && s->reconnect        && (!h->is_streamed || s->reconnect_streamed) && s->filesize > 0 && s->off < s->filesize)
-        || (read_ret == 0 && s->reconnect_at_eof && (!h->is_streamed || s->reconnect_streamed))) {
+    while (read_ret < 0) {
         uint64_t target = h->is_streamed ? 0 : s->off;
 
-        if (s->reconnect_delay > s->reconnect_delay_max)
+        if (read_ret == AVERROR_EXIT)
+            break;
+
+        if (h->is_streamed && !s->reconnect_streamed)
+            break;
+
+        if (!(s->reconnect && s->filesize > 0 && s->off < s->filesize) &&
+            !(s->reconnect_at_eof && read_ret == AVERROR_EOF))
+            break;
+
+        if (reconnect_delay > s->reconnect_delay_max)
             return AVERROR(EIO);
 
-        av_log(h, AV_LOG_INFO, "Will reconnect at %"PRIu64" error=%s.\n", s->off, av_err2str(read_ret));
-        av_usleep(1000U*1000*s->reconnect_delay);
-        s->reconnect_delay = 1 + 2*s->reconnect_delay;
+        av_log(h, AV_LOG_WARNING, "Will reconnect at %"PRIu64" in %d second(s), error=%s.\n", s->off, reconnect_delay, av_err2str(read_ret));
+        err = ff_network_sleep_interruptible(1000U*1000*reconnect_delay, &h->interrupt_callback);
+        if (err != AVERROR(ETIMEDOUT))
+            return err;
+        reconnect_delay = 1 + 2*reconnect_delay;
         seek_ret = http_seek_internal(h, target, SEEK_SET, 1);
-        if (seek_ret != target) {
+        if (seek_ret >= 0 && seek_ret != target) {
             av_log(h, AV_LOG_ERROR, "Failed to reconnect at %"PRIu64".\n", target);
             return read_ret;
         }
 
         read_ret = http_buf_read(h, buf, size);
-    } else
-        s->reconnect_delay = 0;
+    }
 
     return read_ret;
 }
