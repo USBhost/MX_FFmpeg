@@ -1,1 +1,3 @@
-cp libs/arm64-v8a/lib$1.so ../../mxcore_release/ffmpeg_v8/src/main/jniLibs/arm64-v8a
+mv libs/arm64-v8a/lib$1.so libs/output/ffmpeg_arm64/aarch64
+
+echo "0"
