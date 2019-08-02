@@ -19,17 +19,146 @@
 #include "avformat.h"
 #include "internal.h"
 #include "libavutil/intreadwrite.h"
+#include "libavutil/opt.h"
 
 #define SUP_PGS_MAGIC 0x5047 /* "PG", big endian */
 
+enum SegmentType {
+    PALETTE_SEGMENT      = 0x14,
+    OBJECT_SEGMENT       = 0x15,
+    PRESENTATION_SEGMENT = 0x16,
+    WINDOW_SEGMENT       = 0x17,
+    DISPLAY_SEGMENT      = 0x80,
+};
+
+typedef struct PGSSegmentHeader
+{
+    uint16_t magic;
+    int64_t  pts;
+    int64_t  dts;
+    uint8_t  type;
+    uint16_t size;
+} PGSSegmentHeader;
+
+typedef struct {
+    AVClass *class;
+    int scan;
+    PGSSegmentHeader start;
+    PGSSegmentHeader end;
+} SUPDecContext;
+
+static const char* get_segment_type_string(uint8_t type)
+{
+    const char* result = NULL;
+    switch(type)
+    {
+        case PALETTE_SEGMENT:
+            result = "PDS";
+        break;
+
+        case OBJECT_SEGMENT:
+            result = "ODS";
+        break;
+
+        case PRESENTATION_SEGMENT:
+            result = "PCS";
+        break;
+
+        case WINDOW_SEGMENT:
+            result = "WDS";
+        break;
+
+        case DISPLAY_SEGMENT:
+            result = "END";
+        break;
+
+        default:
+            result = "WDS";
+        break;
+    }
+    return result;
+}
+
+static int sup_read_segment_header(AVFormatContext *s, PGSSegmentHeader *header)
+{
+    header->magic = avio_rb16(s->pb);
+    if (header->magic != SUP_PGS_MAGIC) {
+        return avio_feof(s->pb) ? AVERROR_EOF : AVERROR_INVALIDDATA;
+    }
+    header->pts = avio_rb32(s->pb);
+    header->dts = avio_rb32(s->pb);
+    header->type = avio_r8(s->pb);
+    header->size = avio_rb16(s->pb);
+
+    //skip over segment
+    avio_skip(s->pb, header->size);
+
+    ff_dlog(s, "pts:%lld %f type:%s size:%d\n", header->pts, header->pts / 90000.0f, get_segment_type_string(header->type), header->size);
+
+    return avio_feof(s->pb) ? AVERROR_EOF : 0;
+}
+
+static int sup_read_scan(AVFormatContext *s, AVStream *st)
+{
+    SUPDecContext* c = s->priv_data;
+    int ret;
+    int64_t pos = avio_tell(s->pb);
+
+    avio_seek(s->pb, 0, SEEK_SET);
+
+    int64_t pos2;
+    do
+    {
+        pos2 = avio_tell(s->pb);
+        ret = sup_read_segment_header(s, &c->start);
+        if (c->start.type == PRESENTATION_SEGMENT)
+        {
+            av_add_index_entry(st, pos2, c->start.pts, 0, 0, AVINDEX_KEYFRAME);
+            break;
+        }
+    } while(0 == ret);
+
+    do
+    {
+        pos2 = avio_tell(s->pb);
+        ret = sup_read_segment_header(s, &c->end);
+        if (c->end.type == PRESENTATION_SEGMENT)
+        {
+            av_add_index_entry(st, pos2, c->end.pts, 0, 0, AVINDEX_KEYFRAME);
+        }
+    } while(0 == ret);
+
+    avio_seek(s->pb, pos, SEEK_SET);
+    return 0;
+}
+
 static int sup_read_header(AVFormatContext *s)
 {
+    SUPDecContext* c = s->priv_data;
     AVStream *st = avformat_new_stream(s, NULL);
     if (!st)
         return AVERROR(ENOMEM);
     st->codecpar->codec_type = AVMEDIA_TYPE_SUBTITLE;
     st->codecpar->codec_id = AV_CODEC_ID_HDMV_PGS_SUBTITLE;
+
+    if (c->scan && 0 == sup_read_scan(s, st)){
+        st->duration = c->end.pts - c->start.pts;
+    }
+
     avpriv_set_pts_info(st, 32, 1, 90000);
+
+    return 0;
+}
+
+static int sup_read_seek(AVFormatContext *s, int stream_index, int64_t timestamp, int flags)
+{
+    AVStream *st = s->streams[stream_index];
+    int index = av_index_search_timestamp(st, timestamp, flags);
+    if (index < 0)
+        return -1;
+
+    if (avio_seek(s->pb, st->index_entries[index].pos, SEEK_SET) < 0)
+        return -1;
 
     return 0;
 }
@@ -46,7 +175,6 @@ static int sup_read_packet(AVFormatContext *s, AVPacket *pkt)
 
     pts = avio_rb32(s->pb);
     dts = avio_rb32(s->pb);
-
     if ((ret = av_get_packet(s->pb, pkt, 3)) < 0)
         return ret;
 
@@ -97,13 +225,33 @@ static int sup_probe(AVProbeData *p)
     return AVPROBE_SCORE_MAX;
 }
 
+#define OFFSET(x) offsetof(SUPDecContext, x)
+#define FLAGS AV_OPT_FLAG_DECODING_PARAM | AV_OPT_FLAG_SUBTITLE_PARAM
+static const AVOption pgs_options[] = {
+    {"scan",
+    "Scan all the display set for duration and speed up seek performance",
+    OFFSET(scan), AV_OPT_TYPE_BOOL, { .i64 = 1 },
+    0, 1, FLAGS},
+    { NULL },
+};
+
+static const AVClass pgs_class = {
+    .class_name = "sup",
+    .item_name  = av_default_item_name,
+    .option     = pgs_options,
+    .version    = LIBAVUTIL_VERSION_INT,
+};
+
 AVInputFormat ff_sup_demuxer = {
     .name           = "sup",
     .long_name      = NULL_IF_CONFIG_SMALL("raw HDMV Presentation Graphic Stream subtitles"),
+    .priv_class     = &pgs_class,
+    .priv_data_size = sizeof(SUPDecContext),
     .extensions     = "sup",
     .mime_type      = "application/x-pgs",
     .read_probe     = sup_probe,
     .read_header    = sup_read_header,
+    .read_seek      = sup_read_seek,
     .read_packet    = sup_read_packet,
     .flags          = AVFMT_GENERIC_INDEX,
 };

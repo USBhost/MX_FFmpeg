@@ -5,7 +5,7 @@
 ROOT=$(cd "$(dirname "$0")"; pwd)
 source ${ROOT}/util.sh
 
-cd ${ROOT}/openssl-1.0.2j
+cd ${ROOT}/openssl-1.0.2s
 
 if test -z ${NDK}
 then

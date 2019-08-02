@@ -869,12 +869,11 @@ static int parse_playlist(HLSContext *c, const char *url,
             if ( !is_variant && isExtendedM3U == false )
             {
                 //It is better to check wheter the url is variant or segment.
-                const int m3u8_len = strlen( ".m3u8" );
-                int length = strlen( line );
+                const char* ext = strrchr(line, '.');
 
-                if ( length > m3u8_len )
+                if (ext)
                 {
-                    try_variant = ( 0 == strncmp( line + length - m3u8_len, ".m3u8", m3u8_len ) );
+                    try_variant = ( 0 == strcmp(ext, ".m3u8") ) || ( 0 == strcmp(ext, ".m3u") );
                 }
             }
 #endif

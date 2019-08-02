@@ -1,15 +1,22 @@
 #!/bin/bash
 
-rm rebuild-ffmpeg.log
+log_file=rebuild-ffmpeg.log
 
-./build-openssl.sh neon 2>&1 1>> rebuild-ffmpeg.log | tee -a rebuild-ffmpeg.log
-./build-ffmpeg.sh neon 2>&1 1>> rebuild-ffmpeg.log | tee -a rebuild-ffmpeg.log
+if [ -e $log_file ]
+then
+    rm $log_file
+fi
 
-./build-openssl.sh tegra3 2>&1 1>> rebuild-ffmpeg.log | tee -a rebuild-ffmpeg.log
-./build-ffmpeg.sh tegra3 2>&1 1>> rebuild-ffmpeg.log | tee -a rebuild-ffmpeg.log
+targets=(neon tegra2 tegra3 arm64 x86 x86_64)
 
-./build-openssl.sh tegra2 2>&1 1>> rebuild-ffmpeg.log | tee -a rebuild-ffmpeg.log
-./build-ffmpeg.sh tegra2 2>&1 1>> rebuild-ffmpeg.log | tee -a rebuild-ffmpeg.log
+build_target(){
 
-./build-openssl.sh x86 2>&1 1>> rebuild-ffmpeg.log | tee -a rebuild-ffmpeg.log
-./build-ffmpeg.sh x86 2>&1 1>> rebuild-ffmpeg.log | tee -a rebuild-ffmpeg.log
+./build-openssl.sh $1 2>&1 1>> $2 | tee -a $2
+./build-ffmpeg.sh $1 2>&1 1>> $2 | tee -a $2
+}
+
+for target in ${targets[*]}
+do
+    echo "Build $target"
+    build_target $target $log_file
+done

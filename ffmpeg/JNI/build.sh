@@ -1,4 +1,8 @@
 #!/bin/bash
+# @note HTC Desire / Motorola Milestone 등의 버그로 v7에서도 armeabi를 로드하여 armeabi에 이름을 바꿔 넣음
+# @see http://groups.google.com/group/android-ndk/browse_thread/thread/464bab5543c672d4
+
+# API 21이전에는 libc.so에 rand, atof등의 함수가 누락되어있어 x86_64를 제외하고는 API 16을 사용한다.
 
 TARGET=$1
 COPY=0
@@ -29,7 +33,7 @@ prepare_x86_64()
 }
 
 # MIPS32 revision 2
-mips32r2() 
+mips32r2()
 {
 	if [ $BUILD -eq 1 ]
 	then
@@ -48,7 +52,7 @@ mips32r2()
 	fi
 }
 
-x86_64() 
+x86_64()
 {
 	if [ $BUILD -eq 1 ]
 	then
@@ -68,7 +72,7 @@ x86_64()
 }
 
 # x86 (Atom)
-x86() 
+x86()
 {
 	if [ $BUILD -eq 1 ]
 	then
@@ -88,7 +92,7 @@ x86()
 }
 
 # x86 (sse2)
-x86_sse2() 
+x86_sse2()
 {
 	if [ $BUILD -eq 1 ]
 	then
@@ -107,7 +111,7 @@ x86_sse2()
 	fi
 }
 
-arm64() 
+arm64()
 {
 	if [ $BUILD -eq 1 ]
 	then
@@ -132,7 +136,7 @@ arm64()
 	fi
 }
 
-neon() 
+neon()
 {
 	if [ $BUILD -eq 1 ]
 	then
@@ -157,7 +161,7 @@ neon()
 	fi
 }
 
-tegra3() 
+tegra3()
 {
 	if [ $BUILD -eq 1 ]
 	then
@@ -175,6 +179,10 @@ tegra3()
 				  -e NDK_APP_DST_DIR=libs/armeabi-v7a/tegra3 \
 				  -e NAME=$TARGET \
 				  -e PROFILE=$PROFILE
+
+#				  -e NDK_TOOLCHAIN_VERSION=4.9
+#				  -e OLD_FFMPEG=1 \
+#				  -e FFMPEG_SUFFIX=__1.7.39
 	fi
 
 	if [ $COPY -eq 1 ]
@@ -189,7 +197,7 @@ tegra2()
 	if [ $BUILD -eq 1 ]
 	then
 		prepare
-		echo -ne '\nBUILDING '$TARGET'.tegra2...\n\n' 
+		echo -ne '\nBUILDING '$TARGET'.tegra2...\n\n'
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
 				  -e APP_ABI=armeabi-v7a \
@@ -215,7 +223,7 @@ v7a()
 	if [ $BUILD -eq 1 ]
 	then
 		prepare
-		echo -ne '\nBUILDING '$TARGET'.v7a...\n\n' 
+		echo -ne '\nBUILDING '$TARGET'.v7a...\n\n'
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
 				  -e APP_ABI=armeabi-v7a \
@@ -241,7 +249,7 @@ v6_vfp()
 	if [ $BUILD -eq 1 ]
 	then
 		prepare
-		echo -ne '\nBUILDING '$TARGET'.v6+vfp...\n\n' 
+		echo -ne '\nBUILDING '$TARGET'.v6+vfp...\n\n'
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
 				  -e APP_ABI=armeabi \
@@ -267,7 +275,7 @@ v6()
 	if [ $BUILD -eq 1 ]
 	then
 		prepare
-		echo -ne '\nBUILDING '$TARGET'.v6...\n\n' 
+		echo -ne '\nBUILDING '$TARGET'.v6...\n\n'
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
 				  -e APP_ABI=armeabi \
@@ -292,7 +300,7 @@ v5te()
 	if [ $BUILD -eq 1 ]
 	then
 		prepare
-		echo -ne '\nBUILDING '$TARGET'.v5te...\n\n' 
+		echo -ne '\nBUILDING '$TARGET'.v5te...\n\n'
 		$MAKE NDK_DEBUG=0 \
 				  -j$CPU_CORE \
 				  -e APP_ABI=armeabi \
@@ -314,8 +322,10 @@ v5te()
 
 if [ $TARGET == 'mxvp' ]
 then
-	/home/blue/workspace/GenSecureString/Debug/GenSecureString `pwd`/mxvp/android/sec_str
-	/home/blue/workspace/GenSecureBytes/Debug/GenSecureBytes `pwd`/mxvp/android/sec_bytes
+	# /home/blue/workspace/GenSecureString/Debug/GenSecureString `pwd`/mxvp/android/sec_str
+	docker run -it --rm -v `pwd`/../../GenSecureString/linux_bin/:/linux_bin -v `pwd`:/pwd ubuntu /linux_bin/GenSecureString /pwd/mxvp/android/sec_str
+	# /home/blue/workspace/GenSecureBytes/Debug/GenSecureBytes `pwd`/mxvp/android/sec_bytes
+	docker run -it --rm -v `pwd`/../../GenSecureBytes/linux_bin/:/linux_bin -v `pwd`:/pwd ubuntu /linux_bin/GenSecureBytes /pwd/mxvp/android/sec_bytes
 fi
 
 # @note 'then' should appear next line of [] block. 'do' for 'for' seems to be same.. i don't know why ..
@@ -323,9 +333,9 @@ fi
 #then
 #	COPY=1
 #	BUILD=1
-#	v7a 
+#	v7a
 #else
-	for p in $* 
+	for p in $*
 	do
 		case "$p" in
 			copy)
@@ -342,7 +352,7 @@ fi
 				x86_sse2 ;;
 			arm64)
 				arm64 ;;
-			neon) 
+			neon)
 				neon ;;
 			tegra3)
 				tegra3;;
@@ -365,4 +375,3 @@ fi
 		esac
 	done
 #fi
-
