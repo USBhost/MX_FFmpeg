@@ -2548,6 +2548,161 @@ static int matroska_parse_tracks(AVFormatContext *s)
     return 0;
 }
 
+#ifdef MXTECHS
+static int matroska_extract_block_time(MatroskaDemuxContext *matroska, uint8_t *data, int size, int16_t *block_time)
+{
+    MatroskaTrack *track;
+    AVIOContext pb;
+    int n;
+    uint64_t num;
+
+    ffio_init_context(&pb, data, size, 0, NULL, NULL, NULL, NULL);
+
+    if ((n = ebml_read_num(matroska, &pb, 8, &num)) < 0)
+        return n;
+    data += n;
+    size -= n;
+
+    track = matroska_find_track_by_num(matroska, num);
+    if (!track || !track->stream) {
+        av_log(matroska->ctx, AV_LOG_INFO,
+               "Invalid stream %"PRIu64"\n", num);
+        return AVERROR_INVALIDDATA;
+    } else if (size <= 3)
+        return 0;
+    if ( block_time ) {
+        *block_time = sign_extend(AV_RB16(data), 16);
+    }
+    return 0;
+}
+
+static int matroska_extract_cluster_incremental(MatroskaDemuxContext *matroska, int16_t *block_time)
+{
+    EbmlList *blocks_list;
+    MatroskaBlock *blocks;
+    int i, res;
+    res = ebml_parse(matroska,
+                     matroska_cluster_incremental_parsing,
+                     &matroska->current_cluster);
+    if (res == 1) {
+        /* New Cluster */
+        if (matroska->current_cluster_pos)
+            ebml_level_end(matroska);
+        ebml_free(matroska_cluster, &matroska->current_cluster);
+        memset(&matroska->current_cluster, 0, sizeof(MatroskaCluster));
+        matroska->current_cluster_num_blocks = 0;
+        matroska->current_cluster_pos        = avio_tell(matroska->ctx->pb);
+        matroska->prev_pkt                   = NULL;
+        /* sizeof the ID which was already read */
+        if (matroska->current_id)
+            matroska->current_cluster_pos -= 4;
+        res = ebml_parse(matroska,
+                         matroska_clusters_incremental,
+                         &matroska->current_cluster);
+        /* Try parsing the block again. */
+        if (res == 1)
+            res = ebml_parse(matroska,
+                             matroska_cluster_incremental_parsing,
+                             &matroska->current_cluster);
+    }
+
+    if (!res &&
+        matroska->current_cluster_num_blocks <
+        matroska->current_cluster.blocks.nb_elem) {
+        blocks_list = &matroska->current_cluster.blocks;
+        blocks      = blocks_list->elem;
+
+        matroska->current_cluster_num_blocks = blocks_list->nb_elem;
+        i                                    = blocks_list->nb_elem - 1;
+        if (blocks[i].bin.size > 0 && blocks[i].bin.data) {
+            if (!blocks[i].non_simple)
+                blocks[i].duration = 0;
+
+            res = matroska_extract_block_time(matroska, blocks[i].bin.data, blocks[i].bin.size, block_time);
+        }
+    }
+
+    return res;
+}
+
+static int matroska_extract_cluster(MatroskaDemuxContext *matroska, int16_t *block_time) {
+
+    EbmlList *blocks_list;
+    MatroskaBlock *blocks;
+    int i, res;
+
+    if (!matroska->contains_ssa)
+        return matroska_extract_cluster_incremental(matroska, block_time);
+    matroska->prev_pkt = NULL;
+    res         = ebml_parse(matroska, matroska_clusters, &matroska->current_cluster);
+    blocks_list = &matroska->current_cluster.blocks;
+    blocks      = blocks_list->elem;
+    for (i = 0; i < blocks_list->nb_elem; i++)
+        if (blocks[i].bin.size > 0 && blocks[i].bin.data) {
+            res = matroska_extract_block_time(matroska, blocks[i].bin.data, blocks[i].bin.size, block_time);
+        }
+    ebml_free(matroska_cluster, &matroska->current_cluster);
+    return res;
+}
+
+static int64_t matroska_extract_duration(MatroskaDemuxContext *matroska) {
+    int64_t duration = 0;
+    if (matroska->ctx->pb->seekable & AVIO_SEEKABLE_NORMAL) {
+        uint32_t level_up       = matroska->level_up;
+        uint32_t saved_id       = matroska->current_id;
+        int64_t before_pos = avio_tell(matroska->ctx->pb);
+
+        /* Parse the CUES now since we need the index data to seek. */
+        if (matroska->cues_parsing_deferred > 0) {
+            matroska->cues_parsing_deferred = 0;
+            matroska_parse_cues(matroska);
+        }
+
+        //Search the index entries and find the last index
+        MatroskaTrack *tracks = matroska->tracks.elem;
+        int i;
+        AVStream *target_stream = NULL;
+        AVIndexEntry *target_entry = NULL;
+        for (i = 0; i < matroska->tracks.nb_elem; i++) {
+            AVStream *st = tracks[i].stream;
+            if (st && st->nb_index_entries) {
+                AVIndexEntry *last_entry = &st->index_entries[st->nb_index_entries-1];
+                if (!target_entry || last_entry->timestamp > target_entry->timestamp) {
+                    target_entry = last_entry;
+                    target_stream = st;
+                }
+            }
+        }
+        if (target_stream && target_entry) {
+            if (target_entry->pos >= 0) {
+                avio_seek(matroska->ctx->pb, target_entry->pos, SEEK_SET);
+            }
+        }
+
+        //Extract cluster and block header
+        int16_t block_time = 0;
+        while (!matroska->done) {
+            int64_t pos = avio_tell(matroska->ctx->pb);
+            if (matroska_extract_cluster(matroska, &block_time) < 0) {
+                matroska_resync(matroska, pos);
+            }
+            duration = FFMAX(duration, matroska->current_cluster.timecode + block_time);
+        }
+        matroska->done = 0;
+
+        /* Seek back - notice that in all instances where this is used
+         * it is safe to set the level to 1. */
+        avio_seek(matroska->ctx->pb, before_pos, SEEK_SET);
+        matroska->level_up   = level_up;
+        matroska->current_id = saved_id;
+    } else {
+        av_log(matroska->ctx, AV_LOG_ERROR, "Can not extract the duration of non-seekable content.");
+    }
+
+    return duration;
+}
+#endif
+
 static int matroska_read_header(AVFormatContext *s)
 {
     MatroskaDemuxContext *matroska = s->priv_data;
@@ -2695,6 +2850,15 @@ static int matroska_read_header(AVFormatContext *s)
 
     matroska_convert_tags(s);
 
+#ifdef MXTECHS
+    if (!matroska->duration) {
+        int64_t duration = matroska_extract_duration(matroska);
+        matroska->duration = duration;
+        if (matroska->duration) {
+            matroska->ctx->duration = matroska->duration * matroska->time_scale * 1000 / AV_TIME_BASE;
+        }
+    }
+#endif
     return 0;
 fail:
     matroska_read_close(s);
