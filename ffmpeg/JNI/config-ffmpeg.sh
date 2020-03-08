@@ -61,7 +61,7 @@ case $1 in
 
 	tegra3)
 		# Unset CLANG_VER to use GCC
-		CLANG_VER=
+		#CLANG_VER=
 
 		ARCH=arm
 		CPU=armv7-a
@@ -161,73 +161,76 @@ INC_ZVBI=../zvbi-0.2.35/src
 INC_ICONV=../modified_src/iconv
 INC_MODPLUG=../libmodplug/src
 INC_LIBMXL2=../libxml2/include
+INC_LIBSMB2=../libsmb2/include
 
 
+TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/$HOST_PLATFORM
 if [ $ARCH == 'arm64' ] 
 then
-	TOOLCHAIN=$NDK/toolchains/aarch64-linux-android-$GCC_VER/prebuilt/$HOST_PLATFORM
 	CROSS_PREFIX=$TOOLCHAIN/bin/aarch64-linux-android-
+    AS=$TOOLCHAIN/bin/aarch64-linux-android21-clang
+    LD=$TOOLCHAIN/bin/aarch64-linux-android21-clang
 
 	EXTRA_CFLAGS+=" -fstack-protector -fstrict-aliasing"
 	EXTRA_LDFLAGS+=" -march=$CPU"
 
 	if [ -n "${CLANG_VER}" ]
 	then
-        CLANG_TARGET=aarch64-none-linux-android
+        CLANG_TARGET=aarch64-none-linux-android21
 	fi
 
 	OPTFLAGS="-O2"
-	APP_PLATFORM=android-22
 	LINK_AGAINST=22-arm
 elif [ $ARCH == 'arm' ] 
 then
-	TOOLCHAIN=$NDK/toolchains/arm-linux-androideabi-$GCC_VER/prebuilt/$HOST_PLATFORM
 	CROSS_PREFIX=$TOOLCHAIN/bin/arm-linux-androideabi-
+    AS=$TOOLCHAIN/bin/armv7a-linux-androideabi17-clang
+    LD=$TOOLCHAIN/bin/armv7a-linux-androideabi17-clang
 
 	EXTRA_CFLAGS+=" -fstack-protector -fstrict-aliasing"
 	EXTRA_LDFLAGS+=" -march=$CPU"
 
 	if [ -n "${CLANG_VER}" ]
 	then
-		CLANG_TARGET=armv7-none-linux-androideabi
+		CLANG_TARGET=armv7-none-linux-androideabi17
 	fi
 
 	OPTFLAGS="-O2"
-	APP_PLATFORM=android-16
-	LINK_AGAINST=16-arm
+	#LINK_AGAINST=16-arm
 elif [ $ARCH == 'x86_64' ] 
 then
     FFMPEG_CONFIGURATION="--disable-mmx --disable-mmxext --disable-inline-asm"
-	TOOLCHAIN=$NDK/toolchains/x86_64-$GCC_VER/prebuilt/$HOST_PLATFORM
 	CROSS_PREFIX=$TOOLCHAIN/bin/x86_64-linux-android-
+    AS=$TOOLCHAIN/bin/x86_64-linux-android21-clang
+    LD=$TOOLCHAIN/bin/x86_64-linux-android21-clang
 
 	EXTRA_CFLAGS+=" -fstrict-aliasing"
 
 	if [ -n "${CLANG_VER}" ]
 	then
-		CLANG_TARGET=x86_64-none-linux-android
+		CLANG_TARGET=x86_64-none-linux-android21
 		EXTRA_CFLAGS+=" -fstack-protector-strong "
 	fi
 
-	OPTFLAGS="-O2 -fpic"
-	APP_PLATFORM=android-21
+	#OPTFLAGS="-O2 -fpic"
+	OPTFLAGS="-O2 -fPIC"
 	LINK_AGAINST=21-x86_64
 elif [ $ARCH == 'x86' ] 
 then
     FFMPEG_CONFIGURATION="--disable-mmx --disable-mmxext --disable-inline-asm"
-	TOOLCHAIN=$NDK/toolchains/x86-$GCC_VER/prebuilt/$HOST_PLATFORM
 	CROSS_PREFIX=$TOOLCHAIN/bin/i686-linux-android-
+    AS=$TOOLCHAIN/bin/i686-linux-android17-clang
+    LD=$TOOLCHAIN/bin/i686-linux-android17-clang
 
 	EXTRA_CFLAGS+=" -fstrict-aliasing"
 
 	if [ -n "${CLANG_VER}" ]
 	then
-		CLANG_TARGET=i686-none-linux-android
+		CLANG_TARGET=i686-none-linux-android17
 		EXTRA_CFLAGS+=" -fstack-protector-strong "
 	fi
 
 	OPTFLAGS="-O2 -fpic"
-	APP_PLATFORM=android-16
 	LINK_AGAINST=16-x86
 #elif [ $ARCH == 'mips' ] 
 #then
@@ -243,10 +246,8 @@ fi
 if [ -n "${CLANG_VER}" ]
 then
 	# Clang only.
-	CC="$NDK/toolchains/llvm/prebuilt/$HOST_PLATFORM/bin/clang -target $CLANG_TARGET -gcc-toolchain $TOOLCHAIN"
-	CXX="$NDK/toolchains/llvm/prebuilt/$HOST_PLATFORM/bin/clang++ -target $CLANG_TARGET -gcc-toolchain $TOOLCHAIN"
-	LD=${CROSS_PREFIX}gcc
-	AS=${CROSS_PREFIX}gcc
+	CC="$NDK/toolchains/llvm/prebuilt/$HOST_PLATFORM/bin/clang -target $CLANG_TARGET"
+	CXX="$NDK/toolchains/llvm/prebuilt/$HOST_PLATFORM/bin/clang++ -target $CLANG_TARGET"
 
 	#EXTRA_CFLAGS+="-target $CLANG_TARGET -gcc-toolchain $TOOLCHAIN"
 	EXTRA_CFLAGS+=" -Wno-deprecated-declarations -Wno-unused-variable -Wno-unused-function"
@@ -257,7 +258,7 @@ else
 	# XXX Temporarily removed from Clang build until options are supported.
 	EXTRA_CFLAGS+=" -funswitch-loops -finline-limit=300 -finline-functions -fgcse-after-reload"
 fi
-
+SYSROOT=${TOOLCHAIN}/sysroot
 
 #configure common options
 FFCOMMON="\
@@ -465,6 +466,7 @@ FF_FEATURE_MISC="\
 --disable-bsf=dca_core \
 --disable-parser=mlp \
 " 
+
 FF_FEATURES=""
 FF_FEATURES+=$FF_FEATURE_CLASS
 if [ "$DISABLE_ILLEGAL_COMPONENTS" = true ];
@@ -477,7 +479,6 @@ fi
 FF_FEATURES+=$FF_FEATURE_PROTOCOL
 FF_FEATURES+=$FF_FEATURE_FILTER
 
-
 FF_OUTDEP="\
 --enable-libmodplug \
 --enable-libopus \
@@ -486,6 +487,7 @@ FF_OUTDEP="\
 --enable-openssl \
 --enable-zlib \
 --enable-libxml2 \
+--enable-libsmb2 \
 "
 #configure compiler,ld and relevant parameters
 FFCOMPILER="\
@@ -498,19 +500,21 @@ FFCOMPILER="\
 --as=$AS \
 --target-os=android \
 --enable-cross-compile \
---sysroot=$NDK/platforms/$APP_PLATFORM/arch-$ARCH \
+--sysroot=${TOOLCHAIN}/sysroot \
 $EXTRA_PARAMETERS \
 "
 
-EXTRA_CFLAGS+=" -I$INC_ICONV -I$INC_ZVBI -I$INC_OPENSSL -I$INC_OPUS -I$INC_SPEEX -I$INC_MODPLUG -I$INC_LIBMXL2 -DNDEBUG -DMXTECHS -DFF_API_AVPICTURE=1 -ftree-vectorize -ffunction-sections -funwind-tables -fomit-frame-pointer -no-canonical-prefixes -pipe"
-EXTRA_LIBS="-L$LIB_MX -L$ANDROID_SDKS_LIBRARY_PATH/$LINK_AGAINST -lmxutil -lm"
+EXTRA_CFLAGS+=" -I$INC_ICONV -idirafter$INC_ZVBI -I$INC_OPENSSL -I$INC_OPUS -I$INC_SPEEX -I$INC_MODPLUG -I$INC_LIBMXL2 -I$INC_LIBSMB2 -DNDEBUG -DMXTECHS -DFF_API_AVPICTURE=1 -ftree-vectorize -ffunction-sections -funwind-tables -fomit-frame-pointer -no-canonical-prefixes -pipe"
+EXTRA_LIBS="-L$LIB_MX -lmxutil -lm -lc++_shared"
 
-./configure ${FFCOMPILER} ${FFCOMMON} ${FF_FEATURES} \
-${FFMPEG_CONFIGURATION}  ${FF_OUTDEP} \
---cc="$CC" \
---cxx="$CXX" \
---extra-cflags="$EXTRA_CFLAGS" \
---extra-libs="$EXTRA_LIBS" \
---extra-ldflags="$EXTRA_LDFLAGS" \
---optflags="$OPTFLAGS" 
-
+./configure ${FFCOMPILER}                    \
+            ${FFCOMMON}                      \
+            ${FF_FEATURES}                   \
+            ${FFMPEG_CONFIGURATION}          \
+            ${FF_OUTDEP}                     \
+            --cc="$CC"                       \
+            --cxx="$CXX"                     \
+            --extra-cflags="$EXTRA_CFLAGS"   \
+            --extra-libs="$EXTRA_LIBS"       \
+            --extra-ldflags="$EXTRA_LDFLAGS" \
+            --optflags="$OPTFLAGS"

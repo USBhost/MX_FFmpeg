@@ -1,0 +1,194 @@
+Libsmb2 is a userspace client library for accessing SMB2/SMB3 shares on a
+network.
+It is high performance and fully async. It supports both zero-copy
+for SMB READ/WRITE commands as well as compounded commands.
+
+Libsmb2 is distributed under the LGPLv2.1 licence.
+
+
+API
+===
+Libsmb2 implements three different APIs for accessing remote SMB shares :
+
+1, High level synchronous posix-like API.
+This is a simple API for accessing a share.
+The functions in this API are modelled to be be similar to the corresponding
+POSIX functions.
+This API is described in libsmb.h
+
+2, High level async posix-like API.
+This is a high performance, fully non-blocking and async API.
+The functions in this API are modelled to be be similar to the corresponding
+POSIX functions.
+This is the recommended API.
+This API is described in libsmb.h
+
+3, Low level async RAW API.
+This is a low level API that provides direct access to the SMB2 PDUs
+and data structures.
+This API is described in libsmb-raw.h
+
+
+SMB URL Format
+==============
+The SMB URL format is currently a small subset of the URL format that is
+defined/used by the Samba project.
+The goal is to eventually support the full URL format, thus making URLs
+interchangable between Samba utilities and Libsmb2 but we are not there yet.
+
+smb://[<domain>;][<user>@]<server>[:<port>]/<share>[/path][?arg=val[&arg=val]*]
+
+<server> is either a hostname, an IPv4 or an IPv6 address.
+
+Aruments supported by libsmb2 are :
+ sec=<mech>    : Mechanism to use to authenticate to the server. Default
+	         is any available mech, but can be overridden by :
+		 krb5: Use Kerberos using credentials from kinit.
+		 krb5cc: Use Kerberos using credentials from credentials
+	                 cache.
+		 ntlmssp : Only use NTLMSSP
+ vers=<version> : Which SMB version to negotiate:
+                  2: Negotiate any version of SMB2
+                  3: Negotiate any version of SMB3
+		  2.02, 2.10, 3.00, 3.02 : negotiate a specific version.
+		  Default is to negotiate any SMB2 or SMB3 version.
+  seal          : Enable SMB3 encryption.
+
+NOTE:-
+	When using krb5cc mode use smb2_set_domain() and smb2_set_password() in the examples and applications
+
+Authentication
+==============
+Libsmb2 provides has builtin support for NTLMSSP username/password
+authentication.
+It can also, optionally, be built with (MIT) Kerberos authentication.
+
+Libsmb2 will try to build with Kerberos if these libraries are present.
+You can force a build without Kerberos support by using the flag
+--without-libkrb5 to configure. In this case only NTLMSSP authentication
+will be available.
+
+MIT KERBEROS
+============
+Authentication is implemented using MIT Kerberos and it supports both KRB5
+for authentication against Active Directory as well as NTLMSSP (optional).
+
+MIT Kerberos can be configured to also provide NTLMSSP authentication,
+as an alternative to the builtin NTLMSSP implementation using an
+external mech plugin.
+To use this Kerberos/NTLMSSP module you will need to build and install
+GSS-NTLMSSP from [https://github.com/simo5/gss-ntlmssp]
+If you are uncertain you can skip this module and just use the NTLMSSP
+module that is provided by libsmb2.
+
+NTLM Authentication
+-------------------
+NTLM credentials are stored in a text file of the form :
+DOMAIN:USERNAME:PASSWORD
+with one line per username.
+You need to set up the environment variable NTLM_USER_FILE to point to this
+file.
+You need one entry in this file for each local user account you want to be able
+to use libsmb2 for accessing a remote share.
+
+By default, NTLM authentication will use the username for the current process.
+This can be overridden by specifying a different username in the SMB URL :
+  smb://guest@server/share?sec=ntlmssp
+
+KRB5 Authentication
+-------------------
+Kerberos authentication can be used when the linux workstation as well as
+the file server are part of Active Directory.
+
+You should be able to authenticate to the file server using krb5
+by specifying sec=krb5 in the URL :
+  smb://server/share?sec=krb5
+
+The application needs to set the username, password and the domain fqdn in the context using
+smb2_set_user(), smb2_set_password() and smb2_set_domain() respectively.
+
+
+NTLM Credentials
+================
+This applies to both the builtin NTLMSSP implementation as well as when
+using Kerberos with the NTLMSSP mech plugin.
+
+NTLM credentials are stored in a text file of the form :
+DOMAIN:USERNAME:PASSWORD
+with one line per username.
+You need to set up the environment variable NTLM_USER_FILE to point to this
+file.
+You need one entry in this file for each local user account you want to be able
+to use libsmb2 for accessing a remote share.
+
+By default, NTLM authentication will use the username for the current process.
+This can be overridden by specifying a different username in the SMB URL :
+  smb://guest@server/share?sec=ntlmssp
+
+Alternatively you can provide the username and password from your application
+by calling :
+  smb2_set_user(smb2, <username>);
+  smb2_set_password(smb2, <password>);
+
+
+SMB2/3 SIGNING
+==============
+Signing is supported with KRB5, with the builtin ntlmssp support and with
+gss-ntlmssp mech plugin.
+
+SMB3 Encryption
+===============
+Encryption is only supported with KRB5 or with the builtin ntlmssp support.
+Encryption is not supported when the gss-ntlmssp mech plugin is used.
+Encryption can be enabled either using the "seal" URL argument or by calling
+  smb3_set_seal(smb2, 1);
+
+BUILDING LIBSMB2
+===============
+
+ Windows
+---------------------------
+
+You have to install CMake (https://cmake.org/) and Visual Studio (https://www.visualstudio.com/)
+to build libsmb2 for Windows (including Universal Windows Platform).
+
+Please follow the next steps to build shared library:
+
+	mkdir build
+	cd build
+	cmake -G "Visual Studio 15 2017" ..
+	cmake --build . --config RelWithDebInfo
+
+Static library: 
+
+	mkdir build
+	cd build
+	cmake -G "Visual Studio 15 2017" -DBUILD_SHARED_LIBS=0 ..
+	cmake --build . --config RelWithDebInfo
+
+ macOS, iOS, tvOS, watchOS
+---------------------------
+
+You can use AMSMB2 (https://github.com/amosavian/AMSMB2) universal framework 
+which incorporates precompiled libsmb2 for Apple devices.
+
+It is written in Swift but can be used in both Swift and Objective-C codes.
+
+If you want to rebuild libsmb2 in AMSMB2, please follow these steps:
+
+	git clone https://github.com/amosavian/AMSMB2
+	cd AMSMB2/buildtools
+	./build.sh
+
+Precompiled binaries don't include Kerberos support by default.
+If you want build libraries with Kerberos support, execute this script instead:
+
+	./build-with-krb5.sh
+
+
+ESP32
+-----
+
+libsmb2 is pre-configured for the ESP32 micro-controller. Simply
+clone this project in the 'components' directory of the ESP32 project
+and it will automatically be included in the build process.

@@ -10,58 +10,50 @@ then
 fi
 
 HOST_PLATFORM=$(probe_host_platform)
-GCC_VERSION=4.9
 FLAVOR=$1
 
 if test -z ${FLAVOR}
 then
-    die "No flavor selected.Valid architecture:arm arm64 x86 x86_64"
+    die "No flavor selected.Valid architecture:neon tegra2 tegra3 arm64 x86 x86_64"
 fi
 
-if [ ${FLAVOR} == 'neon' ] || [ ${FLAVOR} == 'tegra3' ] || [ ${FLAVOR} == 'tegra2' ]
+TOOLCHAIN=${NDK}/toolchains/llvm/prebuilt/${HOST_PLATFORM}
+
+if [ ${FLAVOR} == 'neon' ] || [ ${FLAVOR} == 'tegra2' ] || [ ${FLAVOR} == 'tegra3' ]
 then
-    TOOLCHAIN=${NDK}/toolchains/arm-linux-androideabi-${GCC_VERSION}/prebuilt/${HOST_PLATFORM}
     CROSS_PREFIX=${TOOLCHAIN}/bin/arm-linux-androideabi-
-    APP_PLATFORM=android-19
-    TARGET_OS='android-armv7'
-    ARCH=arm
+    TARGET=android-armv7
+    CLANG_TARGET="armv7-none-linux-androideabi17"
 
 elif [ ${FLAVOR} == 'arm64' ] 
 then
-    TOOLCHAIN=${NDK}/toolchains/aarch64-linux-android-${GCC_VERSION}/prebuilt/${HOST_PLATFORM}
     CROSS_PREFIX=${TOOLCHAIN}/bin/aarch64-linux-android-
-    APP_PLATFORM=android-21
-    TARGET_OS=android
-    ARCH=arm64
+    TARGET=android64-aarch64
+    TRIPLE=aarch64-linux-android
+    CLANG_TARGET="aarch64-none-linux-android21" 
 
 elif [ ${FLAVOR} == 'x86' ] 
 then
-    TOOLCHAIN=${NDK}/toolchains/x86-${GCC_VERSION}/prebuilt/${HOST_PLATFORM}
     CROSS_PREFIX=${TOOLCHAIN}/bin/i686-linux-android-
-    APP_PLATFORM=android-19
-    TARGET_OS=android-x86
-    ARCH=x86
+    TARGET=android-x86
+    CLANG_TARGET="i686-none-linux-android17"
 
 elif [ ${FLAVOR} == 'x86_64' ] 
 then
-    TOOLCHAIN=${NDK}/toolchains/x86_64-${GCC_VERSION}/prebuilt/${HOST_PLATFORM}
     CROSS_PREFIX=${TOOLCHAIN}/bin/x86_64-linux-android-
-    APP_PLATFORM=android-21
-    TARGET_OS=android
-    ARCH=x86_64
-    #OPTIONS=no-asm
-
+    TARGET=android
+    CLANG_TARGET="x86_64-none-linux-android21"
 else
     die "Unsupported architecture."
 fi
 
-export ANDROID_DEV=${NDK}/platforms/${APP_PLATFORM}/arch-${ARCH}/usr
-export CC=${CROSS_PREFIX}gcc
-export CXX=${CROSS_PREFIX}g++
+export ANDROID_SYSROOT=$NDK/toolchains/llvm/prebuilt/$HOST_PLATFORM/sysroot
+export CC="$NDK/toolchains/llvm/prebuilt/$HOST_PLATFORM/bin/clang -target $CLANG_TARGET"
+export CXX="$NDK/toolchains/llvm/prebuilt/$HOST_PLATFORM/bin/clang++ -target $CLANG_TARGET"
 export RANLIB=${CROSS_PREFIX}ranlib
 export AR=${CROSS_PREFIX}ar
 
-./Configure ${OPTIONS} ${TARGET_OS}
+./Configure ${TARGET}
 if test "$?" != 0; then
     die "ERROR: failed to configure openssl.${FLAVOR}"
 fi

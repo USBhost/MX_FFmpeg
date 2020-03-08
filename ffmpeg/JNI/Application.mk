@@ -5,8 +5,7 @@ else
 	NDK_TOOLCHAIN_VERSION := clang
 endif
 
-
-APP_STL := gnustl_static
+APP_STL := c++_shared
 
 APP_OPTIM := release
 
