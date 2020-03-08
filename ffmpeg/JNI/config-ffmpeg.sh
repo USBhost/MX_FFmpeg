@@ -497,7 +497,8 @@ $EXTRA_PARAMETERS \
 EXTRA_CFLAGS+=" -I$INC_ICONV -idirafter$INC_ZVBI -I$INC_OPENSSL -I$INC_OPUS -I$INC_SPEEX -I$INC_MODPLUG -I$INC_LIBMXL2 -I$INC_LIBSMB2 -DNDEBUG -DMXTECHS -DFF_API_AVPICTURE=1 -ftree-vectorize -ffunction-sections -funwind-tables -fomit-frame-pointer -no-canonical-prefixes -pipe"
 EXTRA_LIBS="-L$LIB_MX -lmxutil -lm -lc++_shared"
 
-./configure ${FFCOMPILER}                    \
+# Don't ask me why i need bash here when its already #!/bin/bash. This fixes ffmpeg ./configure: 1283: shift: can't shift that many
+bash ./configure ${FFCOMPILER}               \
             ${FFCOMMON}                      \
             ${FF_FEATURES}                   \
             ${FFMPEG_CONFIGURATION}          \

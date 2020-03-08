@@ -1,5 +1,5 @@
-To build all ffmpeg library, change directory to ffmpeg/JNI and run rebuild-ffmpeg.sh. 
+To build all ffmpeg libraries, change working directory to ffmpeg/JNI, edit ENV with your NDK location then run rebuild-ffmpeg.sh. 
 
-To build individual ffmpeg library, change directory to ffmpeg/JNI and run build-ffmpeg.sh {architecture name}.
+To build an individual ffmpeg library, change directory to ffmpeg/JNI, edit ENV with your NDK location then run build-ffmpeg.sh {architecture name}.
 
 Visit https://sites.google.com/site/mxvpen/ffmpeg for more information

@@ -1,2 +1,2 @@
-CPU_CORE="$(cat /proc/cpuinfo | grep -c processor)"
-NDK=~/android-ndk-r15c
+CPU_CORE="$(nproc --all)"
+NDK=/mnt/host/tmp/android-ndk-r20b
