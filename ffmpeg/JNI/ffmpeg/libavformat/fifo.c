@@ -36,7 +36,6 @@ typedef struct FifoContext {
     AVFormatContext *avf;
 
     char *format;
-    char *format_options_str;
     AVDictionary *format_options;
 
     int queue_size;
@@ -124,9 +123,9 @@ static int fifo_thread_write_header(FifoThreadContext *ctx)
     if (ret < 0)
         return ret;
 
-    ret = ff_format_output_open(avf2, avf->filename, &format_options);
+    ret = ff_format_output_open(avf2, avf->url, &format_options);
     if (ret < 0) {
-        av_log(avf, AV_LOG_ERROR, "Error opening %s: %s\n", avf->filename,
+        av_log(avf, AV_LOG_ERROR, "Error opening %s: %s\n", avf->url,
                av_err2str(ret));
         goto end;
     }
@@ -442,7 +441,7 @@ static void *fifo_consumer_thread(void *data)
     return NULL;
 }
 
-static int fifo_mux_init(AVFormatContext *avf, AVOutputFormat *oformat,
+static int fifo_mux_init(AVFormatContext *avf, ff_const59 AVOutputFormat *oformat,
                          const char *filename)
 {
     FifoContext *fifo = avf->priv_data;
@@ -481,7 +480,7 @@ static int fifo_mux_init(AVFormatContext *avf, AVOutputFormat *oformat,
 static int fifo_init(AVFormatContext *avf)
 {
     FifoContext *fifo = avf->priv_data;
-    AVOutputFormat *oformat;
+    ff_const59 AVOutputFormat *oformat;
     int ret = 0;
 
     if (fifo->recovery_wait_streamtime && !fifo->drop_pkts_on_overflow) {
@@ -490,23 +489,13 @@ static int fifo_init(AVFormatContext *avf)
         return AVERROR(EINVAL);
     }
 
-    if (fifo->format_options_str) {
-        ret = av_dict_parse_string(&fifo->format_options, fifo->format_options_str,
-                                   "=", ":", 0);
-        if (ret < 0) {
-            av_log(avf, AV_LOG_ERROR, "Could not parse format options list '%s'\n",
-                   fifo->format_options_str);
-            return ret;
-        }
-    }
-
-    oformat = av_guess_format(fifo->format, avf->filename, NULL);
+    oformat = av_guess_format(fifo->format, avf->url, NULL);
     if (!oformat) {
         ret = AVERROR_MUXER_NOT_FOUND;
         return ret;
     }
 
-    ret = fifo_mux_init(avf, oformat, avf->filename);
+    ret = fifo_mux_init(avf, oformat, avf->url);
     if (ret < 0)
         return ret;
 
@@ -604,7 +593,6 @@ static void fifo_deinit(AVFormatContext *avf)
 {
     FifoContext *fifo = avf->priv_data;
 
-    av_dict_free(&fifo->format_options);
     avformat_free_context(fifo->avf);
     av_thread_message_queue_free(&fifo->queue);
     if (fifo->overflow_flag_lock_initialized)
@@ -619,8 +607,8 @@ static const AVOption options[] = {
         {"queue_size", "Size of fifo queue", OFFSET(queue_size),
          AV_OPT_TYPE_INT, {.i64 = FIFO_DEFAULT_QUEUE_SIZE}, 1, INT_MAX, AV_OPT_FLAG_ENCODING_PARAM},
 
-        {"format_opts", "Options to be passed to underlying muxer", OFFSET(format_options_str),
-         AV_OPT_TYPE_STRING, {.str = NULL}, 0, 0, AV_OPT_FLAG_ENCODING_PARAM},
+        {"format_opts", "Options to be passed to underlying muxer", OFFSET(format_options),
+         AV_OPT_TYPE_DICT, {.str = NULL}, 0, 0, AV_OPT_FLAG_ENCODING_PARAM},
 
         {"drop_pkts_on_overflow", "Drop packets on fifo queue overflow not to block encoder", OFFSET(drop_pkts_on_overflow),
          AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, AV_OPT_FLAG_ENCODING_PARAM},

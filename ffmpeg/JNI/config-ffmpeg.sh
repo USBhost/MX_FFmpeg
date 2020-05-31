@@ -162,7 +162,8 @@ INC_ICONV=../modified_src/iconv
 INC_MODPLUG=../libmodplug/src
 INC_LIBMXL2=../libxml2/include
 INC_LIBSMB2=../libsmb2/include
-
+INC_MXV=../modified_src/mxv
+INC_LIBDAV1D=../dav1d/include
 
 TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/$HOST_PLATFORM
 if [ $ARCH == 'arm64' ] 
@@ -488,6 +489,7 @@ FF_OUTDEP="\
 --enable-zlib \
 --enable-libxml2 \
 --enable-libsmb2 \
+--enable-libdav1d\
 "
 #configure compiler,ld and relevant parameters
 FFCOMPILER="\
@@ -504,7 +506,7 @@ FFCOMPILER="\
 $EXTRA_PARAMETERS \
 "
 
-EXTRA_CFLAGS+=" -I$INC_ICONV -idirafter$INC_ZVBI -I$INC_OPENSSL -I$INC_OPUS -I$INC_SPEEX -I$INC_MODPLUG -I$INC_LIBMXL2 -I$INC_LIBSMB2 -DNDEBUG -DMXTECHS -DFF_API_AVPICTURE=1 -ftree-vectorize -ffunction-sections -funwind-tables -fomit-frame-pointer -no-canonical-prefixes -pipe"
+EXTRA_CFLAGS+=" -I$INC_ICONV -idirafter$INC_ZVBI -I$INC_OPENSSL -I$INC_OPUS -I$INC_SPEEX -I$INC_MODPLUG -I$INC_LIBMXL2 -I$INC_LIBSMB2 -I$INC_LIBDAV1D -I$INC_MXV -DNDEBUG -DMXTECHS -DFF_API_AVPICTURE=1 -ftree-vectorize -ffunction-sections -funwind-tables -fomit-frame-pointer -no-canonical-prefixes -pipe"
 EXTRA_LIBS="-L$LIB_MX -lmxutil -lm -lc++_shared"
 
 ./configure ${FFCOMPILER}                    \

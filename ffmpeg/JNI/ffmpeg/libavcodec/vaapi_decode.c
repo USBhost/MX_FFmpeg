@@ -24,6 +24,7 @@
 #include "decode.h"
 #include "internal.h"
 #include "vaapi_decode.h"
+#include "vaapi_hevc.h"
 
 
 int ff_vaapi_decode_make_param_buffer(AVCodecContext *avctx,
@@ -200,12 +201,8 @@ int ff_vaapi_decode_issue(AVCodecContext *avctx,
         AV_VAAPI_DRIVER_QUIRK_RENDER_PARAM_BUFFERS)
         ff_vaapi_decode_destroy_buffers(avctx, pic);
 
-    pic->nb_param_buffers = 0;
-    pic->nb_slices        = 0;
-    pic->slices_allocated = 0;
-    av_freep(&pic->slice_buffers);
-
-    return 0;
+    err = 0;
+    goto exit;
 
 fail_with_picture:
     vas = vaEndPicture(ctx->hwctx->display, ctx->va_context);
@@ -216,6 +213,12 @@ fail_with_picture:
 fail:
     ff_vaapi_decode_destroy_buffers(avctx, pic);
 fail_at_end:
+exit:
+    pic->nb_param_buffers = 0;
+    pic->nb_slices        = 0;
+    pic->slices_allocated = 0;
+    av_freep(&pic->slice_buffers);
+
     return err;
 }
 
@@ -233,11 +236,142 @@ int ff_vaapi_decode_cancel(AVCodecContext *avctx,
 }
 
 static const struct {
+    uint32_t fourcc;
+    enum AVPixelFormat pix_fmt;
+} vaapi_format_map[] = {
+#define MAP(va, av) { VA_FOURCC_ ## va, AV_PIX_FMT_ ## av }
+    // 4:0:0
+    MAP(Y800, GRAY8),
+    // 4:2:0
+    MAP(NV12, NV12),
+    MAP(YV12, YUV420P),
+    MAP(IYUV, YUV420P),
+#ifdef VA_FOURCC_I420
+    MAP(I420, YUV420P),
+#endif
+    MAP(IMC3, YUV420P),
+    // 4:1:1
+    MAP(411P, YUV411P),
+    // 4:2:2
+    MAP(422H, YUV422P),
+#ifdef VA_FOURCC_YV16
+    MAP(YV16, YUV422P),
+#endif
+    MAP(YUY2, YUYV422),
+#ifdef VA_FOURCC_Y210
+    MAP(Y210,    Y210),
+#endif
+    // 4:4:0
+    MAP(422V, YUV440P),
+    // 4:4:4
+    MAP(444P, YUV444P),
+    // 4:2:0 10-bit
+#ifdef VA_FOURCC_P010
+    MAP(P010, P010),
+#endif
+#ifdef VA_FOURCC_I010
+    MAP(I010, YUV420P10),
+#endif
+#undef MAP
+};
+
+static int vaapi_decode_find_best_format(AVCodecContext *avctx,
+                                         AVHWDeviceContext *device,
+                                         VAConfigID config_id,
+                                         AVHWFramesContext *frames)
+{
+    AVVAAPIDeviceContext *hwctx = device->hwctx;
+    VAStatus vas;
+    VASurfaceAttrib *attr;
+    enum AVPixelFormat source_format, best_format, format;
+    uint32_t best_fourcc, fourcc;
+    int i, j, nb_attr;
+
+    source_format = avctx->sw_pix_fmt;
+    av_assert0(source_format != AV_PIX_FMT_NONE);
+
+    vas = vaQuerySurfaceAttributes(hwctx->display, config_id,
+                                   NULL, &nb_attr);
+    if (vas != VA_STATUS_SUCCESS) {
+        av_log(avctx, AV_LOG_ERROR, "Failed to query surface attributes: "
+               "%d (%s).\n", vas, vaErrorStr(vas));
+        return AVERROR(ENOSYS);
+    }
+
+    attr = av_malloc_array(nb_attr, sizeof(*attr));
+    if (!attr)
+        return AVERROR(ENOMEM);
+
+    vas = vaQuerySurfaceAttributes(hwctx->display, config_id,
+                                   attr, &nb_attr);
+    if (vas != VA_STATUS_SUCCESS) {
+        av_log(avctx, AV_LOG_ERROR, "Failed to query surface attributes: "
+               "%d (%s).\n", vas, vaErrorStr(vas));
+        av_freep(&attr);
+        return AVERROR(ENOSYS);
+    }
+
+    best_format = AV_PIX_FMT_NONE;
+
+    for (i = 0; i < nb_attr; i++) {
+        if (attr[i].type != VASurfaceAttribPixelFormat)
+            continue;
+
+        fourcc = attr[i].value.value.i;
+        for (j = 0; j < FF_ARRAY_ELEMS(vaapi_format_map); j++) {
+            if (fourcc == vaapi_format_map[j].fourcc)
+                break;
+        }
+        if (j >= FF_ARRAY_ELEMS(vaapi_format_map)) {
+            av_log(avctx, AV_LOG_DEBUG, "Ignoring unknown format %#x.\n",
+                   fourcc);
+            continue;
+        }
+        format = vaapi_format_map[j].pix_fmt;
+        av_log(avctx, AV_LOG_DEBUG, "Considering format %#x -> %s.\n",
+               fourcc, av_get_pix_fmt_name(format));
+
+        best_format = av_find_best_pix_fmt_of_2(format, best_format,
+                                                source_format, 0, NULL);
+        if (format == best_format)
+            best_fourcc = fourcc;
+    }
+
+    av_freep(&attr);
+
+    if (best_format == AV_PIX_FMT_NONE) {
+        av_log(avctx, AV_LOG_ERROR, "No usable formats for decoding!\n");
+        return AVERROR(EINVAL);
+    }
+
+    av_log(avctx, AV_LOG_DEBUG, "Picked %s (%#x) as best match for %s.\n",
+           av_get_pix_fmt_name(best_format), best_fourcc,
+           av_get_pix_fmt_name(source_format));
+
+    frames->sw_format = best_format;
+    if (avctx->internal->hwaccel_priv_data) {
+        VAAPIDecodeContext    *ctx = avctx->internal->hwaccel_priv_data;
+        AVVAAPIFramesContext *avfc = frames->hwctx;
+
+        ctx->pixel_format_attribute = (VASurfaceAttrib) {
+            .type          = VASurfaceAttribPixelFormat,
+            .value.value.i = best_fourcc,
+        };
+
+        avfc->attributes    = &ctx->pixel_format_attribute;
+        avfc->nb_attributes = 1;
+    }
+
+    return 0;
+}
+
+static const struct {
     enum AVCodecID codec_id;
     int codec_profile;
     VAProfile va_profile;
+    VAProfile (*profile_parser)(AVCodecContext *avctx);
 } vaapi_profile_map[] = {
-#define MAP(c, p, v) { AV_CODEC_ID_ ## c, FF_PROFILE_ ## p, VAProfile ## v }
+#define MAP(c, p, v, ...) { AV_CODEC_ID_ ## c, FF_PROFILE_ ## p, VAProfile ## v, __VA_ARGS__ }
     MAP(MPEG2VIDEO,  MPEG2_SIMPLE,    MPEG2Simple ),
     MAP(MPEG2VIDEO,  MPEG2_MAIN,      MPEG2Main   ),
     MAP(H263,        UNKNOWN,         H263Baseline),
@@ -252,7 +386,15 @@ static const struct {
 #if VA_CHECK_VERSION(0, 37, 0)
     MAP(HEVC,        HEVC_MAIN,       HEVCMain    ),
     MAP(HEVC,        HEVC_MAIN_10,    HEVCMain10  ),
+    MAP(HEVC,        HEVC_MAIN_STILL_PICTURE,
+                                      HEVCMain    ),
 #endif
+#if VA_CHECK_VERSION(1, 2, 0)
+    MAP(HEVC,        HEVC_REXT,       None,
+                 ff_vaapi_parse_hevc_rext_profile ),
+#endif
+    MAP(MJPEG,       MJPEG_HUFFMAN_BASELINE_DCT,
+                                      JPEGBaseline),
     MAP(WMV3,        VC1_SIMPLE,      VC1Simple   ),
     MAP(WMV3,        VC1_MAIN,        VC1Main     ),
     MAP(WMV3,        VC1_COMPLEX,     VC1Advanced ),
@@ -261,9 +403,7 @@ static const struct {
     MAP(VC1,         VC1_MAIN,        VC1Main     ),
     MAP(VC1,         VC1_COMPLEX,     VC1Advanced ),
     MAP(VC1,         VC1_ADVANCED,    VC1Advanced ),
-#if VA_CHECK_VERSION(0, 35, 0)
     MAP(VP8,         UNKNOWN,       VP8Version0_3 ),
-#endif
 #if VA_CHECK_VERSION(0, 38, 0)
     MAP(VP9,         VP9_0,           VP9Profile0 ),
 #endif
@@ -287,9 +427,8 @@ static int vaapi_decode_make_config(AVCodecContext *avctx,
     VAStatus vas;
     int err, i, j;
     const AVCodecDescriptor *codec_desc;
-    VAProfile profile, va_profile, *profile_list = NULL;
-    int profile_count, exact_match, alt_profile;
-    const AVPixFmtDescriptor *sw_desc, *desc;
+    VAProfile *profile_list = NULL, matched_va_profile, va_profile;
+    int profile_count, exact_match, matched_ff_profile, codec_profile;
 
     AVHWDeviceContext    *device = (AVHWDeviceContext*)device_ref->data;
     AVVAAPIDeviceContext *hwctx = device->hwctx;
@@ -317,32 +456,38 @@ static int vaapi_decode_make_config(AVCodecContext *avctx,
         goto fail;
     }
 
-    profile = VAProfileNone;
+    matched_va_profile = VAProfileNone;
     exact_match = 0;
 
     for (i = 0; i < FF_ARRAY_ELEMS(vaapi_profile_map); i++) {
         int profile_match = 0;
         if (avctx->codec_id != vaapi_profile_map[i].codec_id)
             continue;
-        if (avctx->profile == vaapi_profile_map[i].codec_profile)
+        if (avctx->profile == vaapi_profile_map[i].codec_profile ||
+            vaapi_profile_map[i].codec_profile == FF_PROFILE_UNKNOWN)
             profile_match = 1;
-        profile = vaapi_profile_map[i].va_profile;
+
+        va_profile = vaapi_profile_map[i].profile_parser ?
+                     vaapi_profile_map[i].profile_parser(avctx) :
+                     vaapi_profile_map[i].va_profile;
+        codec_profile = vaapi_profile_map[i].codec_profile;
+
         for (j = 0; j < profile_count; j++) {
-            if (profile == profile_list[j]) {
+            if (va_profile == profile_list[j]) {
                 exact_match = profile_match;
                 break;
             }
         }
         if (j < profile_count) {
+            matched_va_profile = va_profile;
+            matched_ff_profile = codec_profile;
             if (exact_match)
                 break;
-            alt_profile = vaapi_profile_map[i].codec_profile;
-            va_profile = vaapi_profile_map[i].va_profile;
         }
     }
     av_freep(&profile_list);
 
-    if (profile == VAProfileNone) {
+    if (matched_va_profile == VAProfileNone) {
         av_log(avctx, AV_LOG_ERROR, "No support for codec %s "
                "profile %d.\n", codec_desc->name, avctx->profile);
         err = AVERROR(ENOSYS);
@@ -356,8 +501,7 @@ static int vaapi_decode_make_config(AVCodecContext *avctx,
                    codec_desc->name, avctx->profile);
             av_log(avctx, AV_LOG_WARNING, "Using possibly-"
                    "incompatible profile %d instead.\n",
-                   alt_profile);
-            profile = va_profile;
+                   matched_ff_profile);
         } else {
             av_log(avctx, AV_LOG_VERBOSE, "Codec %s profile %d not "
                    "supported for hardware decode.\n",
@@ -367,7 +511,7 @@ static int vaapi_decode_make_config(AVCodecContext *avctx,
         }
     }
 
-    vas = vaCreateConfig(hwctx->display, profile,
+    vas = vaCreateConfig(hwctx->display, matched_va_profile,
                          VAEntrypointVLD, NULL, 0,
                          va_config);
     if (vas != VA_STATUS_SUCCESS) {
@@ -418,27 +562,10 @@ static int vaapi_decode_make_config(AVCodecContext *avctx,
         frames->width = avctx->coded_width;
         frames->height = avctx->coded_height;
 
-        // Find the first format in the list which matches the expected
-        // bit depth and subsampling.  If none are found (this can happen
-        // when 10-bit streams are decoded to 8-bit surfaces, for example)
-        // then just take the first format on the list.
-        frames->sw_format = constraints->valid_sw_formats[0];
-        sw_desc = av_pix_fmt_desc_get(avctx->sw_pix_fmt);
-        for (i = 0; constraints->valid_sw_formats[i] != AV_PIX_FMT_NONE; i++) {
-            desc = av_pix_fmt_desc_get(constraints->valid_sw_formats[i]);
-            if (desc->nb_components != sw_desc->nb_components ||
-                desc->log2_chroma_w != sw_desc->log2_chroma_w ||
-                desc->log2_chroma_h != sw_desc->log2_chroma_h)
-                continue;
-            for (j = 0; j < desc->nb_components; j++) {
-                if (desc->comp[j].depth != sw_desc->comp[j].depth)
-                    break;
-            }
-            if (j < desc->nb_components)
-                continue;
-            frames->sw_format = constraints->valid_sw_formats[i];
-            break;
-        }
+        err = vaapi_decode_find_best_format(avctx, device,
+                                            *va_config, frames);
+        if (err < 0)
+            goto fail;
 
         frames->initial_pool_size = 1;
         // Add per-codec number of surfaces used for storing reference frames.

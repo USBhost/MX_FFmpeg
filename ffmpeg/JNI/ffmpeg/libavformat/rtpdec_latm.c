@@ -115,9 +115,8 @@ static int parse_fmtp_config(AVStream *st, const char *value)
         ret = AVERROR_PATCHWELCOME;
         goto end;
     }
-    av_freep(&st->codecpar->extradata);
-    if (ff_alloc_extradata(st->codecpar, (get_bits_left(&gb) + 7)/8)) {
-        ret = AVERROR(ENOMEM);
+    ret = ff_alloc_extradata(st->codecpar, (get_bits_left(&gb) + 7)/8);
+    if (ret < 0) {
         goto end;
     }
     for (i = 0; i < st->codecpar->extradata_size; i++)
@@ -162,7 +161,7 @@ static int latm_parse_sdp_line(AVFormatContext *s, int st_index,
     return 0;
 }
 
-RTPDynamicProtocolHandler ff_mp4a_latm_dynamic_handler = {
+const RTPDynamicProtocolHandler ff_mp4a_latm_dynamic_handler = {
     .enc_name           = "MP4A-LATM",
     .codec_type         = AVMEDIA_TYPE_AUDIO,
     .codec_id           = AV_CODEC_ID_AAC,

@@ -19,10 +19,10 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "libavutil/atomic.h"
 #include "libavutil/avstring.h"
 #include "libavutil/bprint.h"
 #include "libavutil/opt.h"
+#include "libavutil/thread.h"
 
 #include "avio_internal.h"
 #include "avformat.h"
@@ -34,53 +34,6 @@
  * @file
  * Format register and lookup
  */
-/** head of registered input format linked list */
-static AVInputFormat *first_iformat = NULL;
-/** head of registered output format linked list */
-static AVOutputFormat *first_oformat = NULL;
-
-static AVInputFormat **last_iformat = &first_iformat;
-static AVOutputFormat **last_oformat = &first_oformat;
-
-AVInputFormat *av_iformat_next(const AVInputFormat *f)
-{
-    if (f)
-        return f->next;
-    else
-        return first_iformat;
-}
-
-AVOutputFormat *av_oformat_next(const AVOutputFormat *f)
-{
-    if (f)
-        return f->next;
-    else
-        return first_oformat;
-}
-
-void av_register_input_format(AVInputFormat *format)
-{
-    AVInputFormat **p = last_iformat;
-
-    // Note, format could be added after the first 2 checks but that implies that *p is no longer NULL
-    while(p != &format->next && !format->next && avpriv_atomic_ptr_cas((void * volatile *)p, NULL, format))
-        p = &(*p)->next;
-
-    if (!format->next)
-        last_iformat = &format->next;
-}
-
-void av_register_output_format(AVOutputFormat *format)
-{
-    AVOutputFormat **p = last_oformat;
-
-    // Note, format could be added after the first 2 checks but that implies that *p is no longer NULL
-    while(p != &format->next && !format->next && avpriv_atomic_ptr_cas((void * volatile *)p, NULL, format))
-        p = &(*p)->next;
-
-    if (!format->next)
-        last_oformat = &format->next;
-}
 
 int av_match_ext(const char *filename, const char *extensions)
 {
@@ -95,10 +48,12 @@ int av_match_ext(const char *filename, const char *extensions)
     return 0;
 }
 
-AVOutputFormat *av_guess_format(const char *short_name, const char *filename,
+ff_const59 AVOutputFormat *av_guess_format(const char *short_name, const char *filename,
                                 const char *mime_type)
 {
-    AVOutputFormat *fmt = NULL, *fmt_found;
+    const AVOutputFormat *fmt = NULL;
+    AVOutputFormat *fmt_found = NULL;
+    void *i = 0;
     int score_max, score;
 
     /* specific test for image sequences */
@@ -110,9 +65,8 @@ AVOutputFormat *av_guess_format(const char *short_name, const char *filename,
     }
 #endif
     /* Find the proper file type. */
-    fmt_found = NULL;
     score_max = 0;
-    while ((fmt = av_oformat_next(fmt))) {
+    while ((fmt = av_muxer_iterate(&i))) {
         score = 0;
         if (fmt->name && short_name && av_match_name(short_name, fmt->name))
             score += 100;
@@ -124,18 +78,18 @@ AVOutputFormat *av_guess_format(const char *short_name, const char *filename,
         }
         if (score > score_max) {
             score_max = score;
-            fmt_found = fmt;
+            fmt_found = (AVOutputFormat*)fmt;
         }
     }
     return fmt_found;
 }
 
-enum AVCodecID av_guess_codec(AVOutputFormat *fmt, const char *short_name,
+enum AVCodecID av_guess_codec(ff_const59 AVOutputFormat *fmt, const char *short_name,
                               const char *filename, const char *mime_type,
                               enum AVMediaType type)
 {
     if (av_match_name("segment", fmt->name) || av_match_name("ssegment", fmt->name)) {
-        AVOutputFormat *fmt2 = av_guess_format(NULL, filename, NULL);
+        ff_const59 AVOutputFormat *fmt2 = av_guess_format(NULL, filename, NULL);
         if (fmt2)
             fmt = fmt2;
     }
@@ -161,21 +115,24 @@ enum AVCodecID av_guess_codec(AVOutputFormat *fmt, const char *short_name,
         return AV_CODEC_ID_NONE;
 }
 
-AVInputFormat *av_find_input_format(const char *short_name)
+ff_const59 AVInputFormat *av_find_input_format(const char *short_name)
 {
-    AVInputFormat *fmt = NULL;
-    while ((fmt = av_iformat_next(fmt)))
+    const AVInputFormat *fmt = NULL;
+    void *i = 0;
+    while ((fmt = av_demuxer_iterate(&i)))
         if (av_match_name(short_name, fmt->name))
-            return fmt;
+            return (AVInputFormat*)fmt;
     return NULL;
 }
 
-AVInputFormat *av_probe_input_format3(AVProbeData *pd, int is_opened,
+ff_const59 AVInputFormat *av_probe_input_format3(ff_const59 AVProbeData *pd, int is_opened,
                                       int *score_ret)
 {
     AVProbeData lpd = *pd;
-    AVInputFormat *fmt1 = NULL, *fmt;
+    const AVInputFormat *fmt1 = NULL;
+    ff_const59 AVInputFormat *fmt = NULL;
     int score, score_max = 0;
+    void *i = 0;
     const static uint8_t zerobuffer[AVPROBE_PADDING_SIZE];
     enum nodat {
         NO_ID3,
@@ -200,8 +157,7 @@ AVInputFormat *av_probe_input_format3(AVProbeData *pd, int is_opened,
             nodat = ID3_GREATER_PROBE;
     }
 
-    fmt = NULL;
-    while ((fmt1 = av_iformat_next(fmt1))) {
+    while ((fmt1 = av_demuxer_iterate(&i))) {
         if (!is_opened == !(fmt1->flags & AVFMT_NOFILE) && strcmp(fmt1->name, "image2"))
             continue;
         score = 0;
@@ -222,6 +178,10 @@ AVInputFormat *av_probe_input_format3(AVProbeData *pd, int is_opened,
                     score = FFMAX(score, AVPROBE_SCORE_EXTENSION);
                     break;
                 }
+            } else if (fmt1->extensions && strcmp(fmt1->extensions, "mxv") == 0 && score == AVPROBE_SCORE_MAX) {
+                fmt        = (AVInputFormat*)fmt1;
+                score_max = score;
+                break;
             }
         } else if (fmt1->extensions) {
             if (av_match_ext(lpd.filename, fmt1->extensions))
@@ -235,7 +195,7 @@ AVInputFormat *av_probe_input_format3(AVProbeData *pd, int is_opened,
         }
         if (score > score_max) {
             score_max = score;
-            fmt       = fmt1;
+            fmt       = (AVInputFormat*)fmt1;
         } else if (score == score_max)
             fmt = NULL;
     }
@@ -246,10 +206,10 @@ AVInputFormat *av_probe_input_format3(AVProbeData *pd, int is_opened,
     return fmt;
 }
 
-AVInputFormat *av_probe_input_format2(AVProbeData *pd, int is_opened, int *score_max)
+ff_const59 AVInputFormat *av_probe_input_format2(ff_const59 AVProbeData *pd, int is_opened, int *score_max)
 {
     int score_ret;
-    AVInputFormat *fmt = av_probe_input_format3(pd, is_opened, &score_ret);
+    ff_const59 AVInputFormat *fmt = av_probe_input_format3(pd, is_opened, &score_ret);
     if (score_ret > *score_max) {
         *score_max = score_ret;
         return fmt;
@@ -257,13 +217,13 @@ AVInputFormat *av_probe_input_format2(AVProbeData *pd, int is_opened, int *score
         return NULL;
 }
 
-AVInputFormat *av_probe_input_format(AVProbeData *pd, int is_opened)
+ff_const59 AVInputFormat *av_probe_input_format(ff_const59 AVProbeData *pd, int is_opened)
 {
     int score = 0;
     return av_probe_input_format2(pd, is_opened, &score);
 }
 
-int av_probe_input_buffer2(AVIOContext *pb, AVInputFormat **fmt,
+int av_probe_input_buffer2(AVIOContext *pb, ff_const59 AVInputFormat **fmt,
                           const char *filename, void *logctx,
                           unsigned int offset, unsigned int max_probe_size)
 {
@@ -294,14 +254,6 @@ int av_probe_input_buffer2(AVIOContext *pb, AVInputFormat **fmt,
             *semi = '\0';
         }
     }
-#if 0
-    if (!*fmt && pb->av_class && av_opt_get(pb, "mime_type", AV_OPT_SEARCH_CHILDREN, &mime_type) >= 0 && mime_type) {
-        if (!av_strcasecmp(mime_type, "audio/aacp")) {
-            *fmt = av_find_input_format("aac");
-        }
-        av_freep(&mime_type);
-    }
-#endif
 
     for (probe_size = PROBE_BUF_MIN; probe_size <= max_probe_size && !*fmt;
          probe_size = FFMIN(probe_size << 1,
@@ -361,7 +313,7 @@ fail:
     return ret < 0 ? ret : score;
 }
 
-int av_probe_input_buffer(AVIOContext *pb, AVInputFormat **fmt,
+int av_probe_input_buffer(AVIOContext *pb, ff_const59 AVInputFormat **fmt,
                           const char *filename, void *logctx,
                           unsigned int offset, unsigned int max_probe_size)
 {

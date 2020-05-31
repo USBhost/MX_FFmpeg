@@ -34,6 +34,7 @@
 #include "avformat.h"
 #include "avio.h"
 #include "avio_internal.h"
+#include "id3v2.h"
 #include "internal.h"
 #include "metadata.h"
 #include "pcm.h"
@@ -128,7 +129,7 @@ static int64_t find_tag(WAVDemuxContext * wav, AVIOContext *pb, uint32_t tag1)
     return size;
 }
 
-static int wav_probe(AVProbeData *p)
+static int wav_probe(const AVProbeData *p)
 {
     /* check file header */
     if (p->buf_size <= 32)
@@ -180,7 +181,7 @@ static int wav_parse_fmt_tag(AVFormatContext *s, int64_t size, AVStream **st)
 static int wav_parse_xma2_tag(AVFormatContext *s, int64_t size, AVStream **st)
 {
     AVIOContext *pb = s->pb;
-    int version, num_streams, i, channels = 0;
+    int version, num_streams, i, channels = 0, ret;
 
     if (size < 36)
         return AVERROR_INVALIDDATA;
@@ -219,9 +220,8 @@ static int wav_parse_xma2_tag(AVFormatContext *s, int64_t size, AVStream **st)
     avpriv_set_pts_info(*st, 64, 1, (*st)->codecpar->sample_rate);
 
     avio_seek(pb, -size, SEEK_CUR);
-    av_freep(&(*st)->codecpar->extradata);
-    if (ff_get_extradata(s, (*st)->codecpar, pb, size) < 0)
-        return AVERROR(ENOMEM);
+    if ((ret = ff_get_extradata(s, (*st)->codecpar, pb, size)) < 0)
+        return ret;
 
     return 0;
 }
@@ -232,9 +232,9 @@ static inline int wav_parse_bext_string(AVFormatContext *s, const char *key,
     char temp[257];
     int ret;
 
-    av_assert0(length <= sizeof(temp));
-    if ((ret = avio_read(s->pb, temp, length)) < 0)
-        return ret;
+    av_assert0(length < sizeof(temp));
+    if ((ret = avio_read(s->pb, temp, length)) != length)
+        return ret < 0 ? ret : AVERROR_INVALIDDATA;
 
     temp[length] = 0;
 
@@ -303,8 +303,10 @@ static int wav_parse_bext_tag(AVFormatContext *s, int64_t size)
         if (!(coding_history = av_malloc(size + 1)))
             return AVERROR(ENOMEM);
 
-        if ((ret = avio_read(s->pb, coding_history, size)) < 0)
-            return ret;
+        if ((ret = avio_read(s->pb, coding_history, size)) != size) {
+            av_free(coding_history);
+            return ret < 0 ? ret : AVERROR_INVALIDDATA;
+        }
 
         coding_history[size] = 0;
         if ((ret = av_dict_set(&s->metadata, "coding_history", coding_history,
@@ -470,9 +472,9 @@ static int wav_read_header(AVFormatContext *s)
             vst->codecpar->codec_id = AV_CODEC_ID_SMVJPEG;
             vst->codecpar->width  = avio_rl24(pb);
             vst->codecpar->height = avio_rl24(pb);
-            if (ff_alloc_extradata(vst->codecpar, 4)) {
+            if ((ret = ff_alloc_extradata(vst->codecpar, 4)) < 0) {
                 av_log(s, AV_LOG_ERROR, "Could not allocate extradata.\n");
-                return AVERROR(ENOMEM);
+                return ret;
             }
             size = avio_rl24(pb);
             wav->smv_data_ofs = avio_tell(pb) + (size - 5) * 3;
@@ -498,6 +500,18 @@ static int wav_read_header(AVFormatContext *s)
             switch (avio_rl32(pb)) {
             case MKTAG('I', 'N', 'F', 'O'):
                 ff_read_riff_info(s, size - 4);
+            }
+            break;
+        case MKTAG('I', 'D', '3', ' '):
+        case MKTAG('i', 'd', '3', ' '): {
+            ID3v2ExtraMeta *id3v2_extra_meta = NULL;
+            ff_id3v2_read_dict(pb, &s->internal->id3v2_meta, ID3v2_DEFAULT_MAGIC, &id3v2_extra_meta);
+            if (id3v2_extra_meta) {
+                ff_id3v2_parse_apic(s, &id3v2_extra_meta);
+                ff_id3v2_parse_chapters(s, &id3v2_extra_meta);
+                ff_id3v2_parse_priv(s, &id3v2_extra_meta);
+            }
+            ff_id3v2_free_extra_meta(&id3v2_extra_meta);
             }
             break;
         }
@@ -575,6 +589,8 @@ break_loop:
     } else if (st->codecpar->codec_id == AV_CODEC_ID_XMA1 ||
                st->codecpar->codec_id == AV_CODEC_ID_XMA2) {
         st->codecpar->block_align = 2048;
+    } else if (st->codecpar->codec_id == AV_CODEC_ID_ADPCM_MS && st->codecpar->channels > 2) {
+        st->codecpar->block_align *= st->codecpar->channels;
     }
 
     ff_metadata_conv_ctx(s, NULL, wav_metadata_conv);
@@ -761,7 +777,7 @@ AVInputFormat ff_wav_demuxer = {
 #endif /* CONFIG_WAV_DEMUXER */
 
 #if CONFIG_W64_DEMUXER
-static int w64_probe(AVProbeData *p)
+static int w64_probe(const AVProbeData *p)
 {
     if (p->buf_size <= 40)
         return 0;
@@ -822,6 +838,7 @@ static int w64_read_header(AVFormatContext *s)
             samples = avio_rl64(pb);
             if (samples > 0)
                 st->duration = samples;
+            avio_skip(pb, FFALIGN(size, INT64_C(8)) - 32);
         } else if (!memcmp(guid, ff_w64_guid_data, 16)) {
             wav->data_end = avio_tell(pb) + size - 24;
 

@@ -162,7 +162,9 @@ int avpriv_ac3_parse_header(AC3HeaderInfo **phdr, const uint8_t *buf,
         return AVERROR(ENOMEM);
     hdr = *phdr;
 
-    init_get_bits8(&gb, buf, size);
+    err = init_get_bits8(&gb, buf, size);
+    if (err < 0)
+        return AVERROR_INVALIDDATA;
     err = ff_ac3_parse_header(&gb, hdr);
     if (err < 0)
         return AVERROR_INVALIDDATA;
@@ -199,6 +201,12 @@ static int ac3_sync(uint64_t state, AACAC3ParseContext *hdr_info,
     AC3HeaderInfo hdr;
     GetBitContext gbc;
 
+    if (tmp.u8[1] == 0x77 && tmp.u8[2] == 0x0b) {
+        FFSWAP(uint8_t, tmp.u8[1], tmp.u8[2]);
+        FFSWAP(uint8_t, tmp.u8[3], tmp.u8[4]);
+        FFSWAP(uint8_t, tmp.u8[5], tmp.u8[6]);
+    }
+
     init_get_bits(&gbc, tmp.u8+8-AC3_HEADER_SIZE, 54);
     err = ff_ac3_parse_header(&gbc, &hdr);
 
@@ -218,8 +226,8 @@ static int ac3_sync(uint64_t state, AACAC3ParseContext *hdr_info,
     else if (hdr_info->codec_id == AV_CODEC_ID_NONE)
         hdr_info->codec_id = AV_CODEC_ID_AC3;
 
-    *need_next_header = (hdr.frame_type != EAC3_FRAME_TYPE_AC3_CONVERT);
     *new_frame_start  = (hdr.frame_type != EAC3_FRAME_TYPE_DEPENDENT);
+    *need_next_header = *new_frame_start || (hdr.frame_type != EAC3_FRAME_TYPE_AC3_CONVERT);
     return hdr.frame_size;
 }
 

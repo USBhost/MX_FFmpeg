@@ -23,11 +23,17 @@
 #include "cbs.h"
 #include "cbs_h265.h"
 #include "hevc.h"
+#include "h265_profile_level.h"
 
 enum {
     PASS,
     INSERT,
     REMOVE,
+};
+
+enum {
+    LEVEL_UNSET = -2,
+    LEVEL_AUTO  = -1,
 };
 
 typedef struct H265MetadataContext {
@@ -58,8 +64,104 @@ typedef struct H265MetadataContext {
     int crop_right;
     int crop_top;
     int crop_bottom;
+
+    int level;
+    int level_guess;
+    int level_warned;
 } H265MetadataContext;
 
+
+static void h265_metadata_guess_level(AVBSFContext *bsf,
+                                      const CodedBitstreamFragment *au)
+{
+    H265MetadataContext *ctx = bsf->priv_data;
+    const H265LevelDescriptor *desc;
+    const H265RawProfileTierLevel *ptl = NULL;
+    const H265RawHRDParameters    *hrd = NULL;
+    int64_t bit_rate = 0;
+    int width = 0, height = 0;
+    int tile_cols = 0, tile_rows = 0;
+    int max_dec_pic_buffering = 0;
+    int i;
+
+    for (i = 0; i < au->nb_units; i++) {
+        const CodedBitstreamUnit *unit = &au->units[i];
+
+        if (unit->type == HEVC_NAL_VPS) {
+            const H265RawVPS *vps = unit->content;
+
+            ptl = &vps->profile_tier_level;
+            max_dec_pic_buffering = vps->vps_max_dec_pic_buffering_minus1[0] + 1;
+
+            if (vps->vps_num_hrd_parameters > 0)
+                hrd = &vps->hrd_parameters[0];
+
+        } else if (unit->type == HEVC_NAL_SPS) {
+            const H265RawSPS *sps = unit->content;
+
+            ptl = &sps->profile_tier_level;
+            max_dec_pic_buffering = sps->sps_max_dec_pic_buffering_minus1[0] + 1;
+
+            width  = sps->pic_width_in_luma_samples;
+            height = sps->pic_height_in_luma_samples;
+
+            if (sps->vui.vui_hrd_parameters_present_flag)
+                hrd = &sps->vui.hrd_parameters;
+
+        } else if (unit->type == HEVC_NAL_PPS) {
+            const H265RawPPS *pps = unit->content;
+
+            if (pps->tiles_enabled_flag) {
+                tile_cols = pps->num_tile_columns_minus1 + 1;
+                tile_rows = pps->num_tile_rows_minus1 + 1;
+            }
+        }
+    }
+
+    if (hrd) {
+        if (hrd->nal_hrd_parameters_present_flag) {
+            bit_rate = (hrd->nal_sub_layer_hrd_parameters[0].bit_rate_value_minus1[0] + 1) *
+                       (INT64_C(1) << hrd->bit_rate_scale + 6);
+        } else if (hrd->vcl_hrd_parameters_present_flag) {
+            bit_rate = (hrd->vcl_sub_layer_hrd_parameters[0].bit_rate_value_minus1[0] + 1) *
+                       (INT64_C(1) << hrd->bit_rate_scale + 6);
+            // Adjust for VCL vs. NAL limits.
+            bit_rate = bit_rate * 11 / 10;
+        }
+    }
+
+    desc = ff_h265_guess_level(ptl, bit_rate, width, height,
+                               0, tile_rows, tile_cols,
+                               max_dec_pic_buffering);
+    if (desc) {
+        av_log(bsf, AV_LOG_DEBUG, "Stream appears to conform to "
+               "level %s.\n", desc->name);
+        ctx->level_guess = desc->level_idc;
+    }
+}
+
+static void h265_metadata_update_level(AVBSFContext *bsf,
+                                       uint8_t *level_idc)
+{
+    H265MetadataContext *ctx = bsf->priv_data;
+
+    if (ctx->level != LEVEL_UNSET) {
+        if (ctx->level == LEVEL_AUTO) {
+            if (ctx->level_guess) {
+                *level_idc = ctx->level_guess;
+            } else {
+                if (!ctx->level_warned) {
+                    av_log(bsf, AV_LOG_WARNING, "Unable to determine level "
+                           "of stream: using level 8.5.\n");
+                    ctx->level_warned = 1;
+                }
+                *level_idc = 255;
+            }
+        } else {
+            *level_idc = ctx->level;
+        }
+    }
+}
 
 static int h265_metadata_update_vps(AVBSFContext *bsf,
                                     H265RawVPS *vps)
@@ -85,6 +187,8 @@ static int h265_metadata_update_vps(AVBSFContext *bsf,
             vps->vps_poc_proportional_to_timing_flag = 0;
         }
     }
+
+    h265_metadata_update_level(bsf, &vps->profile_tier_level.general_level_idc);
 
     return 0;
 }
@@ -227,21 +331,22 @@ static int h265_metadata_update_sps(AVBSFContext *bsf,
     if (need_vui)
         sps->vui_parameters_present_flag = 1;
 
+    h265_metadata_update_level(bsf, &sps->profile_tier_level.general_level_idc);
+
     return 0;
 }
 
-static int h265_metadata_filter(AVBSFContext *bsf, AVPacket *out)
+static int h265_metadata_filter(AVBSFContext *bsf, AVPacket *pkt)
 {
     H265MetadataContext *ctx = bsf->priv_data;
-    AVPacket *in = NULL;
     CodedBitstreamFragment *au = &ctx->access_unit;
     int err, i;
 
-    err = ff_bsf_get_packet(bsf, &in);
+    err = ff_bsf_get_packet_ref(bsf, pkt);
     if (err < 0)
-        goto fail;
+        return err;
 
-    err = ff_cbs_read_packet(ctx->cbc, au, in);
+    err = ff_cbs_read_packet(ctx->cbc, au, pkt);
     if (err < 0) {
         av_log(bsf, AV_LOG_ERROR, "Failed to read packet.\n");
         goto fail;
@@ -289,13 +394,16 @@ static int h265_metadata_filter(AVBSFContext *bsf, AVPacket *out)
             aud->pic_type = pic_type;
 
             err = ff_cbs_insert_unit_content(ctx->cbc, au,
-                                             0, HEVC_NAL_AUD, aud);
-            if (err) {
+                                             0, HEVC_NAL_AUD, aud, NULL);
+            if (err < 0) {
                 av_log(bsf, AV_LOG_ERROR, "Failed to insert AUD.\n");
                 goto fail;
             }
         }
     }
+
+    if (ctx->level == LEVEL_AUTO && !ctx->level_guess)
+        h265_metadata_guess_level(bsf, au);
 
     for (i = 0; i < au->nb_units; i++) {
         if (au->units[i].type == HEVC_NAL_VPS) {
@@ -310,21 +418,18 @@ static int h265_metadata_filter(AVBSFContext *bsf, AVPacket *out)
         }
     }
 
-    err = ff_cbs_write_packet(ctx->cbc, out, au);
+    err = ff_cbs_write_packet(ctx->cbc, pkt, au);
     if (err < 0) {
         av_log(bsf, AV_LOG_ERROR, "Failed to write packet.\n");
         goto fail;
     }
 
-    err = av_packet_copy_props(out, in);
-    if (err < 0)
-        goto fail;
-
     err = 0;
 fail:
-    ff_cbs_fragment_uninit(ctx->cbc, au);
+    ff_cbs_fragment_reset(ctx->cbc, au);
 
-    av_packet_free(&in);
+    if (err < 0)
+        av_packet_unref(pkt);
 
     return err;
 }
@@ -345,6 +450,9 @@ static int h265_metadata_init(AVBSFContext *bsf)
             av_log(bsf, AV_LOG_ERROR, "Failed to read extradata.\n");
             goto fail;
         }
+
+        if (ctx->level == LEVEL_AUTO)
+            h265_metadata_guess_level(bsf, au);
 
         for (i = 0; i < au->nb_units; i++) {
             if (au->units[i].type == HEVC_NAL_VPS) {
@@ -368,70 +476,100 @@ static int h265_metadata_init(AVBSFContext *bsf)
 
     err = 0;
 fail:
-    ff_cbs_fragment_uninit(ctx->cbc, au);
+    ff_cbs_fragment_reset(ctx->cbc, au);
     return err;
 }
 
 static void h265_metadata_close(AVBSFContext *bsf)
 {
     H265MetadataContext *ctx = bsf->priv_data;
+
+    ff_cbs_fragment_free(ctx->cbc, &ctx->access_unit);
     ff_cbs_close(&ctx->cbc);
 }
 
 #define OFFSET(x) offsetof(H265MetadataContext, x)
+#define FLAGS (AV_OPT_FLAG_VIDEO_PARAM|AV_OPT_FLAG_BSF_PARAM)
 static const AVOption h265_metadata_options[] = {
     { "aud", "Access Unit Delimiter NAL units",
         OFFSET(aud), AV_OPT_TYPE_INT,
-        { .i64 = PASS }, PASS, REMOVE, 0, "aud" },
-    { "pass",   NULL, 0, AV_OPT_TYPE_CONST, { .i64 = PASS   }, .unit = "aud" },
-    { "insert", NULL, 0, AV_OPT_TYPE_CONST, { .i64 = INSERT }, .unit = "aud" },
-    { "remove", NULL, 0, AV_OPT_TYPE_CONST, { .i64 = REMOVE }, .unit = "aud" },
+        { .i64 = PASS }, PASS, REMOVE, FLAGS, "aud" },
+    { "pass",   NULL, 0, AV_OPT_TYPE_CONST,
+        { .i64 = PASS   }, .flags = FLAGS, .unit = "aud" },
+    { "insert", NULL, 0, AV_OPT_TYPE_CONST,
+        { .i64 = INSERT }, .flags = FLAGS, .unit = "aud" },
+    { "remove", NULL, 0, AV_OPT_TYPE_CONST,
+        { .i64 = REMOVE }, .flags = FLAGS, .unit = "aud" },
 
     { "sample_aspect_ratio", "Set sample aspect ratio (table E-1)",
         OFFSET(sample_aspect_ratio), AV_OPT_TYPE_RATIONAL,
-        { .dbl = 0.0 }, 0, 65535 },
+        { .dbl = 0.0 }, 0, 65535, FLAGS },
 
     { "video_format", "Set video format (table E-2)",
         OFFSET(video_format), AV_OPT_TYPE_INT,
-        { .i64 = -1 }, -1, 7 },
+        { .i64 = -1 }, -1, 7, FLAGS },
     { "video_full_range_flag", "Set video full range flag",
         OFFSET(video_full_range_flag), AV_OPT_TYPE_INT,
-        { .i64 = -1 }, -1, 1 },
+        { .i64 = -1 }, -1, 1, FLAGS },
     { "colour_primaries", "Set colour primaries (table E-3)",
         OFFSET(colour_primaries), AV_OPT_TYPE_INT,
-        { .i64 = -1 }, -1, 255 },
+        { .i64 = -1 }, -1, 255, FLAGS },
     { "transfer_characteristics", "Set transfer characteristics (table E-4)",
         OFFSET(transfer_characteristics), AV_OPT_TYPE_INT,
-        { .i64 = -1 }, -1, 255 },
+        { .i64 = -1 }, -1, 255, FLAGS },
     { "matrix_coefficients", "Set matrix coefficients (table E-5)",
         OFFSET(matrix_coefficients), AV_OPT_TYPE_INT,
-        { .i64 = -1 }, -1, 255 },
+        { .i64 = -1 }, -1, 255, FLAGS },
 
     { "chroma_sample_loc_type", "Set chroma sample location type (figure E-1)",
         OFFSET(chroma_sample_loc_type), AV_OPT_TYPE_INT,
-        { .i64 = -1 }, -1, 6 },
+        { .i64 = -1 }, -1, 6, FLAGS },
 
     { "tick_rate",
         "Set VPS and VUI tick rate (num_units_in_tick / time_scale)",
         OFFSET(tick_rate), AV_OPT_TYPE_RATIONAL,
-        { .dbl = 0.0 }, 0, UINT_MAX },
+        { .dbl = 0.0 }, 0, UINT_MAX, FLAGS },
     { "num_ticks_poc_diff_one",
         "Set VPS and VUI number of ticks per POC increment",
         OFFSET(num_ticks_poc_diff_one), AV_OPT_TYPE_INT,
-        { .i64 = -1 }, -1, INT_MAX },
+        { .i64 = -1 }, -1, INT_MAX, FLAGS },
 
     { "crop_left", "Set left border crop offset",
         OFFSET(crop_left), AV_OPT_TYPE_INT,
-        { .i64 = -1 }, -1, HEVC_MAX_WIDTH },
+        { .i64 = -1 }, -1, HEVC_MAX_WIDTH, FLAGS },
     { "crop_right", "Set right border crop offset",
         OFFSET(crop_right), AV_OPT_TYPE_INT,
-        { .i64 = -1 }, -1, HEVC_MAX_WIDTH },
+        { .i64 = -1 }, -1, HEVC_MAX_WIDTH, FLAGS },
     { "crop_top", "Set top border crop offset",
         OFFSET(crop_top), AV_OPT_TYPE_INT,
-        { .i64 = -1 }, -1, HEVC_MAX_HEIGHT },
+        { .i64 = -1 }, -1, HEVC_MAX_HEIGHT, FLAGS },
     { "crop_bottom", "Set bottom border crop offset",
         OFFSET(crop_bottom), AV_OPT_TYPE_INT,
-        { .i64 = -1 }, -1, HEVC_MAX_HEIGHT },
+        { .i64 = -1 }, -1, HEVC_MAX_HEIGHT, FLAGS },
+
+    { "level", "Set level (tables A.6 and A.7)",
+        OFFSET(level), AV_OPT_TYPE_INT,
+        { .i64 = LEVEL_UNSET }, LEVEL_UNSET, 0xff, FLAGS, "level" },
+    { "auto", "Attempt to guess level from stream properties",
+        0, AV_OPT_TYPE_CONST,
+        { .i64 = LEVEL_AUTO }, .flags = FLAGS, .unit = "level" },
+#define LEVEL(name, value) name, NULL, 0, AV_OPT_TYPE_CONST, \
+        { .i64 = value },      .flags = FLAGS, .unit = "level"
+    { LEVEL("1",    30) },
+    { LEVEL("2",    60) },
+    { LEVEL("2.1",  63) },
+    { LEVEL("3",    90) },
+    { LEVEL("3.1",  93) },
+    { LEVEL("4",   120) },
+    { LEVEL("4.1", 123) },
+    { LEVEL("5",   150) },
+    { LEVEL("5.1", 153) },
+    { LEVEL("5.2", 156) },
+    { LEVEL("6",   180) },
+    { LEVEL("6.1", 183) },
+    { LEVEL("6.2", 186) },
+    { LEVEL("8.5", 255) },
+#undef LEVEL
 
     { NULL }
 };
@@ -440,7 +578,7 @@ static const AVClass h265_metadata_class = {
     .class_name = "h265_metadata_bsf",
     .item_name  = av_default_item_name,
     .option     = h265_metadata_options,
-    .version    = LIBAVCODEC_VERSION_MAJOR,
+    .version    = LIBAVUTIL_VERSION_INT,
 };
 
 static const enum AVCodecID h265_metadata_codec_ids[] = {

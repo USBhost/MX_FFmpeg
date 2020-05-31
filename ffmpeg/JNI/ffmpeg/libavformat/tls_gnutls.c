@@ -55,20 +55,20 @@ typedef struct TLSContext {
 
 void ff_gnutls_init(void)
 {
-    avpriv_lock_avformat();
+    ff_lock_avformat();
 #if HAVE_THREADS && GNUTLS_VERSION_NUMBER < 0x020b00
     if (gcry_control(GCRYCTL_ANY_INITIALIZATION_P) == 0)
         gcry_control(GCRYCTL_SET_THREAD_CBS, &gcry_threads_pthread);
 #endif
     gnutls_global_init();
-    avpriv_unlock_avformat();
+    ff_unlock_avformat();
 }
 
 void ff_gnutls_deinit(void)
 {
-    avpriv_lock_avformat();
+    ff_lock_avformat();
     gnutls_global_deinit();
-    avpriv_unlock_avformat();
+    ff_unlock_avformat();
 }
 
 static int print_tls_error(URLContext *h, int ret)
@@ -182,11 +182,13 @@ static int tls_open(URLContext *h, const char *uri, int flags, AVDictionary **op
     gnutls_transport_set_push_function(p->session, gnutls_url_push);
     gnutls_transport_set_ptr(p->session, c->tcp);
     gnutls_priority_set_direct(p->session, "NORMAL", NULL);
-    ret = gnutls_handshake(p->session);
-    if (ret) {
-        ret = print_tls_error(h, ret);
-        goto fail;
-    }
+    do {
+        ret = gnutls_handshake(p->session);
+        if (gnutls_error_is_fatal(ret)) {
+            ret = print_tls_error(h, ret);
+            goto fail;
+        }
+    } while (ret);
     p->need_shutdown = 1;
     if (c->verify) {
         unsigned int status, cert_list_size;

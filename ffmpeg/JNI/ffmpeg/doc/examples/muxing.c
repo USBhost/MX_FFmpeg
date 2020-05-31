@@ -285,7 +285,7 @@ static AVFrame *get_audio_frame(OutputStream *ost)
 
     /* check if we want to generate more frames */
     if (av_compare_ts(ost->next_pts, ost->enc->time_base,
-                      STREAM_DURATION, (AVRational){ 1, 1 }) >= 0)
+                      STREAM_DURATION, (AVRational){ 1, 1 }) > 0)
         return NULL;
 
     for (j = 0; j <frame->nb_samples; j++) {
@@ -464,7 +464,7 @@ static AVFrame *get_video_frame(OutputStream *ost)
 
     /* check if we want to generate more frames */
     if (av_compare_ts(ost->next_pts, c->time_base,
-                      STREAM_DURATION, (AVRational){ 1, 1 }) >= 0)
+                      STREAM_DURATION, (AVRational){ 1, 1 }) > 0)
         return NULL;
 
     /* when we pass a frame to the encoder, it may keep a reference to it
@@ -563,9 +563,6 @@ int main(int argc, char **argv)
     int encode_video = 0, encode_audio = 0;
     AVDictionary *opt = NULL;
     int i;
-
-    /* Initialize libavcodec, and register all codecs and formats. */
-    av_register_all();
 
     if (argc < 2) {
         printf("usage: %s output_file\n"

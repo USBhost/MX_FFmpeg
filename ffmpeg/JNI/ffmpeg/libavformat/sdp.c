@@ -347,7 +347,8 @@ static char *extradata2config(AVFormatContext *s, AVCodecParameters *par)
 
 static char *xiph_extradata2config(AVFormatContext *s, AVCodecParameters *par)
 {
-    char *config, *encoded_config;
+    uint8_t *config;
+    char *encoded_config;
     const uint8_t *header_start[3];
     int headers_len, header_len[3], config_len;
     int first_header_size;
@@ -784,7 +785,7 @@ int av_sdp_create(AVFormatContext *ac[], int n_files, char *buf, int size)
     port = 0;
     ttl = 0;
     if (n_files == 1) {
-        port = sdp_get_address(dst, sizeof(dst), &ttl, ac[0]->filename);
+        port = sdp_get_address(dst, sizeof(dst), &ttl, ac[0]->url ? ac[0]->url : "");
         is_multicast = resolve_destination(dst, sizeof(dst), dst_type,
                                            sizeof(dst_type));
         if (!is_multicast)
@@ -804,7 +805,7 @@ int av_sdp_create(AVFormatContext *ac[], int n_files, char *buf, int size)
     dst[0] = 0;
     for (i = 0; i < n_files; i++) {
         if (n_files != 1) {
-            port = sdp_get_address(dst, sizeof(dst), &ttl, ac[i]->filename);
+            port = sdp_get_address(dst, sizeof(dst), &ttl, ac[i]->url ? ac[i]->url : "");
             is_multicast = resolve_destination(dst, sizeof(dst), dst_type,
                                                sizeof(dst_type));
             if (!is_multicast)

@@ -165,6 +165,8 @@ typedef enum {
     SECTION_ID_FRAME_TAGS,
     SECTION_ID_FRAME_SIDE_DATA_LIST,
     SECTION_ID_FRAME_SIDE_DATA,
+    SECTION_ID_FRAME_SIDE_DATA_TIMECODE_LIST,
+    SECTION_ID_FRAME_SIDE_DATA_TIMECODE,
     SECTION_ID_FRAME_LOG,
     SECTION_ID_FRAME_LOGS,
     SECTION_ID_LIBRARY_VERSION,
@@ -209,7 +211,9 @@ static struct section sections[] = {
     [SECTION_ID_FRAME] =              { SECTION_ID_FRAME, "frame", 0, { SECTION_ID_FRAME_TAGS, SECTION_ID_FRAME_SIDE_DATA_LIST, SECTION_ID_FRAME_LOGS, -1 } },
     [SECTION_ID_FRAME_TAGS] =         { SECTION_ID_FRAME_TAGS, "tags", SECTION_FLAG_HAS_VARIABLE_FIELDS, { -1 }, .element_name = "tag", .unique_name = "frame_tags" },
     [SECTION_ID_FRAME_SIDE_DATA_LIST] ={ SECTION_ID_FRAME_SIDE_DATA_LIST, "side_data_list", SECTION_FLAG_IS_ARRAY, { SECTION_ID_FRAME_SIDE_DATA, -1 }, .element_name = "side_data", .unique_name = "frame_side_data_list" },
-    [SECTION_ID_FRAME_SIDE_DATA] =     { SECTION_ID_FRAME_SIDE_DATA, "side_data", 0, { -1 } },
+    [SECTION_ID_FRAME_SIDE_DATA] =     { SECTION_ID_FRAME_SIDE_DATA, "side_data", 0, { SECTION_ID_FRAME_SIDE_DATA_TIMECODE_LIST, -1 } },
+    [SECTION_ID_FRAME_SIDE_DATA_TIMECODE_LIST] =     { SECTION_ID_FRAME_SIDE_DATA_TIMECODE_LIST, "timecodes", SECTION_FLAG_IS_ARRAY, { SECTION_ID_FRAME_SIDE_DATA_TIMECODE, -1 } },
+    [SECTION_ID_FRAME_SIDE_DATA_TIMECODE] =     { SECTION_ID_FRAME_SIDE_DATA_TIMECODE, "timecode", 0, { -1 } },
     [SECTION_ID_FRAME_LOGS] =         { SECTION_ID_FRAME_LOGS, "logs", SECTION_FLAG_IS_ARRAY, { SECTION_ID_FRAME_LOG, -1 } },
     [SECTION_ID_FRAME_LOG] =          { SECTION_ID_FRAME_LOG, "log", 0, { -1 },  },
     [SECTION_ID_LIBRARY_VERSIONS] =   { SECTION_ID_LIBRARY_VERSIONS, "library_versions", SECTION_FLAG_IS_ARRAY, { SECTION_ID_LIBRARY_VERSION, -1 } },
@@ -250,6 +254,7 @@ static const OptionDef *options;
 
 /* FFprobe context */
 static const char *input_filename;
+static const char *print_input_filename;
 static AVInputFormat *iformat = NULL;
 
 static struct AVHashContext *hash;
@@ -1079,12 +1084,12 @@ typedef struct CompactContext {
 #define OFFSET(x) offsetof(CompactContext, x)
 
 static const AVOption compact_options[]= {
-    {"item_sep", "set item separator",    OFFSET(item_sep_str),    AV_OPT_TYPE_STRING, {.str="|"},  CHAR_MIN, CHAR_MAX },
-    {"s",        "set item separator",    OFFSET(item_sep_str),    AV_OPT_TYPE_STRING, {.str="|"},  CHAR_MIN, CHAR_MAX },
+    {"item_sep", "set item separator",    OFFSET(item_sep_str),    AV_OPT_TYPE_STRING, {.str="|"},  0, 0 },
+    {"s",        "set item separator",    OFFSET(item_sep_str),    AV_OPT_TYPE_STRING, {.str="|"},  0, 0 },
     {"nokey",    "force no key printing", OFFSET(nokey),           AV_OPT_TYPE_BOOL,   {.i64=0},    0,        1        },
     {"nk",       "force no key printing", OFFSET(nokey),           AV_OPT_TYPE_BOOL,   {.i64=0},    0,        1        },
-    {"escape",   "set escape mode",       OFFSET(escape_mode_str), AV_OPT_TYPE_STRING, {.str="c"},  CHAR_MIN, CHAR_MAX },
-    {"e",        "set escape mode",       OFFSET(escape_mode_str), AV_OPT_TYPE_STRING, {.str="c"},  CHAR_MIN, CHAR_MAX },
+    {"escape",   "set escape mode",       OFFSET(escape_mode_str), AV_OPT_TYPE_STRING, {.str="c"},  0, 0 },
+    {"e",        "set escape mode",       OFFSET(escape_mode_str), AV_OPT_TYPE_STRING, {.str="c"},  0, 0 },
     {"print_section", "print section name", OFFSET(print_section), AV_OPT_TYPE_BOOL,   {.i64=1},    0,        1        },
     {"p",             "print section name", OFFSET(print_section), AV_OPT_TYPE_BOOL,   {.i64=1},    0,        1        },
     {NULL},
@@ -1195,12 +1200,12 @@ static const Writer compact_writer = {
 #define OFFSET(x) offsetof(CompactContext, x)
 
 static const AVOption csv_options[] = {
-    {"item_sep", "set item separator",    OFFSET(item_sep_str),    AV_OPT_TYPE_STRING, {.str=","},  CHAR_MIN, CHAR_MAX },
-    {"s",        "set item separator",    OFFSET(item_sep_str),    AV_OPT_TYPE_STRING, {.str=","},  CHAR_MIN, CHAR_MAX },
+    {"item_sep", "set item separator",    OFFSET(item_sep_str),    AV_OPT_TYPE_STRING, {.str=","},  0, 0 },
+    {"s",        "set item separator",    OFFSET(item_sep_str),    AV_OPT_TYPE_STRING, {.str=","},  0, 0 },
     {"nokey",    "force no key printing", OFFSET(nokey),           AV_OPT_TYPE_BOOL,   {.i64=1},    0,        1        },
     {"nk",       "force no key printing", OFFSET(nokey),           AV_OPT_TYPE_BOOL,   {.i64=1},    0,        1        },
-    {"escape",   "set escape mode",       OFFSET(escape_mode_str), AV_OPT_TYPE_STRING, {.str="csv"}, CHAR_MIN, CHAR_MAX },
-    {"e",        "set escape mode",       OFFSET(escape_mode_str), AV_OPT_TYPE_STRING, {.str="csv"}, CHAR_MIN, CHAR_MAX },
+    {"escape",   "set escape mode",       OFFSET(escape_mode_str), AV_OPT_TYPE_STRING, {.str="csv"}, 0, 0 },
+    {"e",        "set escape mode",       OFFSET(escape_mode_str), AV_OPT_TYPE_STRING, {.str="csv"}, 0, 0 },
     {"print_section", "print section name", OFFSET(print_section), AV_OPT_TYPE_BOOL,   {.i64=1},    0,        1        },
     {"p",             "print section name", OFFSET(print_section), AV_OPT_TYPE_BOOL,   {.i64=1},    0,        1        },
     {NULL},
@@ -1233,8 +1238,8 @@ typedef struct FlatContext {
 #define OFFSET(x) offsetof(FlatContext, x)
 
 static const AVOption flat_options[]= {
-    {"sep_char", "set separator",    OFFSET(sep_str),    AV_OPT_TYPE_STRING, {.str="."},  CHAR_MIN, CHAR_MAX },
-    {"s",        "set separator",    OFFSET(sep_str),    AV_OPT_TYPE_STRING, {.str="."},  CHAR_MIN, CHAR_MAX },
+    {"sep_char", "set separator",    OFFSET(sep_str),    AV_OPT_TYPE_STRING, {.str="."},  0, 0 },
+    {"s",        "set separator",    OFFSET(sep_str),    AV_OPT_TYPE_STRING, {.str="."},  0, 0 },
     {"hierarchical", "specify if the section specification should be hierarchical", OFFSET(hierarchical), AV_OPT_TYPE_BOOL, {.i64=1}, 0, 1 },
     {"h",            "specify if the section specification should be hierarchical", OFFSET(hierarchical), AV_OPT_TYPE_BOOL, {.i64=1}, 0, 1 },
     {NULL},
@@ -1531,7 +1536,7 @@ static void json_print_section_header(WriterContext *wctx)
             if (parent_section && parent_section->id == SECTION_ID_PACKETS_AND_FRAMES) {
                 if (!json->compact)
                     JSON_INDENT();
-                printf("\"type\": \"%s\"%s", section->name, json->item_sep);
+                printf("\"type\": \"%s\"", section->name);
             }
         }
         av_bprint_finalize(&buf, NULL);
@@ -1575,8 +1580,10 @@ static inline void json_print_item_str(WriterContext *wctx,
 static void json_print_str(WriterContext *wctx, const char *key, const char *value)
 {
     JSONContext *json = wctx->priv;
+    const struct section *parent_section = wctx->level ?
+        wctx->section[wctx->level-1] : NULL;
 
-    if (wctx->nb_item[wctx->level])
+    if (wctx->nb_item[wctx->level] || (parent_section && parent_section->id == SECTION_ID_PACKETS_AND_FRAMES))
         printf("%s", json->item_sep);
     if (!json->compact)
         JSON_INDENT();
@@ -1586,9 +1593,11 @@ static void json_print_str(WriterContext *wctx, const char *key, const char *val
 static void json_print_int(WriterContext *wctx, const char *key, long long int value)
 {
     JSONContext *json = wctx->priv;
+    const struct section *parent_section = wctx->level ?
+        wctx->section[wctx->level-1] : NULL;
     AVBPrint buf;
 
-    if (wctx->nb_item[wctx->level])
+    if (wctx->nb_item[wctx->level] || (parent_section && parent_section->id == SECTION_ID_PACKETS_AND_FRAMES))
         printf("%s", json->item_sep);
     if (!json->compact)
         JSON_INDENT();
@@ -2199,6 +2208,18 @@ static void show_frame(WriterContext *w, AVFrame *frame, AVStream *stream,
                 char tcbuf[AV_TIMECODE_STR_SIZE];
                 av_timecode_make_mpeg_tc_string(tcbuf, *(int64_t *)(sd->data));
                 print_str("timecode", tcbuf);
+            } else if (sd->type == AV_FRAME_DATA_S12M_TIMECODE && sd->size == 16) {
+                uint32_t *tc = (uint32_t*)sd->data;
+                int m = FFMIN(tc[0],3);
+                writer_print_section_header(w, SECTION_ID_FRAME_SIDE_DATA_TIMECODE_LIST);
+                for (int j = 1; j <= m ; j++) {
+                    char tcbuf[AV_TIMECODE_STR_SIZE];
+                    av_timecode_make_smpte_tc_string(tcbuf, tc[j], 0);
+                    writer_print_section_header(w, SECTION_ID_FRAME_SIDE_DATA_TIMECODE);
+                    print_str("value", tcbuf);
+                    writer_print_section_footer(w);
+                }
+                writer_print_section_footer(w);
             } else if (sd->type == AV_FRAME_DATA_MASTERING_DISPLAY_METADATA) {
                 AVMasteringDisplayMetadata *metadata = (AVMasteringDisplayMetadata *)sd->data;
 
@@ -2275,7 +2296,8 @@ static av_always_inline int process_frame(WriterContext *w,
             break;
 
         case AVMEDIA_TYPE_SUBTITLE:
-            ret = avcodec_decode_subtitle2(dec_ctx, &sub, &got_frame, pkt);
+            if (*packet_new)
+                ret = avcodec_decode_subtitle2(dec_ctx, &sub, &got_frame, pkt);
             *packet_new = 0;
             break;
         default:
@@ -2370,11 +2392,11 @@ static int read_interval_packets(WriterContext *w, InputFile *ifile,
         goto end;
     }
     while (!av_read_frame(fmt_ctx, &pkt)) {
-        if (ifile->nb_streams > nb_streams) {
+        if (fmt_ctx->nb_streams > nb_streams) {
             REALLOCZ_ARRAY_STREAM(nb_streams_frames,  nb_streams, fmt_ctx->nb_streams);
             REALLOCZ_ARRAY_STREAM(nb_streams_packets, nb_streams, fmt_ctx->nb_streams);
             REALLOCZ_ARRAY_STREAM(selected_streams,   nb_streams, fmt_ctx->nb_streams);
-            nb_streams = ifile->nb_streams;
+            nb_streams = fmt_ctx->nb_streams;
         }
         if (selected_streams[pkt.stream_index]) {
             AVRational tb = ifile->streams[pkt.stream_index].st->time_base;
@@ -2412,9 +2434,7 @@ static int read_interval_packets(WriterContext *w, InputFile *ifile,
         }
         av_packet_unref(&pkt);
     }
-    av_init_packet(&pkt);
-    pkt.data = NULL;
-    pkt.size = 0;
+    av_packet_unref(&pkt);
     //Flush remaining frames that are cached in the decoder
     for (i = 0; i < fmt_ctx->nb_streams; i++) {
         pkt.stream_index = i;
@@ -2512,13 +2532,15 @@ static int show_stream(WriterContext *w, AVFormatContext *fmt_ctx, int stream_id
     case AVMEDIA_TYPE_VIDEO:
         print_int("width",        par->width);
         print_int("height",       par->height);
+#if FF_API_LAVF_AVCTX
         if (dec_ctx) {
             print_int("coded_width",  dec_ctx->coded_width);
             print_int("coded_height", dec_ctx->coded_height);
         }
+#endif
         print_int("has_b_frames", par->video_delay);
         sar = av_guess_sample_aspect_ratio(fmt_ctx, stream, NULL);
-        if (sar.den) {
+        if (sar.num) {
             print_q("sample_aspect_ratio", sar, ':');
             av_reduce(&dar.num, &dar.den,
                       par->width  * sar.num,
@@ -2643,20 +2665,20 @@ static int show_stream(WriterContext *w, AVFormatContext *fmt_ctx, int stream_id
     } while (0)
 
     if (do_show_stream_disposition) {
-    writer_print_section_header(w, in_program ? SECTION_ID_PROGRAM_STREAM_DISPOSITION : SECTION_ID_STREAM_DISPOSITION);
-    PRINT_DISPOSITION(DEFAULT,          "default");
-    PRINT_DISPOSITION(DUB,              "dub");
-    PRINT_DISPOSITION(ORIGINAL,         "original");
-    PRINT_DISPOSITION(COMMENT,          "comment");
-    PRINT_DISPOSITION(LYRICS,           "lyrics");
-    PRINT_DISPOSITION(KARAOKE,          "karaoke");
-    PRINT_DISPOSITION(FORCED,           "forced");
-    PRINT_DISPOSITION(HEARING_IMPAIRED, "hearing_impaired");
-    PRINT_DISPOSITION(VISUAL_IMPAIRED,  "visual_impaired");
-    PRINT_DISPOSITION(CLEAN_EFFECTS,    "clean_effects");
-    PRINT_DISPOSITION(ATTACHED_PIC,     "attached_pic");
-    PRINT_DISPOSITION(TIMED_THUMBNAILS, "timed_thumbnails");
-    writer_print_section_footer(w);
+        writer_print_section_header(w, in_program ? SECTION_ID_PROGRAM_STREAM_DISPOSITION : SECTION_ID_STREAM_DISPOSITION);
+        PRINT_DISPOSITION(DEFAULT,          "default");
+        PRINT_DISPOSITION(DUB,              "dub");
+        PRINT_DISPOSITION(ORIGINAL,         "original");
+        PRINT_DISPOSITION(COMMENT,          "comment");
+        PRINT_DISPOSITION(LYRICS,           "lyrics");
+        PRINT_DISPOSITION(KARAOKE,          "karaoke");
+        PRINT_DISPOSITION(FORCED,           "forced");
+        PRINT_DISPOSITION(HEARING_IMPAIRED, "hearing_impaired");
+        PRINT_DISPOSITION(VISUAL_IMPAIRED,  "visual_impaired");
+        PRINT_DISPOSITION(CLEAN_EFFECTS,    "clean_effects");
+        PRINT_DISPOSITION(ATTACHED_PIC,     "attached_pic");
+        PRINT_DISPOSITION(TIMED_THUMBNAILS, "timed_thumbnails");
+        writer_print_section_footer(w);
     }
 
     if (do_show_stream_tags)
@@ -2778,7 +2800,7 @@ static int show_format(WriterContext *w, InputFile *ifile)
     int ret = 0;
 
     writer_print_section_header(w, SECTION_ID_FORMAT);
-    print_str_validate("filename", fmt_ctx->filename);
+    print_str_validate("filename", fmt_ctx->url);
     print_int("nb_streams",       fmt_ctx->nb_streams);
     print_int("nb_programs",      fmt_ctx->nb_programs);
     print_str("format_name",      fmt_ctx->iformat->name);
@@ -2815,7 +2837,8 @@ static void show_error(WriterContext *w, int err)
     writer_print_section_footer(w);
 }
 
-static int open_input_file(InputFile *ifile, const char *filename)
+static int open_input_file(InputFile *ifile, const char *filename,
+                           const char *print_filename)
 {
     int err, i;
     AVFormatContext *fmt_ctx = NULL;
@@ -2836,6 +2859,10 @@ static int open_input_file(InputFile *ifile, const char *filename)
                                    iformat, &format_opts)) < 0) {
         print_error(filename, err);
         return err;
+    }
+    if (print_filename) {
+        av_freep(&fmt_ctx->url);
+        fmt_ctx->url = av_strdup(print_filename);
     }
     ifile->fmt_ctx = fmt_ctx;
     if (scan_all_pmts_set)
@@ -2910,8 +2937,12 @@ static int open_input_file(InputFile *ifile, const char *filename)
                 av_dict_set(&codec_opts, "threads", "1", 0);
             }
 
-            av_codec_set_pkt_timebase(ist->dec_ctx, stream->time_base);
+            ist->dec_ctx->pkt_timebase = stream->time_base;
             ist->dec_ctx->framerate = stream->avg_frame_rate;
+#if FF_API_LAVF_AVCTX
+            ist->dec_ctx->coded_width = stream->codec->coded_width;
+            ist->dec_ctx->coded_height = stream->codec->coded_height;
+#endif
 
             if (avcodec_open2(ist->dec_ctx, codec, &opts) < 0) {
                 av_log(NULL, AV_LOG_WARNING, "Could not open codec for input stream %d\n",
@@ -2946,7 +2977,8 @@ static void close_input_file(InputFile *ifile)
     avformat_close_input(&ifile->fmt_ctx);
 }
 
-static int probe_file(WriterContext *wctx, const char *filename)
+static int probe_file(WriterContext *wctx, const char *filename,
+                      const char *print_filename)
 {
     InputFile ifile = { 0 };
     int ret, i;
@@ -2955,7 +2987,7 @@ static int probe_file(WriterContext *wctx, const char *filename)
     do_read_frames = do_show_frames || do_count_frames;
     do_read_packets = do_show_packets || do_count_packets;
 
-    ret = open_input_file(&ifile, filename);
+    ret = open_input_file(&ifile, filename, print_filename);
     if (ret < 0)
         goto end;
 
@@ -3111,7 +3143,9 @@ static void ffprobe_show_pixel_formats(WriterContext *w)
             PRINT_PIX_FMT_FLAG(HWACCEL,   "hwaccel");
             PRINT_PIX_FMT_FLAG(PLANAR,    "planar");
             PRINT_PIX_FMT_FLAG(RGB,       "rgb");
+#if FF_API_PSEUDOPAL
             PRINT_PIX_FMT_FLAG(PSEUDOPAL, "pseudopal");
+#endif
             PRINT_PIX_FMT_FLAG(ALPHA,     "alpha");
             writer_print_section_footer(w);
         }
@@ -3256,6 +3290,12 @@ static void opt_input_file(void *optctx, const char *arg)
 static int opt_input_file_i(void *optctx, const char *opt, const char *arg)
 {
     opt_input_file(optctx, arg);
+    return 0;
+}
+
+static int opt_print_filename(void *optctx, const char *opt, const char *arg)
+{
+    print_input_filename = arg;
     return 0;
 }
 
@@ -3448,7 +3488,7 @@ static int opt_sections(void *optctx, const char *opt, const char *arg)
     return 0;
 }
 
-static int opt_show_versions(const char *opt, const char *arg)
+static int opt_show_versions(void *optctx, const char *opt, const char *arg)
 {
     mark_section_show_entries(SECTION_ID_PROGRAM_VERSION, 1, NULL);
     mark_section_show_entries(SECTION_ID_LIBRARY_VERSION, 1, NULL);
@@ -3456,7 +3496,7 @@ static int opt_show_versions(const char *opt, const char *arg)
 }
 
 #define DEFINE_OPT_SHOW_SECTION(section, target_section_id)             \
-    static int opt_show_##section(const char *opt, const char *arg)     \
+    static int opt_show_##section(void *optctx, const char *opt, const char *arg) \
     {                                                                   \
         mark_section_show_entries(SECTION_ID_##target_section_id, 1, NULL); \
         return 0;                                                       \
@@ -3484,39 +3524,40 @@ static const OptionDef real_options[] = {
       "use sexagesimal format HOURS:MM:SS.MICROSECONDS for time units" },
     { "pretty", 0, {.func_arg = opt_pretty},
       "prettify the format of displayed values, make it more human readable" },
-    { "print_format", OPT_STRING | HAS_ARG, {(void*)&print_format},
+    { "print_format", OPT_STRING | HAS_ARG, { &print_format },
       "set the output printing format (available formats are: default, compact, csv, flat, ini, json, xml)", "format" },
-    { "of", OPT_STRING | HAS_ARG, {(void*)&print_format}, "alias for -print_format", "format" },
-    { "select_streams", OPT_STRING | HAS_ARG, {(void*)&stream_specifier}, "select the specified streams", "stream_specifier" },
+    { "of", OPT_STRING | HAS_ARG, { &print_format }, "alias for -print_format", "format" },
+    { "select_streams", OPT_STRING | HAS_ARG, { &stream_specifier }, "select the specified streams", "stream_specifier" },
     { "sections", OPT_EXIT, {.func_arg = opt_sections}, "print sections structure and section information, and exit" },
-    { "show_data",    OPT_BOOL, {(void*)&do_show_data}, "show packets data" },
-    { "show_data_hash", OPT_STRING | HAS_ARG, {(void*)&show_data_hash}, "show packets data hash" },
-    { "show_error",   0, {(void*)&opt_show_error},  "show probing error" },
-    { "show_format",  0, {(void*)&opt_show_format}, "show format/container info" },
-    { "show_frames",  0, {(void*)&opt_show_frames}, "show frames info" },
+    { "show_data",    OPT_BOOL, { &do_show_data }, "show packets data" },
+    { "show_data_hash", OPT_STRING | HAS_ARG, { &show_data_hash }, "show packets data hash" },
+    { "show_error",   0, { .func_arg = &opt_show_error },  "show probing error" },
+    { "show_format",  0, { .func_arg = &opt_show_format }, "show format/container info" },
+    { "show_frames",  0, { .func_arg = &opt_show_frames }, "show frames info" },
     { "show_format_entry", HAS_ARG, {.func_arg = opt_show_format_entry},
       "show a particular entry from the format/container info", "entry" },
     { "show_entries", HAS_ARG, {.func_arg = opt_show_entries},
       "show a set of specified entries", "entry_list" },
 #if HAVE_THREADS
-    { "show_log", OPT_INT|HAS_ARG, {(void*)&do_show_log}, "show log" },
+    { "show_log", OPT_INT|HAS_ARG, { &do_show_log }, "show log" },
 #endif
-    { "show_packets", 0, {(void*)&opt_show_packets}, "show packets info" },
-    { "show_programs", 0, {(void*)&opt_show_programs}, "show programs info" },
-    { "show_streams", 0, {(void*)&opt_show_streams}, "show streams info" },
-    { "show_chapters", 0, {(void*)&opt_show_chapters}, "show chapters info" },
-    { "count_frames", OPT_BOOL, {(void*)&do_count_frames}, "count the number of frames per stream" },
-    { "count_packets", OPT_BOOL, {(void*)&do_count_packets}, "count the number of packets per stream" },
-    { "show_program_version",  0, {(void*)&opt_show_program_version},  "show ffprobe version" },
-    { "show_library_versions", 0, {(void*)&opt_show_library_versions}, "show library versions" },
-    { "show_versions",         0, {(void*)&opt_show_versions}, "show program and library versions" },
-    { "show_pixel_formats", 0, {(void*)&opt_show_pixel_formats}, "show pixel format descriptions" },
-    { "show_private_data", OPT_BOOL, {(void*)&show_private_data}, "show private data" },
-    { "private",           OPT_BOOL, {(void*)&show_private_data}, "same as show_private_data" },
+    { "show_packets", 0, { .func_arg = &opt_show_packets }, "show packets info" },
+    { "show_programs", 0, { .func_arg = &opt_show_programs }, "show programs info" },
+    { "show_streams", 0, { .func_arg = &opt_show_streams }, "show streams info" },
+    { "show_chapters", 0, { .func_arg = &opt_show_chapters }, "show chapters info" },
+    { "count_frames", OPT_BOOL, { &do_count_frames }, "count the number of frames per stream" },
+    { "count_packets", OPT_BOOL, { &do_count_packets }, "count the number of packets per stream" },
+    { "show_program_version",  0, { .func_arg = &opt_show_program_version },  "show ffprobe version" },
+    { "show_library_versions", 0, { .func_arg = &opt_show_library_versions }, "show library versions" },
+    { "show_versions",         0, { .func_arg = &opt_show_versions }, "show program and library versions" },
+    { "show_pixel_formats", 0, { .func_arg = &opt_show_pixel_formats }, "show pixel format descriptions" },
+    { "show_private_data", OPT_BOOL, { &show_private_data }, "show private data" },
+    { "private",           OPT_BOOL, { &show_private_data }, "same as show_private_data" },
     { "bitexact", OPT_BOOL, {&do_bitexact}, "force bitexact output" },
     { "read_intervals", HAS_ARG, {.func_arg = opt_read_intervals}, "set read intervals", "read_intervals" },
     { "default", HAS_ARG | OPT_AUDIO | OPT_VIDEO | OPT_EXPERT, {.func_arg = opt_default}, "generic catch all option", "" },
     { "i", HAS_ARG, {.func_arg = opt_input_file_i}, "read specified file", "input_file"},
+    { "print_filename", HAS_ARG, {.func_arg = opt_print_filename}, "override the printed input filename", "print_file"},
     { "find_stream_info", OPT_BOOL | OPT_INPUT | OPT_EXPERT, { &find_stream_info },
         "read and decode the streams to fill missing information with heuristics" },
     { NULL, },
@@ -3560,7 +3601,6 @@ int main(int argc, char **argv)
 
     options = real_options;
     parse_loglevel(argc, argv, options);
-    av_register_all();
     avformat_network_init();
     init_opts();
 #if CONFIG_AVDEVICE
@@ -3666,7 +3706,7 @@ int main(int argc, char **argv)
             av_log(NULL, AV_LOG_ERROR, "Use -h to get full help or, even better, run 'man %s'.\n", program_name);
             ret = AVERROR(EINVAL);
         } else if (input_filename) {
-            ret = probe_file(wctx, input_filename);
+            ret = probe_file(wctx, input_filename, print_input_filename);
             if (ret < 0 && do_show_error)
                 show_error(wctx, ret);
         }

@@ -49,6 +49,26 @@ static const AVOption weave_options[] = {
 
 AVFILTER_DEFINE_CLASS(weave);
 
+static int query_formats(AVFilterContext *ctx)
+{
+    AVFilterFormats *formats = NULL;
+    int ret;
+
+    for (int fmt = 0; av_pix_fmt_desc_get(fmt); fmt++) {
+        const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(fmt);
+
+        if (!(desc->flags & AV_PIX_FMT_FLAG_PAL) &&
+            !(desc->flags & AV_PIX_FMT_FLAG_HWACCEL)) {
+            if ((ret = ff_add_format(&formats, fmt)) < 0) {
+                ff_formats_unref(&formats);
+                return ret;
+            }
+        }
+    }
+
+    return ff_set_common_formats(ctx, formats);
+}
+
 static int config_props_output(AVFilterLink *outlink)
 {
     AVFilterContext *ctx = outlink->src;
@@ -84,6 +104,8 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     AVFilterLink *outlink = ctx->outputs[0];
     AVFrame *out;
     int i;
+    int weave;
+    int field1, field2;
 
     if (!s->prev) {
         s->prev = in;
@@ -98,26 +120,18 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     }
     av_frame_copy_props(out, in);
 
+    weave = (s->double_weave && !(inlink->frame_count_out & 1));
+    field1 = weave ? s->first_field : (!s->first_field);
+    field2 = weave ? (!s->first_field) : s->first_field;
     for (i = 0; i < s->nb_planes; i++) {
-        if (s->double_weave && !(inlink->frame_count_out & 1)) {
-            av_image_copy_plane(out->data[i] + out->linesize[i] * s->first_field,
-                                out->linesize[i] * 2,
-                                in->data[i], in->linesize[i],
-                                s->linesize[i], s->planeheight[i]);
-            av_image_copy_plane(out->data[i] + out->linesize[i] * !s->first_field,
-                                out->linesize[i] * 2,
-                                s->prev->data[i], s->prev->linesize[i],
-                                s->linesize[i], s->planeheight[i]);
-        } else {
-            av_image_copy_plane(out->data[i] + out->linesize[i] * !s->first_field,
-                                out->linesize[i] * 2,
-                                in->data[i], in->linesize[i],
-                                s->linesize[i], s->planeheight[i]);
-            av_image_copy_plane(out->data[i] + out->linesize[i] * s->first_field,
-                                out->linesize[i] * 2,
-                                s->prev->data[i], s->prev->linesize[i],
-                                s->linesize[i], s->planeheight[i]);
-        }
+        av_image_copy_plane(out->data[i] + out->linesize[i] * field1,
+                            out->linesize[i] * 2,
+                            in->data[i], in->linesize[i],
+                            s->linesize[i], s->planeheight[i]);
+        av_image_copy_plane(out->data[i] + out->linesize[i] * field2,
+                            out->linesize[i] * 2,
+                            s->prev->data[i], s->prev->linesize[i],
+                            s->linesize[i], s->planeheight[i]);
     }
 
     out->pts = s->double_weave ? s->prev->pts : in->pts / 2;
@@ -162,6 +176,7 @@ AVFilter ff_vf_weave = {
     .description   = NULL_IF_CONFIG_SMALL("Weave input video fields into frames."),
     .priv_size     = sizeof(WeaveContext),
     .priv_class    = &weave_class,
+    .query_formats = query_formats,
     .uninit        = uninit,
     .inputs        = weave_inputs,
     .outputs       = weave_outputs,
@@ -185,6 +200,7 @@ AVFilter ff_vf_doubleweave = {
     .description   = NULL_IF_CONFIG_SMALL("Weave input video fields into double number of frames."),
     .priv_size     = sizeof(WeaveContext),
     .priv_class    = &doubleweave_class,
+    .query_formats = query_formats,
     .init          = init,
     .uninit        = uninit,
     .inputs        = weave_inputs,

@@ -1092,6 +1092,19 @@ int avpriv_dnxhd_get_frame_size(int cid)
     return ff_dnxhd_cid_table[i].frame_size;
 }
 
+int avpriv_dnxhd_get_hr_frame_size(int cid, int w, int h)
+{
+    int result, i = ff_dnxhd_get_cid_table(cid);
+
+    if (i < 0)
+        return i;
+
+    result = ((h + 15) / 16) * ((w + 15) / 16) * (int64_t)ff_dnxhd_cid_table[i].packet_scale.num / ff_dnxhd_cid_table[i].packet_scale.den;
+    result = (result + 2048) / 4096 * 4096;
+
+    return FFMAX(result, 8192);
+}
+
 int avpriv_dnxhd_get_interlaced(int cid)
 {
     int i = ff_dnxhd_get_cid_table(cid);
@@ -1158,7 +1171,7 @@ void ff_dnxhd_print_profiles(AVCodecContext *avctx, int loglevel)
 
             av_log(avctx, loglevel, "Frame size: %dx%d%c; bitrate: %dMbps; pixel format: %s\n",
                    cid->width, cid->height, cid->flags & DNXHD_INTERLACED ? 'i' : 'p', cid->bit_rates[j],
-                   cid->bit_depth == 10 ? "yuv422p10" : "yuv422p");
+                   cid->flags & DNXHD_444 ? "yuv444p10, gbrp10" : cid->bit_depth == 10 ? "yuv422p10" : "yuv422p");
         }
     }
 }

@@ -62,9 +62,9 @@ static int ac3_handle_packet(AVFormatContext *ctx, PayloadContext *data,
             av_log(ctx, AV_LOG_ERROR, "Invalid AC3 packet data\n");
             return AVERROR_INVALIDDATA;
         }
-        if (av_new_packet(pkt, len)) {
+        if ((err = av_new_packet(pkt, len)) < 0) {
             av_log(ctx, AV_LOG_ERROR, "Out of memory.\n");
-            return AVERROR(ENOMEM);
+            return err;
         }
 
         pkt->stream_index = st->index;
@@ -122,7 +122,7 @@ static int ac3_handle_packet(AVFormatContext *ctx, PayloadContext *data,
     return 0;
 }
 
-RTPDynamicProtocolHandler ff_ac3_dynamic_handler = {
+const RTPDynamicProtocolHandler ff_ac3_dynamic_handler = {
     .enc_name           = "ac3",
     .codec_type         = AVMEDIA_TYPE_AUDIO,
     .codec_id           = AV_CODEC_ID_AC3,

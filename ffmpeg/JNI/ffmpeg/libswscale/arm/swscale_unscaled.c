@@ -167,11 +167,10 @@ static void get_unscaled_swscale_neon(SwsContext *c) {
                         : rgbx_to_nv12_neon_16_wrapper;
     }
 
-    // jhkim 2017/1/19 Commented out due to crash while converting cover art image on cover_art/Kalimba.mp3 (yuvj420p -> rgba, 512x512)
-//    SET_FF_NVX_TO_ALL_RGBX_FUNC(nv12, NV12, accurate_rnd);
-//    SET_FF_NVX_TO_ALL_RGBX_FUNC(nv21, NV21, accurate_rnd);
-//    SET_FF_NVX_TO_ALL_RGBX_FUNC(yuv420p, YUV420P, accurate_rnd);
-//    SET_FF_NVX_TO_ALL_RGBX_FUNC(yuv422p, YUV422P, accurate_rnd);
+    SET_FF_NVX_TO_ALL_RGBX_FUNC(nv12, NV12, accurate_rnd);
+    SET_FF_NVX_TO_ALL_RGBX_FUNC(nv21, NV21, accurate_rnd);
+    SET_FF_NVX_TO_ALL_RGBX_FUNC(yuv420p, YUV420P, accurate_rnd);
+    SET_FF_NVX_TO_ALL_RGBX_FUNC(yuv422p, YUV422P, accurate_rnd);
 }
 
 void ff_get_unscaled_swscale_arm(SwsContext *c)

@@ -90,9 +90,9 @@ static int mpa_robust_parse_packet(AVFormatContext *ctx, PayloadContext *data,
             return AVERROR_INVALIDDATA;
         }
 
-        if (av_new_packet(pkt, adu_size)) {
+        if ((err = av_new_packet(pkt, adu_size)) < 0) {
             av_log(ctx, AV_LOG_ERROR, "Out of memory.\n");
-            return AVERROR(ENOMEM);
+            return err;
         }
 
         pkt->stream_index = st->index;
@@ -120,9 +120,9 @@ static int mpa_robust_parse_packet(AVFormatContext *ctx, PayloadContext *data,
     if (!continuation && adu_size <= len) {
         /* One or more complete frames */
 
-        if (av_new_packet(pkt, adu_size)) {
+        if ((err = av_new_packet(pkt, adu_size)) < 0) {
             av_log(ctx, AV_LOG_ERROR, "Out of memory.\n");
-            return AVERROR(ENOMEM);
+            return err;
         }
 
         pkt->stream_index = st->index;
@@ -189,7 +189,7 @@ static int mpa_robust_parse_packet(AVFormatContext *ctx, PayloadContext *data,
     return 0;
 }
 
-RTPDynamicProtocolHandler ff_mpeg_audio_robust_dynamic_handler = {
+const RTPDynamicProtocolHandler ff_mpeg_audio_robust_dynamic_handler = {
     .enc_name          = "mpa-robust",
     .codec_type        = AVMEDIA_TYPE_AUDIO,
     .codec_id          = AV_CODEC_ID_MP3ADU,

@@ -51,7 +51,7 @@ static int amr_handle_packet(AVFormatContext *ctx, PayloadContext *data,
 {
     const uint8_t *frame_sizes = NULL;
     int frames;
-    int i;
+    int i, ret;
     const uint8_t *speech_data;
     uint8_t *ptr;
 
@@ -93,9 +93,9 @@ static int amr_handle_packet(AVFormatContext *ctx, PayloadContext *data,
     speech_data = buf + 1 + frames;
 
     /* Everything except the codec mode request byte should be output. */
-    if (av_new_packet(pkt, len - 1)) {
+    if ((ret = av_new_packet(pkt, len - 1)) < 0) {
         av_log(ctx, AV_LOG_ERROR, "Out of memory\n");
-        return AVERROR(ENOMEM);
+        return ret;
     }
     pkt->stream_index = st->index;
     ptr = pkt->data;
@@ -182,7 +182,7 @@ static int amr_parse_sdp_line(AVFormatContext *s, int st_index,
     return 0;
 }
 
-RTPDynamicProtocolHandler ff_amr_nb_dynamic_handler = {
+const RTPDynamicProtocolHandler ff_amr_nb_dynamic_handler = {
     .enc_name         = "AMR",
     .codec_type       = AVMEDIA_TYPE_AUDIO,
     .codec_id         = AV_CODEC_ID_AMR_NB,
@@ -192,7 +192,7 @@ RTPDynamicProtocolHandler ff_amr_nb_dynamic_handler = {
     .parse_packet     = amr_handle_packet,
 };
 
-RTPDynamicProtocolHandler ff_amr_wb_dynamic_handler = {
+const RTPDynamicProtocolHandler ff_amr_wb_dynamic_handler = {
     .enc_name         = "AMR-WB",
     .codec_type       = AVMEDIA_TYPE_AUDIO,
     .codec_id         = AV_CODEC_ID_AMR_WB,

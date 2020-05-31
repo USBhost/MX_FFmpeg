@@ -222,12 +222,13 @@ int av_strcasecmp(const char *a, const char *b)
 
 int av_strncasecmp(const char *a, const char *b, size_t n)
 {
-    const char *end = a + n;
     uint8_t c1, c2;
+    if (n <= 0)
+        return 0;
     do {
         c1 = av_tolower(*a++);
         c2 = av_tolower(*b++);
-    } while (a < end && c1 && c1 == c2);
+    } while (--n && c1 && c1 == c2);
     return c1 - c2;
 }
 
@@ -256,12 +257,18 @@ char *av_strireplace(const char *str, const char *from, const char *to)
 
 const char *av_basename(const char *path)
 {
-    char *p = strrchr(path, '/');
-
+    char *p;
 #if HAVE_DOS_PATHS
-    char *q = strrchr(path, '\\');
-    char *d = strchr(path, ':');
+    char *q, *d;
+#endif
 
+    if (!path || *path == '\0')
+        return ".";
+
+    p = strrchr(path, '/');
+#if HAVE_DOS_PATHS
+    q = strrchr(path, '\\');
+    d = strchr(path, ':');
     p = FFMAX3(p, q, d);
 #endif
 
@@ -273,11 +280,11 @@ const char *av_basename(const char *path)
 
 const char *av_dirname(char *path)
 {
-    char *p = strrchr(path, '/');
+    char *p = path ? strrchr(path, '/') : NULL;
 
 #if HAVE_DOS_PATHS
-    char *q = strrchr(path, '\\');
-    char *d = strchr(path, ':');
+    char *q = path ? strrchr(path, '\\') : NULL;
+    char *d = path ? strchr(path, ':')  : NULL;
 
     d = d ? d + 1 : d;
 

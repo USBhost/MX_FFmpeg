@@ -402,6 +402,9 @@ static int decode_frame(AVCodecContext *avctx, void *data,
     AVFrame *frame = data;
     int ret, y, x;
 
+    if (avpkt->size < 8)
+        return AVERROR_INVALIDDATA;
+
     if ((ret = ff_get_buffer(avctx, frame, 0)) < 0)
         return ret;
 
@@ -530,7 +533,7 @@ static av_cold int decode_init(AVCodecContext *avctx)
 
     switch (avctx->bits_per_coded_sample) {
     case 16:
-        avctx->pix_fmt = AV_PIX_FMT_RGB555;
+        avctx->pix_fmt = AV_PIX_FMT_RGB555LE;
         break;
     case 24:
         avctx->pix_fmt = AV_PIX_FMT_BGR24;

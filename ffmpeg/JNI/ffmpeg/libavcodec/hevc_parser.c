@@ -24,6 +24,7 @@
 
 #include "golomb.h"
 #include "hevc.h"
+#include "hevc_parse.h"
 #include "hevc_ps.h"
 #include "hevc_sei.h"
 #include "h2645_parse.h"
@@ -43,6 +44,8 @@ typedef struct HEVCParserContext {
     HEVCSEI sei;
     SliceHeader sh;
 
+    int is_avc;
+    int nal_length_size;
     int parsed_extradata;
 
     int poc;
@@ -181,7 +184,6 @@ static int parse_nal_units(AVCodecParserContext *s, const uint8_t *buf,
     HEVCParserContext *ctx = s->priv_data;
     HEVCParamSets *ps = &ctx->ps;
     HEVCSEI *sei = &ctx->sei;
-    int is_global = buf == avctx->extradata;
     int ret, i;
 
     /* set some sane default values */
@@ -191,14 +193,17 @@ static int parse_nal_units(AVCodecParserContext *s, const uint8_t *buf,
 
     ff_hevc_reset_sei(sei);
 
-    ret = ff_h2645_packet_split(&ctx->pkt, buf, buf_size, avctx, 0, 0,
-                                AV_CODEC_ID_HEVC, 1);
+    ret = ff_h2645_packet_split(&ctx->pkt, buf, buf_size, avctx, ctx->is_avc,
+                                ctx->nal_length_size, AV_CODEC_ID_HEVC, 1, 0);
     if (ret < 0)
         return ret;
 
     for (i = 0; i < ctx->pkt.nb_nals; i++) {
         H2645NAL *nal = &ctx->pkt.nals[i];
         GetBitContext *gb = &nal->gb;
+
+        if (nal->nuh_layer_id > 0)
+            continue;
 
         switch (nal->type) {
         case HEVC_NAL_VPS:
@@ -230,12 +235,11 @@ static int parse_nal_units(AVCodecParserContext *s, const uint8_t *buf,
         case HEVC_NAL_RADL_R:
         case HEVC_NAL_RASL_N:
         case HEVC_NAL_RASL_R:
-
-            if (is_global) {
-                av_log(avctx, AV_LOG_ERROR, "Invalid NAL unit: %d\n", nal->type);
-                return AVERROR_INVALIDDATA;
+            if (ctx->sei.picture_timing.picture_struct == HEVC_SEI_PIC_STRUCT_FRAME_DOUBLING) {
+                s->repeat_pict = 1;
+            } else if (ctx->sei.picture_timing.picture_struct == HEVC_SEI_PIC_STRUCT_FRAME_TRIPLING) {
+                s->repeat_pict = 2;
             }
-
             ret = hevc_parse_slice_header(s, nal, avctx);
             if (ret)
                 return ret;
@@ -243,8 +247,7 @@ static int parse_nal_units(AVCodecParserContext *s, const uint8_t *buf,
         }
     }
     /* didn't find a picture! */
-    if (!is_global)
-        av_log(avctx, AV_LOG_ERROR, "missing picture in access unit\n");
+    av_log(avctx, AV_LOG_ERROR, "missing picture in access unit with size %d\n", buf_size);
     return -1;
 }
 
@@ -299,9 +302,13 @@ static int hevc_parse(AVCodecParserContext *s, AVCodecContext *avctx,
     int next;
     HEVCParserContext *ctx = s->priv_data;
     ParseContext *pc = &ctx->pc;
+    int is_dummy_buf = !buf_size;
+    const uint8_t *dummy_buf = buf;
 
     if (avctx->extradata && !ctx->parsed_extradata) {
-        parse_nal_units(s, avctx->extradata, avctx->extradata_size, avctx);
+        ff_hevc_decode_extradata(avctx->extradata, avctx->extradata_size, &ctx->ps, &ctx->sei,
+                                 &ctx->is_avc, &ctx->nal_length_size, avctx->err_recognition,
+                                 1, avctx);
         ctx->parsed_extradata = 1;
     }
 
@@ -316,7 +323,10 @@ static int hevc_parse(AVCodecParserContext *s, AVCodecContext *avctx,
         }
     }
 
-    parse_nal_units(s, buf, buf_size, avctx);
+    is_dummy_buf &= (dummy_buf == buf);
+
+    if (!is_dummy_buf)
+        parse_nal_units(s, buf, buf_size, avctx);
 
     *poutbuf      = buf;
     *poutbuf_size = buf_size;
@@ -359,17 +369,8 @@ static int hevc_split(AVCodecContext *avctx, const uint8_t *buf, int buf_size)
 static void hevc_parser_close(AVCodecParserContext *s)
 {
     HEVCParserContext *ctx = s->priv_data;
-    int i;
 
-    for (i = 0; i < FF_ARRAY_ELEMS(ctx->ps.vps_list); i++)
-        av_buffer_unref(&ctx->ps.vps_list[i]);
-    for (i = 0; i < FF_ARRAY_ELEMS(ctx->ps.sps_list); i++)
-        av_buffer_unref(&ctx->ps.sps_list[i]);
-    for (i = 0; i < FF_ARRAY_ELEMS(ctx->ps.pps_list); i++)
-        av_buffer_unref(&ctx->ps.pps_list[i]);
-
-    ctx->ps.sps = NULL;
-
+    ff_hevc_ps_uninit(&ctx->ps);
     ff_h2645_packet_uninit(&ctx->pkt);
     ff_hevc_reset_sei(&ctx->sei);
 

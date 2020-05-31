@@ -147,7 +147,7 @@ typedef struct ASFContext {
 static int detect_unknown_subobject(AVFormatContext *s, int64_t offset, int64_t size);
 static const GUIDParseTable *find_guid(ff_asf_guid guid);
 
-static int asf_probe(AVProbeData *pd)
+static int asf_probe(const AVProbeData *pd)
 {
     /* check file header */
     if (!ff_guidcmp(pd->buf, &ff_asf_header))
@@ -706,7 +706,8 @@ static int parse_video_info(AVIOContext *pb, AVStream *st)
     st->codecpar->codec_id  = ff_codec_get_id(ff_codec_bmp_tags, tag);
     size_bmp = FFMAX(size_asf, size_bmp);
 
-    if (size_bmp > BMP_HEADER_SIZE) {
+    if (size_bmp > BMP_HEADER_SIZE &&
+        size_bmp < INT_MAX - AV_INPUT_BUFFER_PADDING_SIZE) {
         int ret;
         st->codecpar->extradata_size  = size_bmp - BMP_HEADER_SIZE;
         if (!(st->codecpar->extradata = av_malloc(st->codecpar->extradata_size +
@@ -1164,7 +1165,7 @@ static int asf_read_replicated_data(AVFormatContext *s, ASFPacket *asf_pkt)
     } else
         avio_skip(pb, 4); // reading of media object size is already done
     asf_pkt->dts = avio_rl32(pb); // read presentation time
-    if (asf->rep_data_len && (asf->rep_data_len >= 8))
+    if (asf->rep_data_len >= 8)
         avio_skip(pb, asf->rep_data_len - 8); // skip replicated data
 
     return 0;

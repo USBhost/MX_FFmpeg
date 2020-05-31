@@ -246,7 +246,7 @@ static int update_context_from_thread(AVCodecContext *dst, AVCodecContext *src, 
 {
     int err = 0;
 
-    if (dst != src && (for_user || !(av_codec_get_codec_descriptor(src)->props & AV_CODEC_PROP_INTRA_ONLY))) {
+    if (dst != src && (for_user || !(src->codec_descriptor->props & AV_CODEC_PROP_INTRA_ONLY))) {
         dst->time_base = src->time_base;
         dst->framerate = src->framerate;
         dst->width     = src->width;
@@ -334,6 +334,7 @@ static int update_context_from_user(AVCodecContext *dst, AVCodecContext *src)
 
     dst->slice_flags = src->slice_flags;
     dst->flags2      = src->flags2;
+    dst->export_side_data = src->export_side_data;
 
     copy_fields(skip_loop_filter, subtitle_header);
 
@@ -728,10 +729,6 @@ int ff_frame_thread_init(AVCodecContext *avctx)
     FrameThreadContext *fctx;
     int i, err = 0;
 
-#if HAVE_W32THREADS
-    w32thread_init();
-#endif
-
     if (!thread_count) {
         int nb_cpus = av_cpu_count();
 #if FF_API_DEBUG_MV
@@ -890,8 +887,6 @@ static int thread_get_buffer_internal(AVCodecContext *avctx, ThreadFrame *f, int
 
     f->owner[0] = f->owner[1] = avctx;
 
-    ff_init_buffer_info(avctx, f->f);
-
     if (!(avctx->active_thread_type & FF_THREAD_FRAME))
         return ff_get_buffer(avctx, f->f, flags);
 
@@ -914,8 +909,7 @@ static int thread_get_buffer_internal(AVCodecContext *avctx, ThreadFrame *f, int
     }
 
     pthread_mutex_lock(&p->parent->buffer_mutex);
-    if (avctx->thread_safe_callbacks ||
-        avctx->get_buffer2 == avcodec_default_get_buffer2) {
+    if (THREAD_SAFE_CALLBACKS(avctx)) {
         err = ff_get_buffer(avctx, f->f, flags);
     } else {
         pthread_mutex_lock(&p->progress_mutex);
@@ -982,8 +976,7 @@ void ff_thread_release_buffer(AVCodecContext *avctx, ThreadFrame *f)
     FrameThreadContext *fctx;
     AVFrame *dst, *tmp;
     int can_direct_free = !(avctx->active_thread_type & FF_THREAD_FRAME) ||
-                          avctx->thread_safe_callbacks                   ||
-                          avctx->get_buffer2 == avcodec_default_get_buffer2;
+                          THREAD_SAFE_CALLBACKS(avctx);
 
     if (!f->f || !f->f->buf[0])
         return;

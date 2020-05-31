@@ -60,14 +60,19 @@ extern const URLProtocol ff_tls_protocol;
 extern const URLProtocol ff_udp_protocol;
 extern const URLProtocol ff_udplite_protocol;
 extern const URLProtocol ff_unix_protocol;
+extern const URLProtocol ff_libamqp_protocol;
 extern const URLProtocol ff_librtmp_protocol;
 extern const URLProtocol ff_librtmpe_protocol;
 extern const URLProtocol ff_librtmps_protocol;
 extern const URLProtocol ff_librtmpt_protocol;
 extern const URLProtocol ff_librtmpte_protocol;
+extern const URLProtocol ff_libsrt_protocol;
 extern const URLProtocol ff_libssh_protocol;
 extern const URLProtocol ff_libsmbclient_protocol;
+#ifdef MXTECHS
 extern const URLProtocol ff_libsmb2_protocol;
+#endif
+extern const URLProtocol ff_libzmq_protocol;
 
 #include "libavformat/protocol_list.c"
 
@@ -104,6 +109,16 @@ const char *avio_enum_protocols(void **opaque, int output)
     if ((output && (*p)->url_write) || (!output && (*p)->url_read))
         return (*p)->name;
     return avio_enum_protocols(opaque, output);
+}
+
+const AVClass *avio_protocol_get_class(const char *name)
+{
+    int i = 0;
+    for (i = 0; url_protocols[i]; i++) {
+        if (!strcmp(url_protocols[i]->name, name))
+            return url_protocols[i]->priv_data_class;
+    }
+    return NULL;
 }
 
 const URLProtocol **ffurl_get_protocols(const char *whitelist,

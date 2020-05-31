@@ -89,14 +89,14 @@ static int icecast_open(URLContext *h, const char *uri, int flags)
 
     // URI part variables
     char h_url[1024], host[1024], auth[1024], path[1024];
-    char *headers = NULL, *user = NULL;
+    char *headers, *user = NULL;
     int port, ret;
     AVBPrint bp;
 
     if (flags & AVIO_FLAG_READ)
         return AVERROR(ENOSYS);
 
-    av_bprint_init(&bp, 0, 1);
+    av_bprint_init(&bp, 0, AV_BPRINT_SIZE_AUTOMATIC);
 
     // Build header strings
     cat_header(&bp, "Ice-Name", s->name);
@@ -105,17 +105,18 @@ static int icecast_open(URLContext *h, const char *uri, int flags)
     cat_header(&bp, "Ice-Genre", s->genre);
     cat_header(&bp, "Ice-Public", s->public ? "1" : "0");
     if (!av_bprint_is_complete(&bp)) {
-        ret = AVERROR(ENOMEM);
-        goto cleanup;
+        av_bprint_finalize(&bp, NULL);
+        return AVERROR(ENOMEM);
     }
-    av_bprint_finalize(&bp, &headers);
+    if ((ret = av_bprint_finalize(&bp, &headers)) < 0)
+        return ret;
 
     // Set options
     av_dict_set(&opt_dict, "method", s->legacy_icecast ? "SOURCE" : "PUT", 0);
     av_dict_set(&opt_dict, "auth_type", "basic", 0);
-    av_dict_set(&opt_dict, "headers", headers, 0);
+    av_dict_set(&opt_dict, "headers", headers, AV_DICT_DONT_STRDUP_VAL);
     av_dict_set(&opt_dict, "chunked_post", "0", 0);
-    av_dict_set(&opt_dict, "send_expect_100", s->legacy_icecast ? "0" : "1", 0);
+    av_dict_set(&opt_dict, "send_expect_100", s->legacy_icecast ? "-1" : "1", 0);
     if (NOT_EMPTY(s->content_type))
         av_dict_set(&opt_dict, "content_type", s->content_type, 0);
     else
@@ -169,7 +170,6 @@ static int icecast_open(URLContext *h, const char *uri, int flags)
 
 cleanup:
     av_freep(&user);
-    av_freep(&headers);
     av_dict_free(&opt_dict);
 
     return ret;

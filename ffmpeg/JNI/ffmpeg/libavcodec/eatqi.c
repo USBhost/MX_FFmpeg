@@ -83,7 +83,7 @@ static int tqi_decode_mb(TqiContext *t, int16_t (*block)[64])
         if (ret < 0) {
             av_log(t->avctx, AV_LOG_ERROR, "ac-tex damaged at %d %d\n",
                    t->mb_x, t->mb_y);
-            return -1;
+            return ret;
         }
     }
 
@@ -130,6 +130,9 @@ static int tqi_decode_frame(AVCodecContext *avctx,
     TqiContext *t = avctx->priv_data;
     AVFrame *frame = data;
     int ret, w, h;
+
+    if (buf_size < 12)
+        return AVERROR_INVALIDDATA;
 
     t->avctx = avctx;
 

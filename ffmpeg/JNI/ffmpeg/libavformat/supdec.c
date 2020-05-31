@@ -19,10 +19,11 @@
 #include "avformat.h"
 #include "internal.h"
 #include "libavutil/intreadwrite.h"
-#include "libavutil/opt.h"
 
 #define SUP_PGS_MAGIC 0x5047 /* "PG", big endian */
 
+#ifdef MXTECHS
+#include "libavutil/opt.h"
 enum SegmentType {
     PALETTE_SEGMENT      = 0x14,
     OBJECT_SEGMENT       = 0x15,
@@ -131,25 +132,28 @@ static int sup_read_scan(AVFormatContext *s, AVStream *st)
     avio_seek(s->pb, pos, SEEK_SET);
     return 0;
 }
+#endif
 
 static int sup_read_header(AVFormatContext *s)
 {
-    SUPDecContext* c = s->priv_data;
+#ifdef MXTECHS
+    SUPDecContext *c = s->priv_data;
+#endif
     AVStream *st = avformat_new_stream(s, NULL);
     if (!st)
         return AVERROR(ENOMEM);
     st->codecpar->codec_type = AVMEDIA_TYPE_SUBTITLE;
     st->codecpar->codec_id = AV_CODEC_ID_HDMV_PGS_SUBTITLE;
-
+    avpriv_set_pts_info(st, 32, 1, 90000);
+#ifdef MXTECHS
     if (c->scan && 0 == sup_read_scan(s, st)){
         st->duration = c->end.pts - c->start.pts;
     }
-
-    avpriv_set_pts_info(st, 32, 1, 90000);
-
+#endif
     return 0;
 }
 
+#ifdef MXTECHS
 static int sup_read_seek(AVFormatContext *s, int stream_index, int64_t timestamp, int flags)
 {
     AVStream *st = s->streams[stream_index];
@@ -162,6 +166,7 @@ static int sup_read_seek(AVFormatContext *s, int stream_index, int64_t timestamp
 
     return 0;
 }
+#endif
 
 static int sup_read_packet(AVFormatContext *s, AVPacket *pkt)
 {
@@ -175,6 +180,7 @@ static int sup_read_packet(AVFormatContext *s, AVPacket *pkt)
 
     pts = avio_rb32(s->pb);
     dts = avio_rb32(s->pb);
+
     if ((ret = av_get_packet(s->pb, pkt, 3)) < 0)
         return ret;
 
@@ -196,7 +202,7 @@ static int sup_read_packet(AVFormatContext *s, AVPacket *pkt)
     return 0;
 }
 
-static int sup_probe(AVProbeData *p)
+static int sup_probe(const AVProbeData *p)
 {
     unsigned char *buf = p->buf;
     size_t buf_size = p->buf_size;
@@ -225,6 +231,7 @@ static int sup_probe(AVProbeData *p)
     return AVPROBE_SCORE_MAX;
 }
 
+#ifdef MXTECHS
 #define OFFSET(x) offsetof(SUPDecContext, x)
 #define FLAGS AV_OPT_FLAG_DECODING_PARAM | AV_OPT_FLAG_SUBTITLE_PARAM
 static const AVOption pgs_options[] = {
@@ -241,17 +248,22 @@ static const AVClass pgs_class = {
     .option     = pgs_options,
     .version    = LIBAVUTIL_VERSION_INT,
 };
+#endif
 
 AVInputFormat ff_sup_demuxer = {
     .name           = "sup",
     .long_name      = NULL_IF_CONFIG_SMALL("raw HDMV Presentation Graphic Stream subtitles"),
+#ifdef MXTECHS
     .priv_class     = &pgs_class,
     .priv_data_size = sizeof(SUPDecContext),
+#endif
     .extensions     = "sup",
     .mime_type      = "application/x-pgs",
     .read_probe     = sup_probe,
     .read_header    = sup_read_header,
+#ifdef MXTECHS
     .read_seek      = sup_read_seek,
+#endif
     .read_packet    = sup_read_packet,
     .flags          = AVFMT_GENERIC_INDEX,
 };

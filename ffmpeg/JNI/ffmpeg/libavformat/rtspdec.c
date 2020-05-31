@@ -644,7 +644,7 @@ static int rtsp_listen(AVFormatContext *s)
 
     /* extract hostname and port */
     av_url_split(proto, sizeof(proto), auth, sizeof(auth), host, sizeof(host),
-                 &port, path, sizeof(path), s->filename);
+                 &port, path, sizeof(path), s->url);
 
     /* ff_url_join. No authorization by now (NULL) */
     ff_url_join(rt->control_uri, sizeof(rt->control_uri), proto, NULL, host,
@@ -699,7 +699,7 @@ static int rtsp_listen(AVFormatContext *s)
     }
 }
 
-static int rtsp_probe(AVProbeData *p)
+static int rtsp_probe(const AVProbeData *p)
 {
     if (
 #if CONFIG_TLS_PROTOCOL
@@ -804,7 +804,7 @@ static int resetup_tcp(AVFormatContext *s)
     int port;
 
     av_url_split(NULL, 0, NULL, 0, host, sizeof(host), &port, NULL, 0,
-                 s->filename);
+                 s->url);
     ff_rtsp_undo_setup(s, 0);
     return ff_rtsp_make_setup_request(s, host, port, RTSP_LOWER_TRANSPORT_TCP,
                                       rt->real_challenge);
@@ -884,7 +884,11 @@ retry:
                 RTSPMessageHeader reply1, *reply = &reply1;
                 av_log(s, AV_LOG_WARNING, "UDP timeout, retrying with TCP\n");
                 if (rtsp_read_pause(s) != 0)
+#ifdef MXTECHS
                     av_log(s, AV_LOG_WARNING, "Unable to pause RTSP.Simply ignore it and continue to try TCP.");
+#else
+                    return -1;
+#endif
                 // TEARDOWN is required on Real-RTSP, but might make
                 // other servers close the connection.
                 if (rt->server_type == RTSP_SERVER_REAL)

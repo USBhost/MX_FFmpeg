@@ -211,7 +211,7 @@ typedef struct FFFrameSync {
 /**
  * Get the class for the framesync object.
  */
-const AVClass *framesync_get_class(void);
+const AVClass *ff_framesync_get_class(void);
 
 /**
  * Pre-initialize a frame sync structure.
@@ -286,6 +286,9 @@ int ff_framesync_init_dualinput(FFFrameSync *fs, AVFilterContext *parent);
  * @param f0  used to return the main frame
  * @param f1  used to return the second frame, or NULL if disabled
  * @return  >=0 for success or AVERROR code
+ * @note  The frame returned in f0 belongs to the caller (get = 1 in
+ * ff_framesync_get_frame()) while the frame returned in f1 is still owned
+ * by the framesync structure.
  */
 int ff_framesync_dualinput_get(FFFrameSync *fs, AVFrame **f0, AVFrame **f1);
 
@@ -301,11 +304,11 @@ static int name##_framesync_preinit(AVFilterContext *ctx) { \
     return 0; \
 } \
 static const AVClass *name##_child_class_next(const AVClass *prev) { \
-    return prev ? NULL : framesync_get_class(); \
+    return prev ? NULL : ff_framesync_get_class(); \
 } \
 static void *name##_child_next(void *obj, void *prev) { \
     context *s = obj; \
-    s->fs.class = framesync_get_class(); /* FIXME */ \
+    s->fs.class = ff_framesync_get_class(); /* FIXME */ \
     return prev ? NULL : &s->field; \
 } \
 static const AVClass name##_class = { \

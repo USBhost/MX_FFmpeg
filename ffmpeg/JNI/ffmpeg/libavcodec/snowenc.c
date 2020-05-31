@@ -81,6 +81,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
     s->m.bit_rate= avctx->bit_rate;
     s->m.lmin    = avctx->mb_lmin;
     s->m.lmax    = avctx->mb_lmax;
+    s->m.mb_num  = (avctx->width * avctx->height + 255) / 256; // For ratecontrol
 
     s->m.me.temp      =
     s->m.me.scratchpad= av_mallocz_array((avctx->width+64), 2*16*2*sizeof(uint8_t));
@@ -179,7 +180,7 @@ static int pix_sum(uint8_t * pix, int line_size, int w, int h)
 static int pix_norm1(uint8_t * pix, int line_size, int w)
 {
     int s, i, j;
-    uint32_t *sq = ff_square_tab + 256;
+    const uint32_t *sq = ff_square_tab + 256;
 
     s = 0;
     for (i = 0; i < w; i++) {
@@ -312,7 +313,7 @@ static int encode_q_branch(SnowContext *s, int level, int x, int y){
     if(P_LEFT[1]     > (c->ymax<<shift)) P_LEFT[1]    = (c->ymax<<shift);
     if(P_TOP[0]      > (c->xmax<<shift)) P_TOP[0]     = (c->xmax<<shift);
     if(P_TOP[1]      > (c->ymax<<shift)) P_TOP[1]     = (c->ymax<<shift);
-    if(P_TOPRIGHT[0] < (c->xmin<<shift)) P_TOPRIGHT[0]= (c->xmin<<shift);
+    if(P_TOPRIGHT[0] < (c->xmin * (1<<shift))) P_TOPRIGHT[0]= (c->xmin * (1<<shift));
     if(P_TOPRIGHT[0] > (c->xmax<<shift)) P_TOPRIGHT[0]= (c->xmax<<shift); //due to pmx no clip
     if(P_TOPRIGHT[1] > (c->ymax<<shift)) P_TOPRIGHT[1]= (c->ymax<<shift);
 
@@ -1774,7 +1775,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
             }else{
                 for(y=0; y<h; y++){
                     for(x=0; x<w; x++){
-                        s->spatial_dwt_buffer[y*w + x]=s->spatial_idwt_buffer[y*w + x]<<ENCODER_EXTRA_BITS;
+                        s->spatial_dwt_buffer[y*w + x]= s->spatial_idwt_buffer[y*w + x] * (1 << ENCODER_EXTRA_BITS);
                     }
                 }
             }
@@ -1899,7 +1900,7 @@ FF_DISABLE_DEPRECATION_WARNINGS
 FF_ENABLE_DEPRECATION_WARNINGS
 #endif
 
-    pkt->size = ff_rac_terminate(c);
+    pkt->size = ff_rac_terminate(c, 0);
     if (s->current_picture->key_frame)
         pkt->flags |= AV_PKT_FLAG_KEY;
     *got_packet = 1;

@@ -46,7 +46,7 @@ static int audio_write_header(AVFormatContext *s1)
     st = s1->streams[0];
     s->sample_rate = st->codecpar->sample_rate;
     s->channels = st->codecpar->channels;
-    ret = ff_oss_audio_open(s1, 1, s1->filename);
+    ret = ff_oss_audio_open(s1, 1, s1->url);
     if (ret < 0) {
         return AVERROR(EIO);
     } else {
@@ -90,7 +90,7 @@ static int audio_write_trailer(AVFormatContext *s1)
 }
 
 static const AVClass oss_muxer_class = {
-    .class_name     = "OSS muxer",
+    .class_name     = "OSS outdev",
     .item_name      = av_default_item_name,
     .version        = LIBAVUTIL_VERSION_INT,
     .category       = AV_CLASS_CATEGORY_DEVICE_AUDIO_OUTPUT,

@@ -230,12 +230,14 @@ gdigrab_read_header(AVFormatContext *s1)
     HBITMAP hbmp   = NULL;
     void *buffer   = NULL;
 
-    const char *filename = s1->filename;
+    const char *filename = s1->url;
     const char *name     = NULL;
     AVStream   *st       = NULL;
 
     int bpp;
+    int horzres;
     int vertres;
+    int desktophorzres;
     int desktopvertres;
     RECT virtual_rect;
     RECT clip_rect;
@@ -275,15 +277,23 @@ gdigrab_read_header(AVFormatContext *s1)
     }
     bpp = GetDeviceCaps(source_hdc, BITSPIXEL);
 
+    horzres = GetDeviceCaps(source_hdc, HORZRES);
+    vertres = GetDeviceCaps(source_hdc, VERTRES);
+    desktophorzres = GetDeviceCaps(source_hdc, DESKTOPHORZRES);
+    desktopvertres = GetDeviceCaps(source_hdc, DESKTOPVERTRES);
+
     if (hwnd) {
         GetClientRect(hwnd, &virtual_rect);
+        /* window -- get the right height and width for scaling DPI */
+        virtual_rect.left   = virtual_rect.left   * desktophorzres / horzres;
+        virtual_rect.right  = virtual_rect.right  * desktophorzres / horzres;
+        virtual_rect.top    = virtual_rect.top    * desktopvertres / vertres;
+        virtual_rect.bottom = virtual_rect.bottom * desktopvertres / vertres;
     } else {
         /* desktop -- get the right height and width for scaling DPI */
-        vertres = GetDeviceCaps(source_hdc, VERTRES);
-        desktopvertres = GetDeviceCaps(source_hdc, DESKTOPVERTRES);
         virtual_rect.left = GetSystemMetrics(SM_XVIRTUALSCREEN);
         virtual_rect.top = GetSystemMetrics(SM_YVIRTUALSCREEN);
-        virtual_rect.right = (virtual_rect.left + GetSystemMetrics(SM_CXVIRTUALSCREEN)) * desktopvertres / vertres;
+        virtual_rect.right = (virtual_rect.left + GetSystemMetrics(SM_CXVIRTUALSCREEN)) * desktophorzres / horzres;
         virtual_rect.bottom = (virtual_rect.top + GetSystemMetrics(SM_CYVIRTUALSCREEN)) * desktopvertres / vertres;
     }
 
@@ -447,7 +457,9 @@ static void paint_mouse_pointer(AVFormatContext *s1, struct gdigrab *gdigrab)
         POINT pos;
         RECT clip_rect = gdigrab->clip_rect;
         HWND hwnd = gdigrab->hwnd;
+        int horzres = GetDeviceCaps(gdigrab->source_hdc, HORZRES);
         int vertres = GetDeviceCaps(gdigrab->source_hdc, VERTRES);
+        int desktophorzres = GetDeviceCaps(gdigrab->source_hdc, DESKTOPHORZRES);
         int desktopvertres = GetDeviceCaps(gdigrab->source_hdc, DESKTOPVERTRES);
         info.hbmMask = NULL;
         info.hbmColor = NULL;
@@ -467,24 +479,25 @@ static void paint_mouse_pointer(AVFormatContext *s1, struct gdigrab *gdigrab)
             goto icon_error;
         }
 
-        pos.x = ci.ptScreenPos.x - clip_rect.left - info.xHotspot;
-        pos.y = ci.ptScreenPos.y - clip_rect.top - info.yHotspot;
-
         if (hwnd) {
             RECT rect;
 
             if (GetWindowRect(hwnd, &rect)) {
-                pos.x -= rect.left;
-                pos.y -= rect.top;
+                pos.x = ci.ptScreenPos.x - clip_rect.left - info.xHotspot - rect.left;
+                pos.y = ci.ptScreenPos.y - clip_rect.top - info.yHotspot - rect.top;
+
+                //that would keep the correct location of mouse with hidpi screens
+                pos.x = pos.x * desktophorzres / horzres;
+                pos.y = pos.y * desktopvertres / vertres;
             } else {
                 CURSOR_ERROR("Couldn't get window rectangle");
                 goto icon_error;
             }
+        } else {
+            //that would keep the correct location of mouse with hidpi screens
+            pos.x = ci.ptScreenPos.x * desktophorzres / horzres - clip_rect.left - info.xHotspot;
+            pos.y = ci.ptScreenPos.y * desktopvertres / vertres - clip_rect.top - info.yHotspot;
         }
-
-        //that would keep the correct location of mouse with hidpi screens
-        pos.x = pos.x * desktopvertres / vertres;
-        pos.y = pos.y * desktopvertres / vertres;
 
         av_log(s1, AV_LOG_DEBUG, "Cursor pos (%li,%li) -> (%li,%li)\n",
                 ci.ptScreenPos.x, ci.ptScreenPos.y, pos.x, pos.y);
@@ -634,6 +647,7 @@ static const AVClass gdigrab_class = {
     .item_name  = av_default_item_name,
     .option     = options,
     .version    = LIBAVUTIL_VERSION_INT,
+    .category   = AV_CLASS_CATEGORY_DEVICE_VIDEO_INPUT,
 };
 
 /** gdi grabber device demuxer declaration */

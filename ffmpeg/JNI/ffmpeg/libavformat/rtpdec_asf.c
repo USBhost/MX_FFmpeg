@@ -106,7 +106,7 @@ int ff_wms_parse_sdp_a_line(AVFormatContext *s, const char *p)
         AVDictionary *opts = NULL;
         int len = strlen(p) * 6 / 8;
         char *buf = av_mallocz(len);
-        AVInputFormat *iformat;
+        ff_const59 AVInputFormat *iformat;
 
         if (!buf)
             return AVERROR(ENOMEM);
@@ -300,7 +300,7 @@ static void asfrtp_close_context(PayloadContext *asf)
 }
 
 #define RTP_ASF_HANDLER(n, s, t) \
-RTPDynamicProtocolHandler ff_ms_rtp_ ## n ## _handler = { \
+const RTPDynamicProtocolHandler ff_ms_rtp_ ## n ## _handler = { \
     .enc_name         = s, \
     .codec_type       = t, \
     .codec_id         = AV_CODEC_ID_NONE, \

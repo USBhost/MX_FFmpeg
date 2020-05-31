@@ -41,7 +41,7 @@ static const uint32_t rsd_unsupported_tags[] = {
     MKTAG('O','G','G',' '),
 };
 
-static int rsd_probe(AVProbeData *p)
+static int rsd_probe(const AVProbeData *p)
 {
     if (memcmp(p->buf, "RSD", 3) || p->buf[3] - '0' < 2 || p->buf[3] - '0' > 6)
         return 0;
@@ -97,9 +97,8 @@ static int rsd_read_header(AVFormatContext *s)
     switch (par->codec_id) {
     case AV_CODEC_ID_XMA2:
         par->block_align = 2048;
-        ff_alloc_extradata(par, 34);
-        if (!par->extradata)
-            return AVERROR(ENOMEM);
+        if ((ret = ff_alloc_extradata(par, 34)) < 0)
+            return ret;
         memset(par->extradata, 0, 34);
         break;
     case AV_CODEC_ID_ADPCM_PSX:

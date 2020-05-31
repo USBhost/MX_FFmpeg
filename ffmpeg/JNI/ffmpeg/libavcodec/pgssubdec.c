@@ -676,6 +676,11 @@ static int decode(AVCodecContext *avctx, void *data, int *data_size,
              */
             break;
         case DISPLAY_SEGMENT:
+            if (*data_size) {
+                av_log(avctx, AV_LOG_ERROR, "Duplicate display segment\n");
+                ret = AVERROR_INVALIDDATA;
+                break;
+            }
             ret = display_end_segment(avctx, data, buf, segment_length);
             if (ret >= 0)
                 *data_size = ret;
@@ -686,8 +691,11 @@ static int decode(AVCodecContext *avctx, void *data, int *data_size,
             ret = AVERROR_INVALIDDATA;
             break;
         }
-        if (ret < 0 && (avctx->err_recognition & AV_EF_EXPLODE))
+        if (ret < 0 && (avctx->err_recognition & AV_EF_EXPLODE)) {
+            avsubtitle_free(data);
+            *data_size = 0;
             return ret;
+        }
 
         buf += segment_length;
     }

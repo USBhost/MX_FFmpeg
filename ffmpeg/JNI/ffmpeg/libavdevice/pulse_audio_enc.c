@@ -459,8 +459,8 @@ static av_cold int pulse_write_header(AVFormatContext *h)
     st = h->streams[0];
 
     if (!stream_name) {
-        if (h->filename[0])
-            stream_name = h->filename;
+        if (h->url[0])
+            stream_name = h->url;
         else
             stream_name = "Playback";
     }
@@ -771,7 +771,7 @@ static const AVOption options[] = {
 };
 
 static const AVClass pulse_muxer_class = {
-    .class_name     = "PulseAudio muxer",
+    .class_name     = "PulseAudio outdev",
     .item_name      = av_default_item_name,
     .option         = options,
     .version        = LIBAVUTIL_VERSION_INT,

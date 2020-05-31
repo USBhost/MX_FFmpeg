@@ -95,7 +95,11 @@ struct video_data {
     int (*open_f)(const char *file, int oflag, ...);
     int (*close_f)(int fd);
     int (*dup_f)(int fd);
+#ifdef __GLIBC__
     int (*ioctl_f)(int fd, unsigned long int request, ...);
+#else
+    int (*ioctl_f)(int fd, int request, ...);
+#endif
     ssize_t (*read_f)(int fd, void *buffer, size_t n);
     void *(*mmap_f)(void *start, size_t length, int prot, int flags, int fd, int64_t offset);
     int (*munmap_f)(void *_start, size_t length);
@@ -106,7 +110,7 @@ struct buff_data {
     int index;
 };
 
-static int device_open(AVFormatContext *ctx)
+static int device_open(AVFormatContext *ctx, const char* device_path)
 {
     struct video_data *s = ctx->priv_data;
     struct v4l2_capability cap;
@@ -147,11 +151,11 @@ static int device_open(AVFormatContext *ctx)
         flags |= O_NONBLOCK;
     }
 
-    fd = v4l2_open(ctx->filename, flags, 0);
+    fd = v4l2_open(device_path, flags, 0);
     if (fd < 0) {
         err = AVERROR(errno);
         av_log(ctx, AV_LOG_ERROR, "Cannot open video device %s: %s\n",
-               ctx->filename, av_err2str(err));
+               device_path, av_err2str(err));
         return err;
     }
 
@@ -534,11 +538,10 @@ static int mmap_read_frame(AVFormatContext *ctx, AVPacket *pkt)
             s->frame_size = buf.bytesused;
 
         if (s->frame_size > 0 && buf.bytesused != s->frame_size) {
-            av_log(ctx, AV_LOG_ERROR,
+            av_log(ctx, AV_LOG_WARNING,
                    "Dequeued v4l2 buffer contains %d bytes, but %d were expected. Flags: 0x%08X.\n",
                    buf.bytesused, s->frame_size, buf.flags);
-            enqueue_buffer(s, &buf);
-            return AVERROR_INVALIDDATA;
+            buf.bytesused = 0;
         }
     }
 
@@ -808,11 +811,12 @@ static int device_try_init(AVFormatContext *ctx,
     }
 
     *codec_id = ff_fmt_v4l2codec(*desired_format);
-    av_assert0(*codec_id != AV_CODEC_ID_NONE);
+    if (*codec_id == AV_CODEC_ID_NONE)
+        av_assert0(ret == AVERROR(EINVAL));
     return ret;
 }
 
-static int v4l2_read_probe(AVProbeData *p)
+static int v4l2_read_probe(const AVProbeData *p)
 {
     if (av_strstart(p->filename, "/dev/video", NULL))
         return AVPROBE_SCORE_MAX - 1;
@@ -840,7 +844,7 @@ static int v4l2_read_header(AVFormatContext *ctx)
         v4l2_log_file = fopen("/dev/null", "w");
 #endif
 
-    s->fd = device_open(ctx);
+    s->fd = device_open(ctx, ctx->url);
     if (s->fd < 0)
         return s->fd;
 
@@ -1042,11 +1046,13 @@ static int v4l2_get_device_list(AVFormatContext *ctx, AVDeviceInfoList *device_l
         return ret;
     }
     while ((entry = readdir(dir))) {
+        char device_name[256];
+
         if (!v4l2_is_v4l_dev(entry->d_name))
             continue;
 
-        snprintf(ctx->filename, sizeof(ctx->filename), "/dev/%s", entry->d_name);
-        if ((s->fd = device_open(ctx)) < 0)
+        snprintf(device_name, sizeof(device_name), "/dev/%s", entry->d_name);
+        if ((s->fd = device_open(ctx, device_name)) < 0)
             continue;
 
         if (v4l2_ioctl(s->fd, VIDIOC_QUERYCAP, &cap) < 0) {
@@ -1060,7 +1066,7 @@ static int v4l2_get_device_list(AVFormatContext *ctx, AVDeviceInfoList *device_l
             ret = AVERROR(ENOMEM);
             goto fail;
         }
-        device->device_name = av_strdup(ctx->filename);
+        device->device_name = av_strdup(device_name);
         device->device_description = av_strdup(cap.card);
         if (!device->device_name || !device->device_description) {
             ret = AVERROR(ENOMEM);

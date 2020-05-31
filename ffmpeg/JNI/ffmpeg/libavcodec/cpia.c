@@ -63,7 +63,7 @@ static int cpia_decode_frame(AVCodecContext *avctx,
     uint8_t *y, *u, *v, *y_end, *u_end, *v_end;
 
     // Check header
-    if ( avpkt->size < FRAME_HEADER_SIZE
+    if ( avpkt->size < FRAME_HEADER_SIZE + avctx->height * 3
       || header[0] != MAGIC_0 || header[1] != MAGIC_1
       || (header[17] != SUBSAMPLE_420 && header[17] != SUBSAMPLE_422)
       || (header[18] != YUVORDER_YUYV && header[18] != YUVORDER_UYVY)
@@ -100,7 +100,7 @@ static int cpia_decode_frame(AVCodecContext *avctx,
     }
 
     // Get buffer filled with previous frame
-    if ((ret = ff_reget_buffer(avctx, frame)) < 0)
+    if ((ret = ff_reget_buffer(avctx, frame, 0)) < 0)
         return ret;
 
 

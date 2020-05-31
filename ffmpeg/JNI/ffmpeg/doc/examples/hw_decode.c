@@ -4,21 +4,23 @@
  *
  * HW Acceleration API (video decoding) decode sample
  *
- * This file is part of FFmpeg.
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
  *
- * FFmpeg is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
  *
- * FFmpeg is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with FFmpeg; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
  */
 
 /**
@@ -43,34 +45,6 @@
 static AVBufferRef *hw_device_ctx = NULL;
 static enum AVPixelFormat hw_pix_fmt;
 static FILE *output_file = NULL;
-
-static enum AVPixelFormat find_fmt_by_hw_type(const enum AVHWDeviceType type)
-{
-    enum AVPixelFormat fmt;
-
-    switch (type) {
-    case AV_HWDEVICE_TYPE_VAAPI:
-        fmt = AV_PIX_FMT_VAAPI;
-        break;
-    case AV_HWDEVICE_TYPE_DXVA2:
-        fmt = AV_PIX_FMT_DXVA2_VLD;
-        break;
-    case AV_HWDEVICE_TYPE_D3D11VA:
-        fmt = AV_PIX_FMT_D3D11;
-        break;
-    case AV_HWDEVICE_TYPE_VDPAU:
-        fmt = AV_PIX_FMT_VDPAU;
-        break;
-    case AV_HWDEVICE_TYPE_VIDEOTOOLBOX:
-        fmt = AV_PIX_FMT_VIDEOTOOLBOX;
-        break;
-    default:
-        fmt = AV_PIX_FMT_NONE;
-        break;
-    }
-
-    return fmt;
-}
 
 static int hw_decoder_init(AVCodecContext *ctx, const enum AVHWDeviceType type)
 {
@@ -114,7 +88,7 @@ static int decode_write(AVCodecContext *avctx, AVPacket *packet)
         return ret;
     }
 
-    while (ret >= 0) {
+    while (1) {
         if (!(frame = av_frame_alloc()) || !(sw_frame = av_frame_alloc())) {
             fprintf(stderr, "Can not alloc frame\n");
             ret = AVERROR(ENOMEM);
@@ -166,13 +140,10 @@ static int decode_write(AVCodecContext *avctx, AVPacket *packet)
     fail:
         av_frame_free(&frame);
         av_frame_free(&sw_frame);
-        if (buffer)
-            av_freep(&buffer);
+        av_freep(&buffer);
         if (ret < 0)
             return ret;
     }
-
-    return 0;
 }
 
 int main(int argc, char *argv[])
@@ -184,18 +155,20 @@ int main(int argc, char *argv[])
     AVCodec *decoder = NULL;
     AVPacket packet;
     enum AVHWDeviceType type;
+    int i;
 
     if (argc < 4) {
-        fprintf(stderr, "Usage: %s <vaapi|vdpau|dxva2|d3d11va> <input file> <output file>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <device type> <input file> <output file>\n", argv[0]);
         return -1;
     }
 
-    av_register_all();
-
     type = av_hwdevice_find_type_by_name(argv[1]);
-    hw_pix_fmt = find_fmt_by_hw_type(type);
-    if (hw_pix_fmt == -1) {
-        fprintf(stderr, "Cannot support '%s' in this example.\n", argv[1]);
+    if (type == AV_HWDEVICE_TYPE_NONE) {
+        fprintf(stderr, "Device type %s is not supported.\n", argv[1]);
+        fprintf(stderr, "Available device types:");
+        while((type = av_hwdevice_iterate_types(type)) != AV_HWDEVICE_TYPE_NONE)
+            fprintf(stderr, " %s", av_hwdevice_get_type_name(type));
+        fprintf(stderr, "\n");
         return -1;
     }
 
@@ -218,6 +191,20 @@ int main(int argc, char *argv[])
     }
     video_stream = ret;
 
+    for (i = 0;; i++) {
+        const AVCodecHWConfig *config = avcodec_get_hw_config(decoder, i);
+        if (!config) {
+            fprintf(stderr, "Decoder %s does not support device type %s.\n",
+                    decoder->name, av_hwdevice_get_type_name(type));
+            return -1;
+        }
+        if (config->methods & AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX &&
+            config->device_type == type) {
+            hw_pix_fmt = config->pix_fmt;
+            break;
+        }
+    }
+
     if (!(decoder_ctx = avcodec_alloc_context3(decoder)))
         return AVERROR(ENOMEM);
 
@@ -226,7 +213,6 @@ int main(int argc, char *argv[])
         return -1;
 
     decoder_ctx->get_format  = get_hw_format;
-    av_opt_set_int(decoder_ctx, "refcounted_frames", 1, 0);
 
     if (hw_decoder_init(decoder_ctx, type) < 0)
         return -1;

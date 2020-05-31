@@ -95,6 +95,8 @@ static av_cold int decode_init(AVCodecContext *avctx)
     if (avctx->codec->id == AV_CODEC_ID_BINKAUDIO_RDFT) {
         // audio is already interleaved for the RDFT format variant
         avctx->sample_fmt = AV_SAMPLE_FMT_FLT;
+        if (sample_rate > INT_MAX / avctx->channels)
+            return AVERROR_INVALIDDATA;
         sample_rate  *= avctx->channels;
         s->channels = 1;
         if (!s->version_b)
@@ -139,7 +141,7 @@ static av_cold int decode_init(AVCodecContext *avctx)
     else if (CONFIG_BINKAUDIO_DCT_DECODER)
         ff_dct_init(&s->trans.dct, frame_len_bits, DCT_III);
     else
-        return -1;
+        av_assert0(0);
 
     s->pkt = av_packet_alloc();
     if (!s->pkt)
@@ -151,7 +153,7 @@ static av_cold int decode_init(AVCodecContext *avctx)
 static float get_float(GetBitContext *gb)
 {
     int power = get_bits(gb, 5);
-    float f = ldexpf(get_bits_long(gb, 23), power - 23);
+    float f = ldexpf(get_bits(gb, 23), power - 23);
     if (get_bits1(gb))
         f = -f;
     return f;

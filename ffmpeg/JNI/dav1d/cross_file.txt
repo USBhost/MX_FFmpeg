@@ -1,0 +1,16 @@
+[binaries]
+c = '/Users/zlin/workspace/android-ndk-r20/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android21-clang'
+ar = '/Users/zlin/workspace/android-ndk-r20/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android-ar'
+objcopy = '/Users/zlin/workspace/android-ndk-r20/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android-objcopy'
+strip = '/Users/zlin/workspace/android-ndk-r20/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android-strip'
+
+[properties]
+sys_root = '/Users/zlin/workspace/android-ndk-r20/toolchains/llvm/prebuilt/darwin-x86_64/sysroot'
+c_args = ['-fstack-protector','-fstrict-aliasing','-Wno-deprecated-declarations','-Wno-unused-variable','-Wno-unused-function']
+c_link_args =['-O2','-march=armv8-a']
+
+[host_machine]
+system = 'android'
+cpu_family = 'aarch64'
+cpu = 'armv8-a'
+endian = 'little'

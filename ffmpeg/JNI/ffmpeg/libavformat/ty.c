@@ -106,7 +106,7 @@ typedef struct TYDemuxContext {
     uint8_t         chunk[CHUNK_SIZE];
 } TYDemuxContext;
 
-static int ty_probe(AVProbeData *p)
+static int ty_probe(const AVProbeData *p)
 {
     int i;
 
@@ -254,7 +254,7 @@ static int analyze_chunk(AVFormatContext *s, const uint8_t *chunk)
             if (data_offset + hdrs[i].rec_size > CHUNK_SIZE)
                 break;
 
-            if ((hdrs[i].subrec_type << 0x08 | hdrs[i].rec_type) == 0x3c0 && hdrs[i].rec_size > 15) {
+            if ((hdrs[i].subrec_type << 8 | hdrs[i].rec_type) == 0x3c0 && hdrs[i].rec_size > 15) {
                 /* first make sure we're aligned */
                 int pes_offset = find_es_header(ty_MPEGAudioPacket,
                         &chunk[data_offset], 5);
@@ -378,6 +378,8 @@ static void parse_master(AVFormatContext *s)
 
     ty->cur_chunk_pos = 32;
     for (j = 0; j < ty->seq_table_size; j++) {
+        if (ty->cur_chunk_pos >= CHUNK_SIZE - 8)
+            return;
         ty->seq_table[j].timestamp = AV_RB64(ty->chunk + ty->cur_chunk_pos);
         ty->cur_chunk_pos += 8;
         if (map_size > 8) {
@@ -440,6 +442,8 @@ static int get_chunk(AVFormatContext *s)
         return AVERROR_INVALIDDATA;
 
     ty->rec_hdrs = parse_chunk_headers(ty->chunk + 4, num_recs);
+    if (!ty->rec_hdrs)
+        return AVERROR(ENOMEM);
     ty->cur_chunk_pos += 16 * num_recs;
 
     return 0;
@@ -450,7 +454,7 @@ static int demux_video(AVFormatContext *s, TyRecHdr *rec_hdr, AVPacket *pkt)
     TYDemuxContext *ty = s->priv_data;
     const int subrec_type = rec_hdr->subrec_type;
     const int64_t rec_size = rec_hdr->rec_size;
-    int es_offset1;
+    int es_offset1, ret;
     int got_packet = 0;
 
     if (subrec_type != 0x02 && subrec_type != 0x0c &&
@@ -470,8 +474,8 @@ static int demux_video(AVFormatContext *s, TyRecHdr *rec_hdr, AVPacket *pkt)
                     int size = rec_hdr->rec_size - VIDEO_PES_LENGTH - es_offset1;
 
                     ty->cur_chunk_pos += VIDEO_PES_LENGTH + es_offset1;
-                    if (av_new_packet(pkt, size) < 0)
-                        return AVERROR(ENOMEM);
+                    if ((ret = av_new_packet(pkt, size)) < 0)
+                        return ret;
                     memcpy(pkt->data, ty->chunk + ty->cur_chunk_pos, size);
                     ty->cur_chunk_pos += size;
                     pkt->stream_index = 0;
@@ -494,8 +498,8 @@ static int demux_video(AVFormatContext *s, TyRecHdr *rec_hdr, AVPacket *pkt)
     }
 
     if (!got_packet) {
-        if (av_new_packet(pkt, rec_size) < 0)
-            return AVERROR(ENOMEM);
+        if ((ret = av_new_packet(pkt, rec_size)) < 0)
+            return ret;
         memcpy(pkt->data, ty->chunk + ty->cur_chunk_pos, rec_size);
         ty->cur_chunk_pos += rec_size;
         pkt->stream_index = 0;
@@ -574,7 +578,7 @@ static int demux_audio(AVFormatContext *s, TyRecHdr *rec_hdr, AVPacket *pkt)
     TYDemuxContext *ty = s->priv_data;
     const int subrec_type = rec_hdr->subrec_type;
     const int64_t rec_size = rec_hdr->rec_size;
-    int es_offset1;
+    int es_offset1, ret;
 
     if (subrec_type == 2) {
         int need = 0;
@@ -617,8 +621,8 @@ static int demux_audio(AVFormatContext *s, TyRecHdr *rec_hdr, AVPacket *pkt)
             ty->pes_buf_cnt = 0;
 
         }
-        if (av_new_packet(pkt, rec_size - need) < 0)
-            return AVERROR(ENOMEM);
+        if ((ret = av_new_packet(pkt, rec_size - need)) < 0)
+            return ret;
         memcpy(pkt->data, ty->chunk + ty->cur_chunk_pos, rec_size - need);
         ty->cur_chunk_pos += rec_size - need;
         pkt->stream_index = 1;
@@ -639,8 +643,8 @@ static int demux_audio(AVFormatContext *s, TyRecHdr *rec_hdr, AVPacket *pkt)
             }
         }
     } else if (subrec_type == 0x03) {
-        if (av_new_packet(pkt, rec_size) < 0)
-            return AVERROR(ENOMEM);
+        if ((ret = av_new_packet(pkt, rec_size)) < 0)
+            return ret;
         memcpy(pkt->data, ty->chunk + ty->cur_chunk_pos, rec_size);
         ty->cur_chunk_pos += rec_size;
         pkt->stream_index = 1;
@@ -670,15 +674,15 @@ static int demux_audio(AVFormatContext *s, TyRecHdr *rec_hdr, AVPacket *pkt)
     } else if (subrec_type == 0x04) {
         /* SA Audio with no PES Header                      */
         /* ================================================ */
-        if (av_new_packet(pkt, rec_size) < 0)
-            return AVERROR(ENOMEM);
+        if ((ret = av_new_packet(pkt, rec_size)) < 0)
+            return ret;
         memcpy(pkt->data, ty->chunk + ty->cur_chunk_pos, rec_size);
         ty->cur_chunk_pos += rec_size;
         pkt->stream_index = 1;
         pkt->pts = ty->last_audio_pts;
     } else if (subrec_type == 0x09) {
-        if (av_new_packet(pkt, rec_size) < 0)
-            return AVERROR(ENOMEM);
+        if ((ret = av_new_packet(pkt, rec_size)) < 0)
+            return ret;
         memcpy(pkt->data, ty->chunk + ty->cur_chunk_pos, rec_size);
         ty->cur_chunk_pos += rec_size ;
         pkt->stream_index = 1;
@@ -723,8 +727,8 @@ static int ty_read_packet(AVFormatContext *s, AVPacket *pkt)
         return AVERROR_EOF;
 
     while (ret <= 0) {
-        if (ty->first_chunk || ty->cur_rec >= ty->num_recs) {
-            if (get_chunk(s) < 0 || ty->num_recs == 0)
+        if (!ty->rec_hdrs || ty->first_chunk || ty->cur_rec >= ty->num_recs) {
+            if (get_chunk(s) < 0 || ty->num_recs <= 0)
                 return AVERROR_EOF;
         }
 
@@ -762,6 +766,16 @@ static int ty_read_packet(AVFormatContext *s, AVPacket *pkt)
     return 0;
 }
 
+static int ty_read_close(AVFormatContext *s)
+{
+    TYDemuxContext *ty = s->priv_data;
+
+    av_freep(&ty->seq_table);
+    av_freep(&ty->rec_hdrs);
+
+    return 0;
+}
+
 AVInputFormat ff_ty_demuxer = {
     .name           = "ty",
     .long_name      = NULL_IF_CONFIG_SMALL("TiVo TY Stream"),
@@ -769,6 +783,7 @@ AVInputFormat ff_ty_demuxer = {
     .read_probe     = ty_probe,
     .read_header    = ty_read_header,
     .read_packet    = ty_read_packet,
+    .read_close     = ty_read_close,
     .extensions     = "ty,ty+",
     .flags          = AVFMT_TS_DISCONT,
 };

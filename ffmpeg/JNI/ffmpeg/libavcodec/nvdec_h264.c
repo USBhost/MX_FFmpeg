@@ -74,7 +74,7 @@ static int nvdec_h264_start_frame(AVCodecContext *avctx,
         .bottom_field_flag = h->picture_structure == PICT_BOTTOM_FIELD,
         .second_field      = FIELD_PICTURE(h) && !h->first_field,
         .ref_pic_flag      = h->nal_ref_idc != 0,
-        .intra_pic_flag    = 0,
+        .intra_pic_flag    = 1,
 
         .CodecSpecific.h264 = {
             .log2_max_frame_num_minus4            = sps->log2_max_frame_num - 4,
@@ -132,6 +132,9 @@ static int nvdec_h264_decode_slice(AVCodecContext *avctx, const uint8_t *buffer,
                                    uint32_t size)
 {
     NVDECContext *ctx = avctx->internal->hwaccel_priv_data;
+    CUVIDPICPARAMS *pp = &ctx->pic_params;
+    const H264Context *h = avctx->priv_data;
+    const H264SliceContext *sl = &h->slice_ctx[0];
     void *tmp;
 
     tmp = av_fast_realloc(ctx->bitstream, &ctx->bitstream_allocated,
@@ -152,6 +155,9 @@ static int nvdec_h264_decode_slice(AVCodecContext *avctx, const uint8_t *buffer,
     ctx->bitstream_len += size + 3;
     ctx->nb_slices++;
 
+    if (sl->slice_type != AV_PICTURE_TYPE_I && sl->slice_type != AV_PICTURE_TYPE_SI)
+        pp->intra_pic_flag = 0;
+
     return 0;
 }
 
@@ -160,10 +166,10 @@ static int nvdec_h264_frame_params(AVCodecContext *avctx,
 {
     const H264Context *h = avctx->priv_data;
     const SPS       *sps = h->ps.sps;
-    return ff_nvdec_frame_params(avctx, hw_frames_ctx, sps->ref_frame_count + sps->num_reorder_frames);
+    return ff_nvdec_frame_params(avctx, hw_frames_ctx, sps->ref_frame_count + sps->num_reorder_frames, 0);
 }
 
-AVHWAccel ff_h264_nvdec_hwaccel = {
+const AVHWAccel ff_h264_nvdec_hwaccel = {
     .name                 = "h264_nvdec",
     .type                 = AVMEDIA_TYPE_VIDEO,
     .id                   = AV_CODEC_ID_H264,

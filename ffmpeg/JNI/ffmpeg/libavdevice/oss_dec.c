@@ -52,7 +52,7 @@ static int audio_read_header(AVFormatContext *s1)
         return AVERROR(ENOMEM);
     }
 
-    ret = ff_oss_audio_open(s1, 0, s1->filename);
+    ret = ff_oss_audio_open(s1, 0, s1->url);
     if (ret < 0) {
         return AVERROR(EIO);
     }
@@ -125,7 +125,7 @@ static const AVOption options[] = {
 };
 
 static const AVClass oss_demuxer_class = {
-    .class_name     = "OSS demuxer",
+    .class_name     = "OSS indev",
     .item_name      = av_default_item_name,
     .option         = options,
     .version        = LIBAVUTIL_VERSION_INT,

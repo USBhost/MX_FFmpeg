@@ -42,6 +42,8 @@ OBJS-$(CONFIG_DCA_DECODER)             += arm/synth_filter_init_arm.o
 OBJS-$(CONFIG_HEVC_DECODER)            += arm/hevcdsp_init_arm.o
 OBJS-$(CONFIG_MLP_DECODER)             += arm/mlpdsp_init_arm.o
 OBJS-$(CONFIG_RV40_DECODER)            += arm/rv40dsp_init_arm.o
+OBJS-$(CONFIG_SBC_ENCODER)             += arm/sbcdsp_init_arm.o
+OBJS-$(CONFIG_TRUEHD_DECODER)          += arm/mlpdsp_init_arm.o
 OBJS-$(CONFIG_VORBIS_DECODER)          += arm/vorbisdsp_init_arm.o
 OBJS-$(CONFIG_VP6_DECODER)             += arm/vp6dsp_init_arm.o
 OBJS-$(CONFIG_VP9_DECODER)             += arm/vp9dsp_init_10bpp_arm.o   \
@@ -60,6 +62,7 @@ ARMV5TE-OBJS-$(CONFIG_VIDEODSP)        += arm/videodsp_init_armv5te.o   \
 
 # decoders/encoders
 ARMV5TE-OBJS-$(CONFIG_MLP_DECODER)     += arm/mlpdsp_armv5te.o
+ARMV5TE-OBJS-$(CONFIG_TRUEHD_DECODER)  += arm/mlpdsp_armv5te.o
 
 
 # ARMv6 optimizations
@@ -81,6 +84,8 @@ ARMV6-OBJS-$(CONFIG_VP8DSP)            += arm/vp8_armv6.o               \
 
 # decoders/encoders
 ARMV6-OBJS-$(CONFIG_MLP_DECODER)       += arm/mlpdsp_armv6.o
+ARMV6-OBJS-$(CONFIG_SBC_ENCODER)       += arm/sbcdsp_armv6.o
+ARMV6-OBJS-$(CONFIG_TRUEHD_DECODER)    += arm/mlpdsp_armv6.o
 
 
 # VFP optimizations
@@ -136,10 +141,12 @@ NEON-OBJS-$(CONFIG_DCA_DECODER)        += arm/synth_filter_neon.o
 NEON-OBJS-$(CONFIG_HEVC_DECODER)       += arm/hevcdsp_init_neon.o       \
                                           arm/hevcdsp_deblock_neon.o    \
                                           arm/hevcdsp_idct_neon.o       \
-                                          arm/hevcdsp_qpel_neon.o
+                                          arm/hevcdsp_qpel_neon.o       \
+                                          arm/hevcdsp_sao_neon.o
 NEON-OBJS-$(CONFIG_RV30_DECODER)       += arm/rv34dsp_neon.o
 NEON-OBJS-$(CONFIG_RV40_DECODER)       += arm/rv34dsp_neon.o            \
                                           arm/rv40dsp_neon.o
+NEON-OBJS-$(CONFIG_SBC_ENCODER)        += arm/sbcdsp_neon.o
 NEON-OBJS-$(CONFIG_VORBIS_DECODER)     += arm/vorbisdsp_neon.o
 NEON-OBJS-$(CONFIG_VP6_DECODER)        += arm/vp6dsp_neon.o
 NEON-OBJS-$(CONFIG_VP9_DECODER)        += arm/vp9itxfm_16bpp_neon.o     \

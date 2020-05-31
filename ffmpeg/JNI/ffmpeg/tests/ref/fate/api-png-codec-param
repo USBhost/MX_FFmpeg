@@ -3,6 +3,8 @@ stream=0, decode=0
     ab=0
     bt=4000000
     flags=0x00000000
+    flags2=0x00000000
+    export_side_data=0x00000000
     time_base=0/1
     g=12
     ar=0
@@ -56,14 +58,9 @@ stream=0, decode=0
     aspect=2835/2835
     sar=2835/2835
     debug=0x00000000
-    cmp=0
-    subcmp=0
-    mbcmp=0
-    ildctcmp=8
     dia_size=0
     last_pred=0
     preme=0
-    precmp=0
     pre_dia_size=0
     subq=8
     me_range=0
@@ -75,7 +72,6 @@ stream=0, decode=0
     sc_threshold=0
     nr=0
     rc_init_occupancy=0
-    flags2=0x00000000
     threads=1
     dc=0
     nssew=8
@@ -88,6 +84,11 @@ stream=0, decode=0
     skip_factor=0
     skip_exp=0
     skipcmp=13
+    cmp=0
+    subcmp=0
+    mbcmp=0
+    ildctcmp=8
+    precmp=0
     mblmin=236
     mblmax=3658
     mepc=256
@@ -136,12 +137,17 @@ stream=0, decode=0
     pixel_format=rgba
     video_size=128x128
     max_pixels=2147483647
+    max_samples=2147483647
     hwaccel_flags=0x00000001
+    extra_hw_frames=-1
+    discard_damaged_percentage=95
 stream=0, decode=1
     b=0
     ab=0
     bt=4000000
     flags=0x00000000
+    flags2=0x00000000
+    export_side_data=0x00000000
     time_base=0/1
     g=12
     ar=0
@@ -195,14 +201,9 @@ stream=0, decode=1
     aspect=2835/2835
     sar=2835/2835
     debug=0x00000000
-    cmp=0
-    subcmp=0
-    mbcmp=0
-    ildctcmp=8
     dia_size=0
     last_pred=0
     preme=0
-    precmp=0
     pre_dia_size=0
     subq=8
     me_range=0
@@ -214,7 +215,6 @@ stream=0, decode=1
     sc_threshold=0
     nr=0
     rc_init_occupancy=0
-    flags2=0x00000000
     threads=1
     dc=0
     nssew=8
@@ -227,6 +227,11 @@ stream=0, decode=1
     skip_factor=0
     skip_exp=0
     skipcmp=13
+    cmp=0
+    subcmp=0
+    mbcmp=0
+    ildctcmp=8
+    precmp=0
     mblmin=236
     mblmax=3658
     mepc=256
@@ -275,4 +280,7 @@ stream=0, decode=1
     pixel_format=rgba
     video_size=128x128
     max_pixels=2147483647
+    max_samples=2147483647
     hwaccel_flags=0x00000001
+    extra_hw_frames=-1
+    discard_damaged_percentage=95

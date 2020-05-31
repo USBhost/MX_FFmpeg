@@ -70,9 +70,10 @@
 #define FF_CODEC_CAP_SLICE_THREAD_HAS_MF    (1 << 5)
 
 /**
- * Allow only AVHWAccels which have a matching decoder_class field.
+ * AVCodec.codec_tags termination value
  */
-#define FF_CODEC_CAP_HWACCEL_REQUIRE_CLASS  (1 << 6)
+#define FF_CODEC_TAGS_END -1
+
 
 #ifdef TRACE
 #   define ff_tlog(ctx, ...) av_log(ctx, AV_LOG_TRACE, __VA_ARGS__)
@@ -88,11 +89,13 @@
 #define FF_QSCALE_TYPE_H264  2
 #define FF_QSCALE_TYPE_VP56  3
 
-#define FF_SANE_NB_CHANNELS 64U
+#define FF_SANE_NB_CHANNELS 512U
 
 #define FF_SIGNBIT(x) ((x) >> CHAR_BIT * sizeof(x) - 1)
 
-#if HAVE_SIMD_ALIGN_32
+#if HAVE_SIMD_ALIGN_64
+#   define STRIDE_ALIGN 64 /* AVX-512 */
+#elif HAVE_SIMD_ALIGN_32
 #   define STRIDE_ALIGN 32
 #elif HAVE_SIMD_ALIGN_16
 #   define STRIDE_ALIGN 16
@@ -221,6 +224,14 @@ typedef struct AVCodecInternal {
 
     /* to prevent infinite loop on errors when draining */
     int nb_draining_errors;
+
+    /* used when avctx flag AV_CODEC_FLAG_DROPCHANGED is set */
+    int changed_frames_dropped;
+    int initial_format;
+    int initial_width, initial_height;
+    int initial_sample_rate;
+    int initial_channels;
+    uint64_t initial_channel_layout;
 } AVCodecInternal;
 
 struct AVCodecDefault {
@@ -238,20 +249,7 @@ int ff_match_2uint16(const uint16_t (*tab)[2], int size, int a, int b);
 
 unsigned int avpriv_toupper4(unsigned int x);
 
-/**
- * does needed setup of pkt_pts/pos and such for (re)get_buffer();
- */
-int ff_init_buffer_info(AVCodecContext *s, AVFrame *frame);
-
-
 void ff_color_frame(AVFrame *frame, const int color[4]);
-
-extern volatile int ff_avcodec_locked;
-int ff_lock_avcodec(AVCodecContext *log_ctx, const AVCodec *codec);
-int ff_unlock_avcodec(const AVCodec *codec);
-
-int avpriv_lock_avformat(void);
-int avpriv_unlock_avformat(void);
 
 /**
  * Maximum size in bytes of extradata.
@@ -328,11 +326,12 @@ static av_always_inline float ff_exp2fi(int x) {
  */
 int ff_get_buffer(AVCodecContext *avctx, AVFrame *frame, int flags);
 
+#define FF_REGET_BUFFER_FLAG_READONLY 1 ///< the returned buffer does not need to be writable
 /**
- * Identical in function to av_frame_make_writable(), except it uses
- * ff_get_buffer() to allocate the buffer when needed.
+ * Identical in function to ff_get_buffer(), except it reuses the existing buffer
+ * if available.
  */
-int ff_reget_buffer(AVCodecContext *avctx, AVFrame *frame);
+int ff_reget_buffer(AVCodecContext *avctx, AVFrame *frame, int flags);
 
 int ff_thread_can_start_frame(AVCodecContext *avctx);
 
@@ -378,6 +377,12 @@ int ff_side_data_update_matrix_encoding(AVFrame *frame,
  * Select the (possibly hardware accelerated) pixel format.
  * This is a wrapper around AVCodecContext.get_format() and should be used
  * instead of calling get_format() directly.
+ *
+ * The list of pixel formats must contain at least one valid entry, and is
+ * terminated with AV_PIX_FMT_NONE.  If it is possible to decode to software,
+ * the last entry in the list must be the most accurate software format.
+ * If it is not possible to decode to software, AVCodecContext.sw_pix_fmt
+ * must be set before calling this function.
  */
 int ff_get_format(AVCodecContext *avctx, const enum AVPixelFormat *fmt);
 
@@ -392,6 +397,8 @@ int ff_decode_frame_props(AVCodecContext *avctx, AVFrame *frame);
 AVCPBProperties *ff_add_cpb_side_data(AVCodecContext *avctx);
 
 int ff_side_data_set_encoder_stats(AVPacket *pkt, int quality, int64_t *error, int error_count, int pict_type);
+
+int ff_side_data_set_prft(AVPacket *pkt, int64_t timestamp);
 
 /**
  * Check AVFrame for A53 side data and allocate and fill SEI message with A53 info
@@ -414,12 +421,22 @@ int ff_alloc_a53_sei(const AVFrame *frame, size_t prefix_len,
  */
 int64_t ff_guess_coded_bitrate(AVCodecContext *avctx);
 
-#if defined(_WIN32) && CONFIG_SHARED
-#ifdef BUILDING_avcodec
-#    define av_export_avcodec __declspec(dllexport)
-#else
+/**
+ * Check if a value is in the list. If not, return the default value
+ *
+ * @param ctx                Context for the log msg
+ * @param val_name           Name of the checked value, for log msg
+ * @param array_valid_values Array of valid int, ended with INT_MAX
+ * @param default_value      Value return if checked value is not in the array
+ * @return                   Value or default_value.
+ */
+int ff_int_from_list_or_default(void *ctx, const char * val_name, int val,
+                                const int * array_valid_values, int default_value);
+
+void ff_dvdsub_parse_palette(uint32_t *palette, const char *p);
+
+#if defined(_WIN32) && CONFIG_SHARED && !defined(BUILDING_avcodec)
 #    define av_export_avcodec __declspec(dllimport)
-#endif
 #else
 #    define av_export_avcodec
 #endif

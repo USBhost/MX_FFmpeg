@@ -52,7 +52,7 @@ typedef struct {
     uint64_t pts;
 } MlvContext;
 
-static int probe(AVProbeData *p)
+static int probe(const AVProbeData *p)
 {
     if (AV_RL32(p->buf) == MKTAG('M','L','V','I') &&
         AV_RL32(p->buf + 4) >= 52 &&
@@ -77,7 +77,7 @@ static int check_file_header(AVIOContext *pb, uint64_t guid)
     return 0;
 }
 
-static void read_string(AVFormatContext *avctx, AVIOContext *pb, const char *tag, int size)
+static void read_string(AVFormatContext *avctx, AVIOContext *pb, const char *tag, unsigned size)
 {
     char * value = av_malloc(size + 1);
     if (!value) {
@@ -342,9 +342,9 @@ static int read_header(AVFormatContext *avctx)
         return ret;
 
     /* scan secondary files */
-    if (strlen(avctx->filename) > 2) {
+    if (strlen(avctx->url) > 2) {
         int i;
-        char *filename = av_strdup(avctx->filename);
+        char *filename = av_strdup(avctx->url);
 
         if (!filename)
             return AVERROR(ENOMEM);
@@ -462,8 +462,7 @@ static int read_close(AVFormatContext *s)
     MlvContext *mlv = s->priv_data;
     int i;
     for (i = 0; i < 100; i++)
-        if (mlv->pb[i])
-            ff_format_io_close(s, &mlv->pb[i]);
+        ff_format_io_close(s, &mlv->pb[i]);
     return 0;
 }
 

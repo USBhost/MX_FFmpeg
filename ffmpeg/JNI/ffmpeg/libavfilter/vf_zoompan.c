@@ -167,7 +167,7 @@ static int output_single_frame(AVFilterContext *ctx, AVFrame *in, double *var_va
     var_values[VAR_PDURATION] = s->prev_nb_frames;
     var_values[VAR_TIME] = pts * av_q2d(outlink->time_base);
     var_values[VAR_FRAME] = i;
-    var_values[VAR_ON] = outlink->frame_count_in + 1;
+    var_values[VAR_ON] = outlink->frame_count_in;
 
     *zoom = av_expr_eval(s->zoom_expr, var_values, NULL);
 
@@ -245,6 +245,8 @@ static int output_single_frame(AVFilterContext *ctx, AVFrame *in, double *var_va
     }
     return ret;
 error:
+    sws_freeContext(s->sws);
+    s->sws = NULL;
     av_frame_free(&out);
     return ret;
 }
@@ -256,6 +258,8 @@ static int activate(AVFilterContext *ctx)
     AVFilterLink *outlink = ctx->outputs[0];
     int status, ret = 0;
     int64_t pts;
+
+    FF_FILTER_FORWARD_STATUS_BACK(outlink, inlink);
 
     if (s->in && ff_outlink_frame_wanted(outlink)) {
         double zoom = -1, dx = -1, dy = -1;
@@ -274,8 +278,8 @@ static int activate(AVFilterContext *ctx)
         s->var_values[VAR_IN_H]  = s->var_values[VAR_IH] = s->in->height;
         s->var_values[VAR_OUT_W] = s->var_values[VAR_OW] = s->w;
         s->var_values[VAR_OUT_H] = s->var_values[VAR_OH] = s->h;
-        s->var_values[VAR_IN]    = inlink->frame_count_out + 1;
-        s->var_values[VAR_ON]    = outlink->frame_count_in + 1;
+        s->var_values[VAR_IN]    = inlink->frame_count_out - 1;
+        s->var_values[VAR_ON]    = outlink->frame_count_in;
         s->var_values[VAR_PX]    = s->x;
         s->var_values[VAR_PY]    = s->y;
         s->var_values[VAR_X]     = 0;
@@ -344,6 +348,10 @@ static av_cold void uninit(AVFilterContext *ctx)
 
     sws_freeContext(s->sws);
     s->sws = NULL;
+    av_expr_free(s->x_expr);
+    av_expr_free(s->y_expr);
+    av_expr_free(s->zoom_expr);
+    av_frame_free(&s->in);
 }
 
 static const AVFilterPad inputs[] = {

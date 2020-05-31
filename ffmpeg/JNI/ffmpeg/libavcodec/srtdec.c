@@ -27,6 +27,9 @@
 #include "ass.h"
 #include "htmlsubtitles.h"
 
+#ifdef MXTECHS
+#include "mxsubdec.c"
+#else
 static int srt_to_ass(AVCodecContext *avctx, AVBPrint *dst,
                        const char *in, int x1, int y1, int x2, int y2)
 {
@@ -84,9 +87,19 @@ static int srt_decode_frame(AVCodecContext *avctx,
     *got_sub_ptr = sub->num_rects > 0;
     return avpkt->size;
 }
+#endif
 
 #if CONFIG_SRT_DECODER
 /* deprecated decoder */
+#ifdef MXTECHS
+AVCodec ff_srt_decoder = {
+    .name         = "srt",
+    .long_name    = NULL_IF_CONFIG_SMALL("SubRip subtitle"),
+    .type         = AVMEDIA_TYPE_SUBTITLE,
+    .id           = AV_CODEC_ID_SUBRIP,
+    .decode       = mx_decode_frame,
+};
+#else
 AVCodec ff_srt_decoder = {
     .name         = "srt",
     .long_name    = NULL_IF_CONFIG_SMALL("SubRip subtitle"),
@@ -98,8 +111,18 @@ AVCodec ff_srt_decoder = {
     .priv_data_size = sizeof(FFASSDecoderContext),
 };
 #endif
+#endif
 
 #if CONFIG_SUBRIP_DECODER
+#ifdef MXTECHS
+AVCodec ff_subrip_decoder = {
+    .name         = "subrip",
+    .long_name    = NULL_IF_CONFIG_SMALL("SubRip subtitle"),
+    .type         = AVMEDIA_TYPE_SUBTITLE,
+    .id           = AV_CODEC_ID_SUBRIP,
+    .decode       = mx_decode_frame,
+};
+#else
 AVCodec ff_subrip_decoder = {
     .name         = "subrip",
     .long_name    = NULL_IF_CONFIG_SMALL("SubRip subtitle"),
@@ -110,4 +133,5 @@ AVCodec ff_subrip_decoder = {
     .flush        = ff_ass_decoder_flush,
     .priv_data_size = sizeof(FFASSDecoderContext),
 };
+#endif
 #endif

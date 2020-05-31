@@ -23,9 +23,6 @@
 
 #include "libavutil/buffer.h"
 #include "libavutil/frame.h"
-
-#include "libavutil/buffer.h"
-#include "libavutil/frame.h"
 #include "libavutil/hwcontext.h"
 
 #include "avcodec.h"
@@ -66,6 +63,8 @@ typedef struct FrameDecodeData {
  *                     will be available
  */
 int ff_decode_get_packet(AVCodecContext *avctx, AVPacket *pkt);
+
+int ff_decode_bsfs_init(AVCodecContext *avctx);
 
 void ff_decode_bsfs_uninit(AVCodecContext *avctx);
 
