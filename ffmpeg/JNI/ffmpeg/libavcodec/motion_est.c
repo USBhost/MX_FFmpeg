@@ -633,7 +633,7 @@ static inline int h263_mv4_search(MpegEncContext *s, int mx, int my, int shift)
                 if(P[i][1] > (c->ymax<<shift)) P[i][1]= (c->ymax<<shift);
             }
 
-        dmin4 = epzs_motion_search4(s, &mx4, &my4, P, block, block, s->p_mv_table, (1<<16)>>shift);
+        dmin4 = epzs_motion_search2(s, &mx4, &my4, P, block, block, s->p_mv_table, (1<<16)>>shift, 1);
 
         dmin4= c->sub_motion_search(s, &mx4, &my4, dmin4, block, block, size, h);
 
@@ -795,7 +795,7 @@ static int interlaced_search(MpegEncContext *s, int ref_index,
             P_MV1[0]= mx; //FIXME not correct if block != field_select
             P_MV1[1]= my / 2;
 
-            dmin = epzs_motion_search2(s, &mx_i, &my_i, P, block, field_select+ref_index, mv_table, (1<<16)>>1);
+            dmin = epzs_motion_search2(s, &mx_i, &my_i, P, block, field_select+ref_index, mv_table, (1<<16)>>1, 0);
 
             dmin= c->sub_motion_search(s, &mx_i, &my_i, dmin, block, field_select+ref_index, size, h);
 
@@ -971,7 +971,7 @@ void ff_estimate_p_frame_motion(MpegEncContext * s,
         int i_score= varc-500+(s->lambda2>>FF_LAMBDA_SHIFT)*20;
         c->scene_change_score+= ff_sqrt(p_score) - ff_sqrt(i_score);
 
-        if (vard*2 + 200*256 > varc)
+        if (vard*2 + 200*256 > varc && !s->intra_penalty)
             mb_type|= CANDIDATE_MB_TYPE_INTRA;
         if (varc*2 + 200*256 > vard || s->qscale > 24){
 //        if (varc*2 + 200*256 + 50*(s->lambda2>>FF_LAMBDA_SHIFT) > vard){
@@ -1040,7 +1040,7 @@ void ff_estimate_p_frame_motion(MpegEncContext * s,
 
             intra_score= s->mecc.mb_cmp[0](s, c->scratchpad, pix, s->linesize, 16);
         }
-        intra_score += c->mb_penalty_factor*16;
+        intra_score += c->mb_penalty_factor*16 + s->intra_penalty;
 
         if(intra_score < dmin){
             mb_type= CANDIDATE_MB_TYPE_INTRA;
@@ -1648,7 +1648,7 @@ int ff_get_best_fcode(MpegEncContext * s, int16_t (*mv_table)[2], int type)
     }
 }
 
-void ff_fix_long_p_mvs(MpegEncContext * s)
+void ff_fix_long_p_mvs(MpegEncContext * s, int type)
 {
     MotionEstContext * const c= &s->me;
     const int f_code= s->f_code;
@@ -1682,8 +1682,8 @@ void ff_fix_long_p_mvs(MpegEncContext * s)
                         if(   mx >=range || mx <-range
                            || my >=range || my <-range){
                             s->mb_type[i] &= ~CANDIDATE_MB_TYPE_INTER4V;
-                            s->mb_type[i] |= CANDIDATE_MB_TYPE_INTRA;
-                            s->current_picture.mb_type[i] = CANDIDATE_MB_TYPE_INTRA;
+                            s->mb_type[i] |= type;
+                            s->current_picture.mb_type[i] = type;
                         }
                     }
                 }

@@ -208,9 +208,6 @@ int ff_hevc_output_frame(HEVCContext *s, AVFrame *out, int flush)
         if (nb_output) {
             HEVCFrame *frame = &s->DPB[min_idx];
 
-            if (frame->frame->format == AV_PIX_FMT_VIDEOTOOLBOX && frame->frame->buf[0]->size == 1)
-                return 0;
-
             ret = av_frame_ref(out, frame->frame);
             if (frame->flags & HEVC_FRAME_FLAG_BUMPING)
                 ff_hevc_unref_frame(s, frame, HEVC_FRAME_FLAG_OUTPUT | HEVC_FRAME_FLAG_BUMPING);
@@ -397,7 +394,7 @@ static void mark_ref(HEVCFrame *frame, int flag)
 static HEVCFrame *generate_missing_ref(HEVCContext *s, int poc)
 {
     HEVCFrame *frame;
-    int i, x, y;
+    int i, y;
 
     frame = alloc_frame(s);
     if (!frame)
@@ -410,11 +407,11 @@ static HEVCFrame *generate_missing_ref(HEVCContext *s, int poc)
                        frame->frame->buf[i]->size);
         } else {
             for (i = 0; frame->frame->data[i]; i++)
-                for (y = 0; y < (s->ps.sps->height >> s->ps.sps->vshift[i]); y++)
-                    for (x = 0; x < (s->ps.sps->width >> s->ps.sps->hshift[i]); x++) {
-                        AV_WN16(frame->frame->data[i] + y * frame->frame->linesize[i] + 2 * x,
-                                1 << (s->ps.sps->bit_depth - 1));
-                    }
+                for (y = 0; y < (s->ps.sps->height >> s->ps.sps->vshift[i]); y++) {
+                    uint8_t *dst = frame->frame->data[i] + y * frame->frame->linesize[i];
+                    AV_WN16(dst, 1 << (s->ps.sps->bit_depth - 1));
+                    av_memcpy_backptr(dst + 2, 2, 2*(s->ps.sps->width >> s->ps.sps->hshift[i]) - 2);
+                }
         }
     }
 
@@ -511,12 +508,12 @@ fail:
     return ret;
 }
 
-int ff_hevc_frame_nb_refs(HEVCContext *s)
+int ff_hevc_frame_nb_refs(const HEVCContext *s)
 {
     int ret = 0;
     int i;
     const ShortTermRPS *rps = s->sh.short_term_rps;
-    LongTermRPS *long_rps   = &s->sh.long_term_rps;
+    const LongTermRPS *long_rps = &s->sh.long_term_rps;
 
     if (rps) {
         for (i = 0; i < rps->num_negative_pics; i++)

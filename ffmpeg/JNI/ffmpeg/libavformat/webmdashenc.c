@@ -466,6 +466,7 @@ static int parse_adaptation_sets(AVFormatContext *s)
             continue;
         else if (state == new_set && !strncmp(p, "id=", 3)) {
             void *mem = av_realloc(w->as, sizeof(*w->as) * (w->nb_as + 1));
+            const char *comma;
             if (mem == NULL)
                 return AVERROR(ENOMEM);
             w->as = mem;
@@ -474,6 +475,11 @@ static int parse_adaptation_sets(AVFormatContext *s)
             w->as[w->nb_as - 1].streams = NULL;
             p += 3; // consume "id="
             q = w->as[w->nb_as - 1].id;
+            comma = strchr(p, ',');
+            if (!comma || comma - p >= sizeof(w->as[w->nb_as - 1].id)) {
+                av_log(s, AV_LOG_ERROR, "'id' in 'adaptation_sets' is malformed.\n");
+                return AVERROR(EINVAL);
+            }
             while (*p != ',') *q++ = *p++;
             *q = 0;
             p++;
@@ -544,12 +550,6 @@ static int webm_dash_manifest_write_packet(AVFormatContext *s, AVPacket *pkt)
     return AVERROR_EOF;
 }
 
-static int webm_dash_manifest_write_trailer(AVFormatContext *s)
-{
-    free_adaptation_sets(s);
-    return 0;
-}
-
 #define OFFSET(x) offsetof(WebMDashMuxContext, x)
 static const AVOption options[] = {
     { "adaptation_sets", "Adaptation sets. Syntax: id=0,streams=0,1,2 id=1,streams=3,4 and so on", OFFSET(adaptation_sets), AV_OPT_TYPE_STRING, { 0 }, 0, 0, AV_OPT_FLAG_ENCODING_PARAM },
@@ -579,7 +579,6 @@ AVOutputFormat ff_webm_dash_manifest_muxer = {
     .priv_data_size    = sizeof(WebMDashMuxContext),
     .write_header      = webm_dash_manifest_write_header,
     .write_packet      = webm_dash_manifest_write_packet,
-    .write_trailer     = webm_dash_manifest_write_trailer,
     .priv_class        = &webm_dash_class,
 };
 #endif

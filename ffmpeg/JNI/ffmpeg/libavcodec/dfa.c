@@ -41,7 +41,7 @@ static av_cold int dfa_decode_init(AVCodecContext *avctx)
 
     avctx->pix_fmt = AV_PIX_FMT_PAL8;
 
-    if (!avctx->width || !avctx->height)
+    if (!avctx->width || !avctx->height || FFMAX(avctx->width, avctx->height) >= (1<<16))
         return AVERROR_INVALIDDATA;
 
     av_assert0(av_image_check_size(avctx->width, avctx->height, 0, avctx) >= 0);
@@ -355,6 +355,8 @@ static int dfa_decode_frame(AVCodecContext *avctx,
 
     bytestream2_init(&gb, avpkt->data, avpkt->size);
     while (bytestream2_get_bytes_left(&gb) > 0) {
+        if (bytestream2_get_bytes_left(&gb) < 12)
+            return AVERROR_INVALIDDATA;
         bytestream2_skip(&gb, 4);
         chunk_size = bytestream2_get_le32(&gb);
         chunk_type = bytestream2_get_le32(&gb);

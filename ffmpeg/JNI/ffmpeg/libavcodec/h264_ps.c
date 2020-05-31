@@ -35,7 +35,6 @@
 #include "h264_ps.h"
 #include "golomb.h"
 
-#define MAX_LOG2_MAX_FRAME_NUM    (12 + 4)
 #define MIN_LOG2_MAX_FRAME_NUM    4
 
 #define EXTENDED_SAR       255
@@ -182,12 +181,13 @@ static inline int decode_vui_parameters(GetBitContext *gb, AVCodecContext *avctx
     /* chroma_location_info_present_flag */
     if (get_bits1(gb)) {
         /* chroma_sample_location_type_top_field */
-        avctx->chroma_sample_location = get_ue_golomb(gb) + 1;
+        sps->chroma_location = get_ue_golomb(gb) + 1;
         get_ue_golomb(gb);  /* chroma_sample_location_type_bottom_field */
-    }
+    } else
+        sps->chroma_location = AVCHROMA_LOC_LEFT;
 
     if (show_bits1(gb) && get_bits_left(gb) < 10) {
-        av_log(avctx, AV_LOG_WARNING, "Truncated VUI\n");
+        av_log(avctx, AV_LOG_WARNING, "Truncated VUI (%d)\n", get_bits_left(gb));
         return 0;
     }
 
@@ -450,8 +450,17 @@ int ff_h264_decode_seq_parameter_set(GetBitContext *gb, AVCodecContext *avctx,
         sps->log2_max_poc_lsb = t + 4;
     } else if (sps->poc_type == 1) { // FIXME #define
         sps->delta_pic_order_always_zero_flag = get_bits1(gb);
-        sps->offset_for_non_ref_pic           = get_se_golomb(gb);
-        sps->offset_for_top_to_bottom_field   = get_se_golomb(gb);
+        sps->offset_for_non_ref_pic           = get_se_golomb_long(gb);
+        sps->offset_for_top_to_bottom_field   = get_se_golomb_long(gb);
+
+        if (   sps->offset_for_non_ref_pic         == INT32_MIN
+            || sps->offset_for_top_to_bottom_field == INT32_MIN
+        ) {
+            av_log(avctx, AV_LOG_ERROR,
+                   "offset_for_non_ref_pic or offset_for_top_to_bottom_field is out of range\n");
+            goto fail;
+        }
+
         sps->poc_cycle_length                 = get_ue_golomb(gb);
 
         if ((unsigned)sps->poc_cycle_length >=
@@ -461,8 +470,14 @@ int ff_h264_decode_seq_parameter_set(GetBitContext *gb, AVCodecContext *avctx,
             goto fail;
         }
 
-        for (i = 0; i < sps->poc_cycle_length; i++)
-            sps->offset_for_ref_frame[i] = get_se_golomb(gb);
+        for (i = 0; i < sps->poc_cycle_length; i++) {
+            sps->offset_for_ref_frame[i] = get_se_golomb_long(gb);
+            if (sps->offset_for_ref_frame[i] == INT32_MIN) {
+                av_log(avctx, AV_LOG_ERROR,
+                       "offset_for_ref_frame is out of range\n");
+                goto fail;
+            }
+        }
     } else if (sps->poc_type != 2) {
         av_log(avctx, AV_LOG_ERROR, "illegal POC type %d\n", sps->poc_type);
         goto fail;
@@ -565,7 +580,8 @@ int ff_h264_decode_seq_parameter_set(GetBitContext *gb, AVCodecContext *avctx,
     }
 
     if (get_bits_left(gb) < 0) {
-        av_log(avctx, ignore_truncation ? AV_LOG_WARNING : AV_LOG_ERROR,
+        av_log_once(avctx, ignore_truncation ? AV_LOG_WARNING : AV_LOG_ERROR, AV_LOG_DEBUG,
+                    &ps->overread_warning_printed[sps->vui_parameters_present_flag],
                "Overread %s by %d bits\n", sps->vui_parameters_present_flag ? "VUI" : "SPS", -get_bits_left(gb));
         if (!ignore_truncation)
             goto fail;
@@ -779,7 +795,9 @@ int ff_h264_decode_picture_parameter_set(GetBitContext *gb, AVCodecContext *avct
     pps->slice_group_count = get_ue_golomb(gb) + 1;
     if (pps->slice_group_count > 1) {
         pps->mb_slice_group_map_type = get_ue_golomb(gb);
-        av_log(avctx, AV_LOG_ERROR, "FMO not supported\n");
+        avpriv_report_missing_feature(avctx, "FMO");
+        ret = AVERROR_PATCHWELCOME;
+        goto fail;
     }
     pps->ref_count[0] = get_ue_golomb(gb) + 1;
     pps->ref_count[1] = get_ue_golomb(gb) + 1;

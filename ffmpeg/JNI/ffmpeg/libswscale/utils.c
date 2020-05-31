@@ -86,7 +86,7 @@ const char *swscale_configuration(void)
 const char *swscale_license(void)
 {
 #define LICENSE_PREFIX "libswscale license: "
-    return LICENSE_PREFIX FFMPEG_LICENSE + sizeof(LICENSE_PREFIX) - 1;
+    return &LICENSE_PREFIX FFMPEG_LICENSE[sizeof(LICENSE_PREFIX) - 1];
 }
 
 typedef struct FormatEntry {
@@ -95,7 +95,7 @@ typedef struct FormatEntry {
     uint8_t is_supported_endianness :1;
 } FormatEntry;
 
-static const FormatEntry format_entries[AV_PIX_FMT_NB] = {
+static const FormatEntry format_entries[] = {
     [AV_PIX_FMT_YUV420P]     = { 1, 1 },
     [AV_PIX_FMT_YUYV422]     = { 1, 1 },
     [AV_PIX_FMT_RGB24]       = { 1, 1 },
@@ -137,6 +137,8 @@ static const FormatEntry format_entries[AV_PIX_FMT_NB] = {
     [AV_PIX_FMT_GRAY10LE]    = { 1, 1 },
     [AV_PIX_FMT_GRAY12BE]    = { 1, 1 },
     [AV_PIX_FMT_GRAY12LE]    = { 1, 1 },
+    [AV_PIX_FMT_GRAY14BE]    = { 1, 1 },
+    [AV_PIX_FMT_GRAY14LE]    = { 1, 1 },
     [AV_PIX_FMT_GRAY16BE]    = { 1, 1 },
     [AV_PIX_FMT_GRAY16LE]    = { 1, 1 },
     [AV_PIX_FMT_YUV440P]     = { 1, 1 },
@@ -189,8 +191,8 @@ static const FormatEntry format_entries[AV_PIX_FMT_NB] = {
     [AV_PIX_FMT_BGR444LE]    = { 1, 1 },
     [AV_PIX_FMT_BGR444BE]    = { 1, 1 },
     [AV_PIX_FMT_YA8]         = { 1, 1 },
-    [AV_PIX_FMT_YA16BE]      = { 1, 0 },
-    [AV_PIX_FMT_YA16LE]      = { 1, 0 },
+    [AV_PIX_FMT_YA16BE]      = { 1, 1 },
+    [AV_PIX_FMT_YA16LE]      = { 1, 1 },
     [AV_PIX_FMT_BGR48BE]     = { 1, 1 },
     [AV_PIX_FMT_BGR48LE]     = { 1, 1 },
     [AV_PIX_FMT_BGRA64BE]    = { 1, 1, 1 },
@@ -254,25 +256,34 @@ static const FormatEntry format_entries[AV_PIX_FMT_NB] = {
     [AV_PIX_FMT_AYUV64LE]    = { 1, 1},
     [AV_PIX_FMT_P010LE]      = { 1, 1 },
     [AV_PIX_FMT_P010BE]      = { 1, 1 },
-    [AV_PIX_FMT_P016LE]      = { 1, 0 },
-    [AV_PIX_FMT_P016BE]      = { 1, 0 },
+    [AV_PIX_FMT_P016LE]      = { 1, 1 },
+    [AV_PIX_FMT_P016BE]      = { 1, 1 },
+    [AV_PIX_FMT_GRAYF32LE]   = { 1, 1 },
+    [AV_PIX_FMT_GRAYF32BE]   = { 1, 1 },
+    [AV_PIX_FMT_YUVA422P12BE] = { 1, 1 },
+    [AV_PIX_FMT_YUVA422P12LE] = { 1, 1 },
+    [AV_PIX_FMT_YUVA444P12BE] = { 1, 1 },
+    [AV_PIX_FMT_YUVA444P12LE] = { 1, 1 },
+    [AV_PIX_FMT_NV24]        = { 1, 1 },
+    [AV_PIX_FMT_NV42]        = { 1, 1 },
+    [AV_PIX_FMT_Y210LE]      = { 1, 0 },
 };
 
 int sws_isSupportedInput(enum AVPixelFormat pix_fmt)
 {
-    return (unsigned)pix_fmt < AV_PIX_FMT_NB ?
+    return (unsigned)pix_fmt < FF_ARRAY_ELEMS(format_entries) ?
            format_entries[pix_fmt].is_supported_in : 0;
 }
 
 int sws_isSupportedOutput(enum AVPixelFormat pix_fmt)
 {
-    return (unsigned)pix_fmt < AV_PIX_FMT_NB ?
+    return (unsigned)pix_fmt < FF_ARRAY_ELEMS(format_entries) ?
            format_entries[pix_fmt].is_supported_out : 0;
 }
 
 int sws_isSupportedEndiannessConversion(enum AVPixelFormat pix_fmt)
 {
-    return (unsigned)pix_fmt < AV_PIX_FMT_NB ?
+    return (unsigned)pix_fmt < FF_ARRAY_ELEMS(format_entries) ?
            format_entries[pix_fmt].is_supported_endianness : 0;
 }
 
@@ -380,7 +391,7 @@ static av_cold int initFilter(int16_t **outFilter, int32_t **filterPos,
             (*filterPos)[i] = xx;
             // bilinear upscale / linear interpolate / area averaging
             for (j = 0; j < filterSize; j++) {
-                int64_t coeff= fone - FFABS(((int64_t)xx<<16) - xDstInSrc)*(fone>>16);
+                int64_t coeff = fone - FFABS((int64_t)xx * (1 << 16) - xDstInSrc) * (fone >> 16);
                 if (coeff < 0)
                     coeff = 0;
                 filter[i * filterSize + j] = coeff;
@@ -1024,6 +1035,8 @@ static int handle_jpeg(enum AVPixelFormat *format)
     case AV_PIX_FMT_GRAY10BE:
     case AV_PIX_FMT_GRAY12LE:
     case AV_PIX_FMT_GRAY12BE:
+    case AV_PIX_FMT_GRAY14LE:
+    case AV_PIX_FMT_GRAY14BE:
     case AV_PIX_FMT_GRAY16LE:
     case AV_PIX_FMT_GRAY16BE:
     case AV_PIX_FMT_YA16BE:
@@ -1169,6 +1182,7 @@ av_cold int sws_init_context(SwsContext *c, SwsFilter *srcFilter,
     const AVPixFmtDescriptor *desc_dst;
     int ret = 0;
     enum AVPixelFormat tmpFmt;
+    static const float float_mult = 1.0f / 255.0f;
 
     cpu_flags = av_get_cpu_flags();
     flags     = c->flags;
@@ -1489,6 +1503,7 @@ av_cold int sws_init_context(SwsContext *c, SwsFilter *srcFilter,
         ff_free_filters(c2);
         if (ff_init_filters(c2) < 0) {
             sws_freeContext(c2);
+            c->cascaded_context[1] = NULL;
             return -1;
         }
 
@@ -1531,6 +1546,19 @@ av_cold int sws_init_context(SwsContext *c, SwsFilter *srcFilter,
                 return -1;
             return 0;
         }
+    }
+
+    if (unscaled && c->srcBpc == 8 && dstFormat == AV_PIX_FMT_GRAYF32){
+        for (i = 0; i < 256; ++i){
+            c->uint2float_lut[i] = (float)i * float_mult;
+        }
+    }
+
+    // float will be converted to uint16_t
+    if ((srcFormat == AV_PIX_FMT_GRAYF32BE || srcFormat == AV_PIX_FMT_GRAYF32LE) &&
+        (!unscaled || unscaled && dstFormat != srcFormat && (srcFormat != AV_PIX_FMT_GRAYF32 ||
+        dstFormat != AV_PIX_FMT_GRAY8))){
+        c->srcBpc = 16;
     }
 
     if (CONFIG_SWSCALE_ALPHA && isALPHA(srcFormat) && !isALPHA(dstFormat)) {
@@ -1789,7 +1817,8 @@ av_cold int sws_init_context(SwsContext *c, SwsFilter *srcFilter,
 
     /* unscaled special cases */
     if (unscaled && !usesHFilter && !usesVFilter &&
-        (c->srcRange == c->dstRange || isAnyRGB(dstFormat))) {
+        (c->srcRange == c->dstRange || isAnyRGB(dstFormat) ||
+         isFloat(srcFormat) || isFloat(dstFormat))){
         ff_get_unscaled_swscale(c);
 
         if (c->swscale) {

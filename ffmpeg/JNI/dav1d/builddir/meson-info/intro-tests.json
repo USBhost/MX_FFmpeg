@@ -1,0 +1,1 @@
+[{"cmd": ["/Users/zlin/workspace/mxcore/media_player/jni/dav1d/builddir/tests/checkasm"], "env": {}, "name": "checkasm", "workdir": null, "timeout": 30, "suite": ["dav1d"], "is_parallel": false, "priority": 0}]

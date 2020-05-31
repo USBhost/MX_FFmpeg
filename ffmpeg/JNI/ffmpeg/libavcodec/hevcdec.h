@@ -430,6 +430,7 @@ typedef struct HEVCContext {
     int max_ra;
     int bs_width;
     int bs_height;
+    int overlap;
 
     int is_decoded;
     int no_rasl_output_flag;
@@ -544,9 +545,26 @@ int ff_hevc_res_scale_sign_flag(HEVCContext *s, int idx);
 /**
  * Get the number of candidate references for the current frame.
  */
-int ff_hevc_frame_nb_refs(HEVCContext *s);
+int ff_hevc_frame_nb_refs(const HEVCContext *s);
 
 int ff_hevc_set_new_ref(HEVCContext *s, AVFrame **frame, int poc);
+
+static av_always_inline int ff_hevc_nal_is_nonref(enum HEVCNALUnitType type)
+{
+    switch (type) {
+    case HEVC_NAL_TRAIL_N:
+    case HEVC_NAL_TSA_N:
+    case HEVC_NAL_STSA_N:
+    case HEVC_NAL_RADL_N:
+    case HEVC_NAL_RASL_N:
+    case HEVC_NAL_VCL_N10:
+    case HEVC_NAL_VCL_N12:
+    case HEVC_NAL_VCL_N14:
+        return 1;
+    default: break;
+    }
+    return 0;
+}
 
 /**
  * Find next frame in output order and put a reference to it in frame.

@@ -63,7 +63,7 @@ static int xiph_handle_packet(AVFormatContext *ctx, PayloadContext *data,
                               int flags)
 {
 
-    int ident, fragmented, tdt, num_pkts, pkt_len;
+    int ident, fragmented, tdt, num_pkts, pkt_len, ret;
 
     if (!buf) {
         if (!data->split_buf || data->split_pos + 2 > data->split_buf_len ||
@@ -77,9 +77,9 @@ static int xiph_handle_packet(AVFormatContext *ctx, PayloadContext *data,
             av_log(ctx, AV_LOG_ERROR, "Not enough data to return\n");
             return AVERROR_INVALIDDATA;
         }
-        if (av_new_packet(pkt, pkt_len)) {
+        if ((ret = av_new_packet(pkt, pkt_len)) < 0) {
             av_log(ctx, AV_LOG_ERROR, "Out of memory.\n");
-            return AVERROR(ENOMEM);
+            return ret;
         }
         pkt->stream_index = st->index;
         memcpy(pkt->data, data->split_buf + data->split_pos, pkt_len);
@@ -123,9 +123,9 @@ static int xiph_handle_packet(AVFormatContext *ctx, PayloadContext *data,
     len -= 6;
 
     if (fragmented == 0) {
-        if (av_new_packet(pkt, pkt_len)) {
+        if ((ret = av_new_packet(pkt, pkt_len)) < 0) {
             av_log(ctx, AV_LOG_ERROR, "Out of memory.\n");
-            return AVERROR(ENOMEM);
+            return ret;
         }
         pkt->stream_index = st->index;
         memcpy(pkt->data, buf, pkt_len);
@@ -228,6 +228,7 @@ parse_packed_headers(AVFormatContext *s,
 {
 
     unsigned num_packed, num_headers, length, length1, length2, extradata_alloc;
+    int ret;
     uint8_t *ptr;
 
     if (packed_headers_end - packed_headers < 9) {
@@ -264,9 +265,9 @@ parse_packed_headers(AVFormatContext *s,
      * -- AV_INPUT_BUFFER_PADDING_SIZE required */
     extradata_alloc = length + length/255 + 3 + AV_INPUT_BUFFER_PADDING_SIZE;
 
-    if (ff_alloc_extradata(par, extradata_alloc)) {
+    if ((ret = ff_alloc_extradata(par, extradata_alloc)) < 0) {
         av_log(s, AV_LOG_ERROR, "Out of memory\n");
-        return AVERROR(ENOMEM);
+        return ret;
     }
     ptr = par->extradata;
     *ptr++ = 2;
@@ -365,7 +366,7 @@ static int xiph_parse_sdp_line(AVFormatContext *s, int st_index,
     return 0;
 }
 
-RTPDynamicProtocolHandler ff_theora_dynamic_handler = {
+const RTPDynamicProtocolHandler ff_theora_dynamic_handler = {
     .enc_name         = "theora",
     .codec_type       = AVMEDIA_TYPE_VIDEO,
     .codec_id         = AV_CODEC_ID_THEORA,
@@ -375,7 +376,7 @@ RTPDynamicProtocolHandler ff_theora_dynamic_handler = {
     .parse_packet     = xiph_handle_packet,
 };
 
-RTPDynamicProtocolHandler ff_vorbis_dynamic_handler = {
+const RTPDynamicProtocolHandler ff_vorbis_dynamic_handler = {
     .enc_name         = "vorbis",
     .codec_type       = AVMEDIA_TYPE_AUDIO,
     .codec_id         = AV_CODEC_ID_VORBIS,

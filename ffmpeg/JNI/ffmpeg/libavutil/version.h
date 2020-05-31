@@ -78,10 +78,9 @@
  * @{
  */
 
-
 #define LIBAVUTIL_VERSION_MAJOR  56
-#define LIBAVUTIL_VERSION_MINOR   0
-#define LIBAVUTIL_VERSION_MICRO 100
+#define LIBAVUTIL_VERSION_MINOR  42
+#define LIBAVUTIL_VERSION_MICRO 101
 
 #define LIBAVUTIL_VERSION_INT   AV_VERSION_INT(LIBAVUTIL_VERSION_MAJOR, \
                                                LIBAVUTIL_VERSION_MINOR, \
@@ -126,6 +125,9 @@
 #endif
 #ifndef FF_API_FRAME_GET_SET
 #define FF_API_FRAME_GET_SET            (LIBAVUTIL_VERSION_MAJOR < 57)
+#endif
+#ifndef FF_API_PSEUDOPAL
+#define FF_API_PSEUDOPAL                (LIBAVUTIL_VERSION_MAJOR < 57)
 #endif
 
 

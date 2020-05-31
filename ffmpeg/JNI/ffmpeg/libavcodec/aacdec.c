@@ -247,14 +247,12 @@ static void apply_independent_coupling(AACContext *ac,
                                        SingleChannelElement *target,
                                        ChannelElement *cce, int index)
 {
-    int i;
     const float gain = cce->coup.gain[index][0];
     const float *src = cce->ch[0].ret;
     float *dest = target->ret;
     const int len = 1024 << (ac->oc[1].m4ac.sbr == 1);
 
-    for (i = 0; i < len; i++)
-        dest[i] += gain * src[i];
+    ac->fdsp->vector_fmac_scalar(dest, src, gain, len);
 }
 
 #include "aacdec_template.c"
@@ -318,8 +316,8 @@ static int latm_decode_audio_specific_config(struct LATMContext *latmctx,
         ac->oc[1].m4ac.sample_rate != m4ac.sample_rate ||
         ac->oc[1].m4ac.chan_config != m4ac.chan_config) {
 
-        if(latmctx->initialized) {
-            av_log(avctx, AV_LOG_INFO, "audio config changed\n");
+        if (latmctx->initialized) {
+            av_log(avctx, AV_LOG_INFO, "audio config changed (sample_rate=%d, chan_config=%d)\n", m4ac.sample_rate, m4ac.chan_config);
         } else {
             av_log(avctx, AV_LOG_DEBUG, "initializing latmctx\n");
         }
@@ -411,6 +409,8 @@ static int read_stream_mux_config(struct LATMContext *latmctx,
             } else {
                 int esc;
                 do {
+                    if (get_bits_left(gb) < 9)
+                        return AVERROR_INVALIDDATA;
                     esc = get_bits(gb, 1);
                     skip_bits(gb, 8);
                 } while (esc);
@@ -561,7 +561,7 @@ AVCodec ff_aac_decoder = {
         AV_SAMPLE_FMT_FLTP, AV_SAMPLE_FMT_NONE
     },
     .capabilities    = AV_CODEC_CAP_CHANNEL_CONF | AV_CODEC_CAP_DR1,
-    .caps_internal   = FF_CODEC_CAP_INIT_THREADSAFE,
+    .caps_internal   = FF_CODEC_CAP_INIT_THREADSAFE | FF_CODEC_CAP_INIT_CLEANUP,
     .channel_layouts = aac_channel_layout,
     .flush = flush,
     .priv_class      = &aac_decoder_class,
@@ -586,7 +586,7 @@ AVCodec ff_aac_latm_decoder = {
         AV_SAMPLE_FMT_FLTP, AV_SAMPLE_FMT_NONE
     },
     .capabilities    = AV_CODEC_CAP_CHANNEL_CONF | AV_CODEC_CAP_DR1,
-    .caps_internal   = FF_CODEC_CAP_INIT_THREADSAFE,
+    .caps_internal   = FF_CODEC_CAP_INIT_THREADSAFE | FF_CODEC_CAP_INIT_CLEANUP,
     .channel_layouts = aac_channel_layout,
     .flush = flush,
     .profiles        = NULL_IF_CONFIG_SMALL(ff_aac_profiles),

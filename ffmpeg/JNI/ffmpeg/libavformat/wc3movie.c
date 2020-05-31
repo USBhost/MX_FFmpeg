@@ -73,7 +73,7 @@ typedef struct Wc3DemuxContext {
 
 } Wc3DemuxContext;
 
-static int wc3_probe(AVProbeData *p)
+static int wc3_probe(const AVProbeData *p)
 {
     if (p->buf_size < 12)
         return 0;
@@ -130,8 +130,10 @@ static int wc3_read_header(AVFormatContext *s)
             buffer = av_malloc(size+1);
             if (!buffer)
                 return AVERROR(ENOMEM);
-            if ((ret = avio_read(pb, buffer, size)) != size)
+            if ((ret = avio_read(pb, buffer, size)) != size) {
+                av_freep(&buffer);
                 return AVERROR(EIO);
+            }
             buffer[size] = 0;
             av_dict_set(&s->metadata, "title", buffer,
                                    AV_DICT_DONT_STRDUP_VAL);

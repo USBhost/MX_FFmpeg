@@ -28,6 +28,7 @@
 
 #include "opus.h"
 #include "opus_pvq.h"
+#include "opusdsp.h"
 
 #include "mdct15.h"
 #include "libavutil/float_dsp.h"
@@ -40,7 +41,6 @@
 #define CELT_NORM_SCALE              16384
 #define CELT_QTHETA_OFFSET           4
 #define CELT_QTHETA_OFFSET_TWOPHASE  16
-#define CELT_EMPH_COEFF              0.85000610f
 #define CELT_POSTFILTER_MINPERIOD    15
 #define CELT_ENERGY_SILENCE          (-28.0f)
 
@@ -96,8 +96,10 @@ struct CeltFrame {
     AVFloatDSPContext   *dsp;
     CeltBlock           block[2];
     CeltPVQ             *pvq;
+    OpusDSP             opusdsp;
     int channels;
     int output_channels;
+    int apply_phase_inv;
 
     enum CeltBlockSize size;
     int start_band;
@@ -156,7 +158,8 @@ static av_always_inline void celt_renormalize_vector(float *X, int N, float gain
         X[i] *= g;
 }
 
-int ff_celt_init(AVCodecContext *avctx, CeltFrame **f, int output_channels);
+int ff_celt_init(AVCodecContext *avctx, CeltFrame **f, int output_channels,
+                 int apply_phase_inv);
 
 void ff_celt_free(CeltFrame **f);
 

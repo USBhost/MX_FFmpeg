@@ -229,15 +229,15 @@ enum AVOptionType{
     AV_OPT_TYPE_BINARY,  ///< offset must point to a pointer immediately followed by an int for the length
     AV_OPT_TYPE_DICT,
     AV_OPT_TYPE_UINT64,
-    AV_OPT_TYPE_CONST = 128,
-    AV_OPT_TYPE_IMAGE_SIZE = MKBETAG('S','I','Z','E'), ///< offset must point to two consecutive integers
-    AV_OPT_TYPE_PIXEL_FMT  = MKBETAG('P','F','M','T'),
-    AV_OPT_TYPE_SAMPLE_FMT = MKBETAG('S','F','M','T'),
-    AV_OPT_TYPE_VIDEO_RATE = MKBETAG('V','R','A','T'), ///< offset must point to AVRational
-    AV_OPT_TYPE_DURATION   = MKBETAG('D','U','R',' '),
-    AV_OPT_TYPE_COLOR      = MKBETAG('C','O','L','R'),
-    AV_OPT_TYPE_CHANNEL_LAYOUT = MKBETAG('C','H','L','A'),
-    AV_OPT_TYPE_BOOL           = MKBETAG('B','O','O','L'),
+    AV_OPT_TYPE_CONST,
+    AV_OPT_TYPE_IMAGE_SIZE, ///< offset must point to two consecutive integers
+    AV_OPT_TYPE_PIXEL_FMT,
+    AV_OPT_TYPE_SAMPLE_FMT,
+    AV_OPT_TYPE_VIDEO_RATE, ///< offset must point to AVRational
+    AV_OPT_TYPE_DURATION,
+    AV_OPT_TYPE_COLOR,
+    AV_OPT_TYPE_CHANNEL_LAYOUT,
+    AV_OPT_TYPE_BOOL,
 };
 
 /**
@@ -287,7 +287,10 @@ typedef struct AVOption {
  * This flag only makes sense when AV_OPT_FLAG_EXPORT is also set.
  */
 #define AV_OPT_FLAG_READONLY        128
+#define AV_OPT_FLAG_BSF_PARAM       (1<<8) ///< a generic parameter which can be set by the user for bit stream filtering
+#define AV_OPT_FLAG_RUNTIME_PARAM   (1<<15) ///< a generic parameter which can be set by the user at runtime
 #define AV_OPT_FLAG_FILTERING_PARAM (1<<16) ///< a generic parameter which can be set by the user for filtering
+#define AV_OPT_FLAG_DEPRECATED      (1<<17) ///< set if option is deprecated, users should refer to AVOption.help text for more information
 //FIXME think about enc-audio, ... style flags
 
     /**
@@ -667,6 +670,9 @@ const AVClass *av_opt_child_class_next(const AVClass *parent, const AVClass *pre
  * scalars or named flags separated by '+' or '-'. Prefixing a flag
  * with '+' causes it to be set without affecting the other flags;
  * similarly, '-' unsets a flag.
+ * If the field is of a dictionary type, it has to be a ':' separated list of
+ * key=value parameters. Values containing ':' special characters must be
+ * escaped.
  * @param search_flags flags passed to av_opt_find2. I.e. if AV_OPT_SEARCH_CHILDREN
  * is passed here, then the option may be set on a child of obj.
  *
@@ -727,9 +733,10 @@ int av_opt_set_dict_val(void *obj, const char *name, const AVDictionary *val, in
 /**
  * @note the returned string will be av_malloc()ed and must be av_free()ed by the caller
  *
- * @note if AV_OPT_ALLOW_NULL is set in search_flags in av_opt_get, and the option has
- * AV_OPT_TYPE_STRING or AV_OPT_TYPE_BINARY and is set to NULL, *out_val will be set
- * to NULL instead of an allocated empty string.
+ * @note if AV_OPT_ALLOW_NULL is set in search_flags in av_opt_get, and the
+ * option is of type AV_OPT_TYPE_STRING, AV_OPT_TYPE_BINARY or AV_OPT_TYPE_DICT
+ * and is set to NULL, *out_val will be set to NULL instead of an allocated
+ * empty string.
  */
 int av_opt_get         (void *obj, const char *name, int search_flags, uint8_t   **out_val);
 int av_opt_get_int     (void *obj, const char *name, int search_flags, int64_t    *out_val);

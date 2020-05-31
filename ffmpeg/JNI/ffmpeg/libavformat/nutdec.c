@@ -149,7 +149,7 @@ static int64_t find_startcode(AVIOContext *bc, uint64_t code, int64_t pos)
     }
 }
 
-static int nut_probe(AVProbeData *p)
+static int nut_probe(const AVProbeData *p)
 {
     int i;
 
@@ -427,8 +427,10 @@ static int decode_stream_header(NUTContext *nut)
 
     GET_V(st->codecpar->extradata_size, tmp < (1 << 30));
     if (st->codecpar->extradata_size) {
-        if (ff_get_extradata(s, st->codecpar, bc, st->codecpar->extradata_size) < 0)
-            return AVERROR(ENOMEM);
+        ret = ff_get_extradata(s, st->codecpar, bc,
+                               st->codecpar->extradata_size);
+        if (ret < 0)
+            return ret;
     }
 
     if (st->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
@@ -582,7 +584,7 @@ static int decode_info_header(NUTContext *nut)
             if (stream_id_plus1 && !strcmp(name, "r_frame_rate")) {
                 sscanf(str_value, "%d/%d", &st->r_frame_rate.num, &st->r_frame_rate.den);
                 if (st->r_frame_rate.num >= 1000LL*st->r_frame_rate.den ||
-                    st->r_frame_rate.num < 0 || st->r_frame_rate.num < 0)
+                    st->r_frame_rate.num < 0 || st->r_frame_rate.den < 0)
                     st->r_frame_rate.num = st->r_frame_rate.den = 0;
                 continue;
             }
@@ -1016,9 +1018,9 @@ static int decode_frame_header(NUTContext *nut, int64_t *pts, int *stream_id,
     }
     stc = &nut->stream[*stream_id];
     if (flags & FLAG_CODED_PTS) {
-        int coded_pts = ffio_read_varlen(bc);
+        int64_t coded_pts = ffio_read_varlen(bc);
         // FIXME check last_pts validity?
-        if (coded_pts < (1 << stc->msb_pts_shift)) {
+        if (coded_pts < (1LL << stc->msb_pts_shift)) {
             *pts = ff_lsb2full(stc, coded_pts);
         } else
             *pts = coded_pts - (1LL << stc->msb_pts_shift);
@@ -1275,13 +1277,13 @@ static int read_seek(AVFormatContext *s, int stream_index,
         av_assert0(sp);
         pos2 = sp->back_ptr - 15;
     }
-    av_log(NULL, AV_LOG_DEBUG, "SEEKTO: %"PRId64"\n", pos2);
+    av_log(s, AV_LOG_DEBUG, "SEEKTO: %"PRId64"\n", pos2);
     pos = find_startcode(s->pb, SYNCPOINT_STARTCODE, pos2);
     avio_seek(s->pb, pos, SEEK_SET);
     nut->last_syncpoint_pos = pos;
-    av_log(NULL, AV_LOG_DEBUG, "SP: %"PRId64"\n", pos);
+    av_log(s, AV_LOG_DEBUG, "SP: %"PRId64"\n", pos);
     if (pos2 > pos || pos2 + 15 < pos)
-        av_log(NULL, AV_LOG_ERROR, "no syncpoint at backptr pos\n");
+        av_log(s, AV_LOG_ERROR, "no syncpoint at backptr pos\n");
     for (i = 0; i < s->nb_streams; i++)
         nut->stream[i].skip_until_key_frame = 1;
 

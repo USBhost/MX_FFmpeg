@@ -28,6 +28,10 @@
 #include "libavutil/bprint.h"
 #include "libavutil/opt.h"
 
+#ifdef MXTECHS
+#include "mxsubdec.c"
+#endif
+
 typedef struct {
     AVClass *class;
     const char *linebreaks;
@@ -78,6 +82,16 @@ static void text_flush(AVCodecContext *avctx)
 }
 
 #if CONFIG_TEXT_DECODER
+#ifdef MXTECHS
+AVCodec ff_text_decoder = {
+    .name           = "text",
+    .long_name      = NULL_IF_CONFIG_SMALL("Raw text subtitle"),
+    .priv_data_size = sizeof(TextContext),
+    .type           = AVMEDIA_TYPE_SUBTITLE,
+    .id             = AV_CODEC_ID_TEXT,
+    .decode         = mx_decode_frame,
+};
+#else
 #define text_options options
 DECLARE_CLASS(text);
 
@@ -92,6 +106,7 @@ AVCodec ff_text_decoder = {
     .priv_class     = &text_decoder_class,
     .flush          = text_flush,
 };
+#endif
 #endif
 
 #if CONFIG_VPLAYER_DECODER || CONFIG_PJS_DECODER || CONFIG_SUBVIEWER1_DECODER || CONFIG_STL_DECODER

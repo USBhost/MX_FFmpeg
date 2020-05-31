@@ -77,9 +77,7 @@ int ff_fill_rgba_map(uint8_t *rgba_map, enum AVPixelFormat pix_fmt)
     return 0;
 }
 
-
 #ifndef MXTECHS
-
 int ff_fill_line_with_color(uint8_t *line[4], int pixel_step[4], int w, uint8_t dst_color[4],
                             enum AVPixelFormat pix_fmt, uint8_t rgba_color[4],
                             int *is_packed_rgba, uint8_t rgba_map_ptr[4])
@@ -133,6 +131,7 @@ int ff_fill_line_with_color(uint8_t *line[4], int pixel_step[4], int w, uint8_t 
 
     return 0;
 }
+#endif //MXTECHS
 
 void ff_draw_rectangle(uint8_t *dst[4], int dst_linesize[4],
                        uint8_t *src[4], int pixelstep[4],
@@ -178,21 +177,23 @@ void ff_copy_rectangle(uint8_t *dst[4], int dst_linesize[4],
     }
 }
 
-#endif // MXTECHS
-
 int ff_draw_init(FFDrawContext *draw, enum AVPixelFormat format, unsigned flags)
 {
     const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(format);
     const AVComponentDescriptor *c;
     unsigned i, nb_planes = 0;
     int pixelstep[MAX_PLANES] = { 0 };
+    int full_range = 0;
 
     if (!desc || !desc->name)
         return AVERROR(EINVAL);
-    if (desc->flags & ~(AV_PIX_FMT_FLAG_PLANAR | AV_PIX_FMT_FLAG_RGB | AV_PIX_FMT_FLAG_PSEUDOPAL | AV_PIX_FMT_FLAG_ALPHA))
+    if (desc->flags & ~(AV_PIX_FMT_FLAG_PLANAR | AV_PIX_FMT_FLAG_RGB | FF_PSEUDOPAL | AV_PIX_FMT_FLAG_ALPHA))
         return AVERROR(ENOSYS);
-    if (format == AV_PIX_FMT_P010LE || format == AV_PIX_FMT_P010BE)
+    if (format == AV_PIX_FMT_P010LE || format == AV_PIX_FMT_P010BE || format == AV_PIX_FMT_P016LE || format == AV_PIX_FMT_P016BE)
         return AVERROR(ENOSYS);
+    if (format == AV_PIX_FMT_YUVJ420P || format == AV_PIX_FMT_YUVJ422P || format == AV_PIX_FMT_YUVJ444P ||
+        format == AV_PIX_FMT_YUVJ411P || format == AV_PIX_FMT_YUVJ440P)
+        full_range = 1;
     for (i = 0; i < desc->nb_components; i++) {
         c = &desc->comp[i];
         /* for now, only 8-16 bits formats */
@@ -219,6 +220,7 @@ int ff_draw_init(FFDrawContext *draw, enum AVPixelFormat format, unsigned flags)
     draw->format    = format;
     draw->nb_planes = nb_planes;
     draw->flags     = flags;
+    draw->full_range = full_range;
     memcpy(draw->pixelstep, pixelstep, sizeof(draw->pixelstep));
     draw->hsub[1] = draw->hsub[2] = draw->hsub_max = desc->log2_chroma_w;
     draw->vsub[1] = draw->vsub[2] = draw->vsub_max = desc->log2_chroma_h;
@@ -254,9 +256,9 @@ void ff_draw_color(FFDrawContext *draw, FFDrawColor *color, const uint8_t rgba[4
     } else if (draw->nb_planes >= 2) {
         /* assume YUV */
         const AVPixFmtDescriptor *desc = draw->desc;
-        color->comp[desc->comp[0].plane].u8[desc->comp[0].offset] = RGB_TO_Y_CCIR(rgba[0], rgba[1], rgba[2]);
-        color->comp[desc->comp[1].plane].u8[desc->comp[1].offset] = RGB_TO_U_CCIR(rgba[0], rgba[1], rgba[2], 0);
-        color->comp[desc->comp[2].plane].u8[desc->comp[2].offset] = RGB_TO_V_CCIR(rgba[0], rgba[1], rgba[2], 0);
+        color->comp[desc->comp[0].plane].u8[desc->comp[0].offset] = draw->full_range ? RGB_TO_Y_JPEG(rgba[0], rgba[1], rgba[2]) : RGB_TO_Y_CCIR(rgba[0], rgba[1], rgba[2]);
+        color->comp[desc->comp[1].plane].u8[desc->comp[1].offset] = draw->full_range ? RGB_TO_U_JPEG(rgba[0], rgba[1], rgba[2]) : RGB_TO_U_CCIR(rgba[0], rgba[1], rgba[2], 0);
+        color->comp[desc->comp[2].plane].u8[desc->comp[2].offset] = draw->full_range ? RGB_TO_V_JPEG(rgba[0], rgba[1], rgba[2]) : RGB_TO_V_CCIR(rgba[0], rgba[1], rgba[2], 0);
         color->comp[3].u8[0] = rgba[3];
 #define EXPAND(compn) \
         if (desc->comp[compn].depth > 8) \
@@ -271,7 +273,8 @@ void ff_draw_color(FFDrawContext *draw, FFDrawColor *color, const uint8_t rgba[4
                draw->format == AV_PIX_FMT_GRAY16LE || draw->format == AV_PIX_FMT_YA16LE ||
                draw->format == AV_PIX_FMT_GRAY9LE  ||
                draw->format == AV_PIX_FMT_GRAY10LE ||
-               draw->format == AV_PIX_FMT_GRAY12LE) {
+               draw->format == AV_PIX_FMT_GRAY12LE ||
+               draw->format == AV_PIX_FMT_GRAY14LE) {
         const AVPixFmtDescriptor *desc = draw->desc;
         color->comp[0].u8[0] = RGB_TO_Y_CCIR(rgba[0], rgba[1], rgba[2]);
         EXPAND(0);
@@ -392,7 +395,6 @@ static int component_used(FFDrawContext *draw, int plane, int comp)
 }
 
 #ifndef MXTECHS
-
 /* If alpha is in the [ 0 ; 0x1010101 ] range,
    then alpha * value is in the [ 0 ; 0xFFFFFFFF ] range,
    and >> 24 gives a correct rounding. */
@@ -522,7 +524,7 @@ void ff_blend_rectangle(FFDrawContext *draw, FFDrawColor *color,
         }
     }
 }
-#endif // MXTECHS
+#endif //MXTECHS
 
 static void blend_pixel16(uint8_t *dst, unsigned src, unsigned alpha,
                           const uint8_t *mask, int mask_linesize, int l2depth,
@@ -719,7 +721,6 @@ void ff_blend_mask(FFDrawContext *draw, FFDrawColor *color,
 }
 
 #ifndef MXTECHS
-
 int ff_draw_round_to_sub(FFDrawContext *draw, int sub_dir, int round_dir,
                          int value)
 {
@@ -745,5 +746,4 @@ AVFilterFormats *ff_draw_supported_pixel_formats(unsigned flags)
             return NULL;
     return fmts;
 }
-
-#endif // MXTECHS
+#endif //MXTECHS

@@ -1,0 +1,6 @@
+[options]
+default_library = static
+
+[properties]
+cross_file = ['cross_file.txt']
+

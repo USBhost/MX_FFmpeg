@@ -53,7 +53,7 @@ static int mpeg2_metadata_update_fragment(AVBSFContext *bsf,
     MPEG2RawSequenceHeader            *sh = NULL;
     MPEG2RawSequenceExtension         *se = NULL;
     MPEG2RawSequenceDisplayExtension *sde = NULL;
-    int i, se_pos, add_sde = 0;
+    int i, se_pos;
 
     for (i = 0; i < frag->nb_units; i++) {
         if (frag->units[i].type == MPEG2_START_SEQUENCE_HEADER) {
@@ -115,7 +115,7 @@ static int mpeg2_metadata_update_fragment(AVBSFContext *bsf,
         ctx->transfer_characteristics >= 0 ||
         ctx->matrix_coefficients      >= 0) {
         if (!sde) {
-            add_sde = 1;
+            int err;
             ctx->sequence_display_extension.extension_start_code =
                 MPEG2_START_EXTENSION;
             ctx->sequence_display_extension.extension_start_code_identifier =
@@ -135,6 +135,16 @@ static int mpeg2_metadata_update_fragment(AVBSFContext *bsf,
                 .display_vertical_size =
                     se->vertical_size_extension << 12 | sh->vertical_size_value,
             };
+
+            err = ff_cbs_insert_unit_content(ctx->cbc, frag, se_pos + 1,
+                                             MPEG2_START_EXTENSION,
+                                             &ctx->sequence_display_extension,
+                                             NULL);
+            if (err < 0) {
+                av_log(bsf, AV_LOG_ERROR, "Failed to insert new sequence "
+                       "display extension.\n");
+                return err;
+            }
         }
 
         if (ctx->video_format >= 0)
@@ -147,49 +157,29 @@ static int mpeg2_metadata_update_fragment(AVBSFContext *bsf,
 
             if (ctx->colour_primaries >= 0)
                 sde->colour_primaries = ctx->colour_primaries;
-            else if (add_sde)
-                sde->colour_primaries = 2;
 
             if (ctx->transfer_characteristics >= 0)
                 sde->transfer_characteristics = ctx->transfer_characteristics;
-            else if (add_sde)
-                sde->transfer_characteristics = 2;
 
             if (ctx->matrix_coefficients >= 0)
                 sde->matrix_coefficients = ctx->matrix_coefficients;
-            else if (add_sde)
-                sde->matrix_coefficients = 2;
-        }
-    }
-
-    if (add_sde) {
-        int err;
-
-        err = ff_cbs_insert_unit_content(ctx->cbc, frag, se_pos + 1,
-                                         MPEG2_START_EXTENSION,
-                                         &ctx->sequence_display_extension);
-        if (err < 0) {
-            av_log(bsf, AV_LOG_ERROR, "Failed to insert new sequence "
-                   "display extension.\n");
-            return err;
         }
     }
 
     return 0;
 }
 
-static int mpeg2_metadata_filter(AVBSFContext *bsf, AVPacket *out)
+static int mpeg2_metadata_filter(AVBSFContext *bsf, AVPacket *pkt)
 {
     MPEG2MetadataContext *ctx = bsf->priv_data;
-    AVPacket *in = NULL;
     CodedBitstreamFragment *frag = &ctx->fragment;
     int err;
 
-    err = ff_bsf_get_packet(bsf, &in);
+    err = ff_bsf_get_packet_ref(bsf, pkt);
     if (err < 0)
-        goto fail;
+        return err;
 
-    err = ff_cbs_read_packet(ctx->cbc, frag, in);
+    err = ff_cbs_read_packet(ctx->cbc, frag, pkt);
     if (err < 0) {
         av_log(bsf, AV_LOG_ERROR, "Failed to read packet.\n");
         goto fail;
@@ -201,23 +191,18 @@ static int mpeg2_metadata_filter(AVBSFContext *bsf, AVPacket *out)
         goto fail;
     }
 
-    err = ff_cbs_write_packet(ctx->cbc, out, frag);
+    err = ff_cbs_write_packet(ctx->cbc, pkt, frag);
     if (err < 0) {
         av_log(bsf, AV_LOG_ERROR, "Failed to write packet.\n");
         goto fail;
     }
 
-    err = av_packet_copy_props(out, in);
-    if (err < 0) {
-        av_packet_unref(out);
-        goto fail;
-    }
-
     err = 0;
 fail:
-    ff_cbs_fragment_uninit(ctx->cbc, frag);
+    ff_cbs_fragment_reset(ctx->cbc, frag);
 
-    av_packet_free(&in);
+    if (err < 0)
+        av_packet_unref(pkt);
 
     return err;
 }
@@ -227,6 +212,18 @@ static int mpeg2_metadata_init(AVBSFContext *bsf)
     MPEG2MetadataContext *ctx = bsf->priv_data;
     CodedBitstreamFragment *frag = &ctx->fragment;
     int err;
+
+#define VALIDITY_CHECK(name) do { \
+        if (!ctx->name) { \
+            av_log(bsf, AV_LOG_ERROR, "The value 0 for %s is " \
+                                      "forbidden.\n", #name); \
+            return AVERROR(EINVAL); \
+        } \
+    } while (0)
+    VALIDITY_CHECK(colour_primaries);
+    VALIDITY_CHECK(transfer_characteristics);
+    VALIDITY_CHECK(matrix_coefficients);
+#undef VALIDITY_CHECK
 
     err = ff_cbs_init(&ctx->cbc, AV_CODEC_ID_MPEG2VIDEO, bsf);
     if (err < 0)
@@ -254,38 +251,41 @@ static int mpeg2_metadata_init(AVBSFContext *bsf)
 
     err = 0;
 fail:
-    ff_cbs_fragment_uninit(ctx->cbc, frag);
+    ff_cbs_fragment_reset(ctx->cbc, frag);
     return err;
 }
 
 static void mpeg2_metadata_close(AVBSFContext *bsf)
 {
     MPEG2MetadataContext *ctx = bsf->priv_data;
+
+    ff_cbs_fragment_free(ctx->cbc, &ctx->fragment);
     ff_cbs_close(&ctx->cbc);
 }
 
 #define OFFSET(x) offsetof(MPEG2MetadataContext, x)
+#define FLAGS (AV_OPT_FLAG_VIDEO_PARAM|AV_OPT_FLAG_BSF_PARAM)
 static const AVOption mpeg2_metadata_options[] = {
     { "display_aspect_ratio", "Set display aspect ratio (table 6-3)",
         OFFSET(display_aspect_ratio), AV_OPT_TYPE_RATIONAL,
-        { .dbl = 0.0 }, 0, 65535 },
+        { .dbl = 0.0 }, 0, 65535, FLAGS },
 
     { "frame_rate", "Set frame rate",
         OFFSET(frame_rate), AV_OPT_TYPE_RATIONAL,
-        { .dbl = 0.0 }, 0, UINT_MAX },
+        { .dbl = 0.0 }, 0, UINT_MAX, FLAGS },
 
     { "video_format", "Set video format (table 6-6)",
         OFFSET(video_format), AV_OPT_TYPE_INT,
-        { .i64 = -1 }, -1, 7 },
+        { .i64 = -1 }, -1, 7, FLAGS },
     { "colour_primaries", "Set colour primaries (table 6-7)",
         OFFSET(colour_primaries), AV_OPT_TYPE_INT,
-        { .i64 = -1 }, -1, 255 },
+        { .i64 = -1 }, -1, 255, FLAGS },
     { "transfer_characteristics", "Set transfer characteristics (table 6-8)",
         OFFSET(transfer_characteristics), AV_OPT_TYPE_INT,
-        { .i64 = -1 }, -1, 255 },
+        { .i64 = -1 }, -1, 255, FLAGS },
     { "matrix_coefficients", "Set matrix coefficients (table 6-9)",
         OFFSET(matrix_coefficients), AV_OPT_TYPE_INT,
-        { .i64 = -1 }, -1, 255 },
+        { .i64 = -1 }, -1, 255, FLAGS },
 
     { NULL }
 };
@@ -294,7 +294,7 @@ static const AVClass mpeg2_metadata_class = {
     .class_name = "mpeg2_metadata_bsf",
     .item_name  = av_default_item_name,
     .option     = mpeg2_metadata_options,
-    .version    = LIBAVCODEC_VERSION_MAJOR,
+    .version    = LIBAVUTIL_VERSION_INT,
 };
 
 static const enum AVCodecID mpeg2_metadata_codec_ids[] = {

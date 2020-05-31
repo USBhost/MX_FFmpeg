@@ -126,18 +126,65 @@ static void predict_width(AVCodecParameters *par, uint64_t fsize, int got_width)
         par->width = fsize > 4000 ? (160<<3) : (80<<3);
 }
 
+static int bin_probe(const AVProbeData *p)
+{
+    const uint8_t *d = p->buf;
+    int magic = 0, sauce = 0;
+    int invisible = 0;
+    int i;
+
+    if (p->buf_size > 256)
+        magic = !memcmp(d + p->buf_size - 256, next_magic, sizeof(next_magic));
+    if (p->buf_size > 128)
+        sauce = !memcmp(d + p->buf_size - 128, "SAUCE00", 7);
+
+    if (magic)
+        return AVPROBE_SCORE_EXTENSION + 1;
+
+    if (av_match_ext(p->filename, "bin")) {
+        AVCodecParameters par;
+        int got_width = 0;
+        par.width = par.height = 0;
+        if (sauce)
+            return AVPROBE_SCORE_EXTENSION + 1;
+
+        predict_width(&par, p->buf_size, got_width);
+        if (par.width < 8)
+            return 0;
+        calculate_height(&par, p->buf_size);
+        if (par.height <= 0)
+            return 0;
+
+        for (i = 0; i < p->buf_size - 256;  i+=2) {
+            if ((d[i+1] & 15) == (d[i+1] >> 4) && d[i] && d[i] != 0xFF && d[i] != ' ') {
+                invisible ++;
+            }
+        }
+
+        if (par.width * par.height * 2 / (8*16) == p->buf_size)
+            return AVPROBE_SCORE_MAX / 2;
+        return 0;
+    }
+
+    if (sauce)
+        return 1;
+
+    return 0;
+}
+
+
 static int bintext_read_header(AVFormatContext *s)
 {
     BinDemuxContext *bin = s->priv_data;
     AVIOContext *pb = s->pb;
-
+    int ret;
     AVStream *st = init_stream(s);
     if (!st)
         return AVERROR(ENOMEM);
     st->codecpar->codec_id    = AV_CODEC_ID_BINTEXT;
 
-    if (ff_alloc_extradata(st->codecpar, 2))
-        return AVERROR(ENOMEM);
+    if ((ret = ff_alloc_extradata(st->codecpar, 2)) < 0)
+        return ret;
     st->codecpar->extradata[0] = 16;
     st->codecpar->extradata[1] = 0;
 
@@ -148,6 +195,8 @@ static int bintext_read_header(AVFormatContext *s)
             next_tag_read(s, &bin->fsize);
         if (!bin->width) {
             predict_width(st->codecpar, bin->fsize, got_width);
+            if (st->codecpar->width < 8)
+                return AVERROR_INVALIDDATA;
             calculate_height(st->codecpar, bin->fsize);
         }
         avio_seek(pb, 0, SEEK_SET);
@@ -157,7 +206,7 @@ static int bintext_read_header(AVFormatContext *s)
 #endif /* CONFIG_BINTEXT_DEMUXER */
 
 #if CONFIG_XBIN_DEMUXER
-static int xbin_probe(AVProbeData *p)
+static int xbin_probe(const AVProbeData *p)
 {
     const uint8_t *d = p->buf;
 
@@ -173,7 +222,7 @@ static int xbin_read_header(AVFormatContext *s)
     BinDemuxContext *bin = s->priv_data;
     AVIOContext *pb = s->pb;
     char fontheight, flags;
-
+    int ret;
     AVStream *st = init_stream(s);
     if (!st)
         return AVERROR(ENOMEM);
@@ -192,8 +241,9 @@ static int xbin_read_header(AVFormatContext *s)
         st->codecpar->extradata_size += fontheight * (flags & 0x10 ? 512 : 256);
     st->codecpar->codec_id    = flags & 4 ? AV_CODEC_ID_XBIN : AV_CODEC_ID_BINTEXT;
 
-    if (ff_alloc_extradata(st->codecpar, st->codecpar->extradata_size))
-        return AVERROR(ENOMEM);
+    ret = ff_alloc_extradata(st->codecpar, st->codecpar->extradata_size);
+    if (ret < 0)
+        return ret;
     st->codecpar->extradata[0] = fontheight;
     st->codecpar->extradata[1] = flags;
     if (avio_read(pb, st->codecpar->extradata + 2, st->codecpar->extradata_size - 2) < 0)
@@ -215,6 +265,7 @@ static int adf_read_header(AVFormatContext *s)
     BinDemuxContext *bin = s->priv_data;
     AVIOContext *pb = s->pb;
     AVStream *st;
+    int ret;
 
     if (avio_r8(pb) != 1)
         return AVERROR_INVALIDDATA;
@@ -224,8 +275,8 @@ static int adf_read_header(AVFormatContext *s)
         return AVERROR(ENOMEM);
     st->codecpar->codec_id    = AV_CODEC_ID_BINTEXT;
 
-    if (ff_alloc_extradata(st->codecpar, 2 + 48 + 4096))
-        return AVERROR(ENOMEM);
+    if ((ret = ff_alloc_extradata(st->codecpar, 2 + 48 + 4096)) < 0)
+        return ret;
     st->codecpar->extradata[0] = 16;
     st->codecpar->extradata[1] = BINTEXT_PALETTE|BINTEXT_FONT;
 
@@ -255,7 +306,7 @@ static const uint8_t idf_magic[] = {
     0x04, 0x31, 0x2e, 0x34, 0x00, 0x00, 0x00, 0x00, 0x4f, 0x00, 0x15, 0x00
 };
 
-static int idf_probe(AVProbeData *p)
+static int idf_probe(const AVProbeData *p)
 {
     if (p->buf_size < sizeof(idf_magic))
         return 0;
@@ -269,7 +320,7 @@ static int idf_read_header(AVFormatContext *s)
     BinDemuxContext *bin = s->priv_data;
     AVIOContext *pb = s->pb;
     AVStream *st;
-    int got_width = 0;
+    int got_width = 0, ret;
 
     if (!(pb->seekable & AVIO_SEEKABLE_NORMAL))
         return AVERROR(EIO);
@@ -279,8 +330,8 @@ static int idf_read_header(AVFormatContext *s)
         return AVERROR(ENOMEM);
     st->codecpar->codec_id    = AV_CODEC_ID_IDF;
 
-    if (ff_alloc_extradata(st->codecpar, 2 + 48 + 4096))
-        return AVERROR(ENOMEM);
+    if ((ret = ff_alloc_extradata(st->codecpar, 2 + 48 + 4096)) < 0)
+        return ret;
     st->codecpar->extradata[0] = 16;
     st->codecpar->extradata[1] = BINTEXT_PALETTE|BINTEXT_FONT;
 
@@ -343,9 +394,9 @@ AVInputFormat ff_bintext_demuxer = {
     .name           = "bin",
     .long_name      = NULL_IF_CONFIG_SMALL("Binary text"),
     .priv_data_size = sizeof(BinDemuxContext),
+    .read_probe     = bin_probe,
     .read_header    = bintext_read_header,
     .read_packet    = read_packet,
-    .extensions     = "bin",
     .priv_class     = CLASS("Binary text demuxer"),
 };
 #endif

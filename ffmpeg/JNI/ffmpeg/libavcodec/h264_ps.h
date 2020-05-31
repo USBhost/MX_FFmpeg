@@ -36,6 +36,7 @@
 
 #define MAX_SPS_COUNT          32
 #define MAX_PPS_COUNT         256
+#define MAX_LOG2_MAX_FRAME_NUM    (12 + 4)
 
 /**
  * Sequence parameter set
@@ -76,11 +77,13 @@ typedef struct SPS {
     enum AVColorPrimaries color_primaries;
     enum AVColorTransferCharacteristic color_trc;
     enum AVColorSpace colorspace;
+    enum AVChromaLocation chroma_location;
+
     int timing_info_present_flag;
     uint32_t num_units_in_tick;
     uint32_t time_scale;
     int fixed_frame_rate_flag;
-    short offset_for_ref_frame[256]; // FIXME dyn aloc?
+    int32_t offset_for_ref_frame[256];
     int bitstream_restriction_flag;
     int num_reorder_frames;
     int scaling_matrix_present;
@@ -143,6 +146,8 @@ typedef struct H264ParamSets {
     /* currently active parameters sets */
     const PPS *pps;
     const SPS *sps;
+
+    int overread_warning_printed[2];
 } H264ParamSets;
 
 /**

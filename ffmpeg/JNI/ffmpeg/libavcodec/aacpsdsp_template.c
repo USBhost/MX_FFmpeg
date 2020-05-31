@@ -54,10 +54,10 @@ static void ps_hybrid_analysis_c(INTFLOAT (*out)[2], INTFLOAT (*in)[2],
         INT64FLOAT sum_im = (INT64FLOAT)filter[i][6][0] * in[6][1];
 
         for (j = 0; j < 6; j++) {
-            INTFLOAT in0_re = in[j][0];
-            INTFLOAT in0_im = in[j][1];
-            INTFLOAT in1_re = in[12-j][0];
-            INTFLOAT in1_im = in[12-j][1];
+            INT64FLOAT in0_re = in[j][0];
+            INT64FLOAT in0_im = in[j][1];
+            INT64FLOAT in1_re = in[12-j][0];
+            INT64FLOAT in1_im = in[12-j][1];
             sum_re += (INT64FLOAT)filter[i][j][0] * (in0_re + in1_re) -
                       (INT64FLOAT)filter[i][j][1] * (in0_im - in1_im);
             sum_im += (INT64FLOAT)filter[i][j][0] * (in0_im + in1_im) +
@@ -130,12 +130,12 @@ static void ps_decorrelate_c(INTFLOAT (*out)[2], INTFLOAT (*delay)[2],
             INTFLOAT apd_im = in_im;
             in_re = AAC_MSUB30(link_delay_re, fractional_delay_re,
                     link_delay_im, fractional_delay_im);
-            in_re -= a_re;
+            in_re -= (UINTFLOAT)a_re;
             in_im = AAC_MADD30(link_delay_re, fractional_delay_im,
                     link_delay_im, fractional_delay_re);
-            in_im -= a_im;
-            ap_delay[m][n+5][0] = apd_re + AAC_MUL31(ag[m], in_re);
-            ap_delay[m][n+5][1] = apd_im + AAC_MUL31(ag[m], in_im);
+            in_im -= (UINTFLOAT)a_im;
+            ap_delay[m][n+5][0] = apd_re + (UINTFLOAT)AAC_MUL31(ag[m], in_re);
+            ap_delay[m][n+5][1] = apd_im + (UINTFLOAT)AAC_MUL31(ag[m], in_im);
         }
         out[n][0] = AAC_MUL16(transient_gain[n], in_re);
         out[n][1] = AAC_MUL16(transient_gain[n], in_im);
@@ -150,10 +150,10 @@ static void ps_stereo_interpolate_c(INTFLOAT (*l)[2], INTFLOAT (*r)[2],
     INTFLOAT h1 = h[0][1];
     INTFLOAT h2 = h[0][2];
     INTFLOAT h3 = h[0][3];
-    INTFLOAT hs0 = h_step[0][0];
-    INTFLOAT hs1 = h_step[0][1];
-    INTFLOAT hs2 = h_step[0][2];
-    INTFLOAT hs3 = h_step[0][3];
+    UINTFLOAT hs0 = h_step[0][0];
+    UINTFLOAT hs1 = h_step[0][1];
+    UINTFLOAT hs2 = h_step[0][2];
+    UINTFLOAT hs3 = h_step[0][3];
     int n;
 
     for (n = 0; n < len; n++) {
@@ -181,10 +181,10 @@ static void ps_stereo_interpolate_ipdopd_c(INTFLOAT (*l)[2], INTFLOAT (*r)[2],
     INTFLOAT h01  = h[0][1],      h11  = h[1][1];
     INTFLOAT h02  = h[0][2],      h12  = h[1][2];
     INTFLOAT h03  = h[0][3],      h13  = h[1][3];
-    INTFLOAT hs00 = h_step[0][0], hs10 = h_step[1][0];
-    INTFLOAT hs01 = h_step[0][1], hs11 = h_step[1][1];
-    INTFLOAT hs02 = h_step[0][2], hs12 = h_step[1][2];
-    INTFLOAT hs03 = h_step[0][3], hs13 = h_step[1][3];
+    UINTFLOAT hs00 = h_step[0][0], hs10 = h_step[1][0];
+    UINTFLOAT hs01 = h_step[0][1], hs11 = h_step[1][1];
+    UINTFLOAT hs02 = h_step[0][2], hs12 = h_step[1][2];
+    UINTFLOAT hs03 = h_step[0][3], hs13 = h_step[1][3];
     int n;
 
     for (n = 0; n < len; n++) {

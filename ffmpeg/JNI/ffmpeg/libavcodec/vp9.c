@@ -23,6 +23,7 @@
 
 #include "avcodec.h"
 #include "get_bits.h"
+#include "hwaccel.h"
 #include "internal.h"
 #include "profiles.h"
 #include "thread.h"
@@ -169,7 +170,11 @@ fail:
 
 static int update_size(AVCodecContext *avctx, int w, int h)
 {
-#define HWACCEL_MAX (CONFIG_VP9_DXVA2_HWACCEL + CONFIG_VP9_D3D11VA_HWACCEL * 2 + CONFIG_VP9_VAAPI_HWACCEL)
+#define HWACCEL_MAX (CONFIG_VP9_DXVA2_HWACCEL + \
+                     CONFIG_VP9_D3D11VA_HWACCEL * 2 + \
+                     CONFIG_VP9_NVDEC_HWACCEL + \
+                     CONFIG_VP9_VAAPI_HWACCEL + \
+                     CONFIG_VP9_VDPAU_HWACCEL)
     enum AVPixelFormat pix_fmts[HWACCEL_MAX + 2], *fmtp = pix_fmts;
     VP9Context *s = avctx->priv_data;
     uint8_t *p;
@@ -184,6 +189,10 @@ static int update_size(AVCodecContext *avctx, int w, int h)
 
         switch (s->pix_fmt) {
         case AV_PIX_FMT_YUV420P:
+#if CONFIG_VP9_VDPAU_HWACCEL
+            *fmtp++ = AV_PIX_FMT_VDPAU;
+#endif
+        case AV_PIX_FMT_YUV420P10:
 #if CONFIG_VP9_DXVA2_HWACCEL
             *fmtp++ = AV_PIX_FMT_DXVA2_VLD;
 #endif
@@ -191,12 +200,17 @@ static int update_size(AVCodecContext *avctx, int w, int h)
             *fmtp++ = AV_PIX_FMT_D3D11VA_VLD;
             *fmtp++ = AV_PIX_FMT_D3D11;
 #endif
+#if CONFIG_VP9_NVDEC_HWACCEL
+            *fmtp++ = AV_PIX_FMT_CUDA;
+#endif
 #if CONFIG_VP9_VAAPI_HWACCEL
             *fmtp++ = AV_PIX_FMT_VAAPI;
 #endif
             break;
-        case AV_PIX_FMT_YUV420P10:
         case AV_PIX_FMT_YUV420P12:
+#if CONFIG_VP9_NVDEC_HWACCEL
+            *fmtp++ = AV_PIX_FMT_CUDA;
+#endif
 #if CONFIG_VP9_VAAPI_HWACCEL
             *fmtp++ = AV_PIX_FMT_VAAPI;
 #endif
@@ -343,7 +357,7 @@ static av_always_inline int inv_recenter_nonneg(int v, int m)
 // differential forward probability updates
 static int update_prob(VP56RangeCoder *c, int p)
 {
-    static const int inv_map_table[255] = {
+    static const uint8_t inv_map_table[255] = {
           7,  20,  33,  46,  59,  72,  85,  98, 111, 124, 137, 150, 163, 176,
         189, 202, 215, 228, 241, 254,   1,   2,   3,   4,   5,   6,   8,   9,
          10,  11,  12,  13,  14,  15,  16,  17,  18,  19,  21,  22,  23,  24,
@@ -500,7 +514,7 @@ static int decode_frame_header(AVCodecContext *avctx,
     s->s.h.use_last_frame_mvs = !s->s.h.errorres && !last_invisible;
 
     if (s->s.h.keyframe) {
-        if (get_bits_long(&s->gb, 24) != VP9_SYNCCODE) { // synccode
+        if (get_bits(&s->gb, 24) != VP9_SYNCCODE) { // synccode
             av_log(avctx, AV_LOG_ERROR, "Invalid sync code\n");
             return AVERROR_INVALIDDATA;
         }
@@ -516,7 +530,7 @@ static int decode_frame_header(AVCodecContext *avctx,
         s->s.h.intraonly = s->s.h.invisible ? get_bits1(&s->gb) : 0;
         s->s.h.resetctx  = s->s.h.errorres ? 0 : get_bits(&s->gb, 2);
         if (s->s.h.intraonly) {
-            if (get_bits_long(&s->gb, 24) != VP9_SYNCCODE) { // synccode
+            if (get_bits(&s->gb, 24) != VP9_SYNCCODE) { // synccode
                 av_log(avctx, AV_LOG_ERROR, "Invalid sync code\n");
                 return AVERROR_INVALIDDATA;
             }
@@ -1296,6 +1310,9 @@ static int decode_tiles(AVCodecContext *avctx,
                         decode_sb_mem(td, row, col, lflvl_ptr,
                                       yoff2, uvoff2, BL_64X64);
                     } else {
+                        if (vpX_rac_is_end(td->c)) {
+                            return AVERROR_INVALIDDATA;
+                        }
                         decode_sb(td, row, col, lflvl_ptr,
                                   yoff2, uvoff2, BL_64X64);
                     }
@@ -1634,8 +1651,10 @@ FF_ENABLE_DEPRECATION_WARNINGS
 #endif
         {
             ret = decode_tiles(avctx, data, size);
-            if (ret < 0)
+            if (ret < 0) {
+                ff_thread_report_progress(&s->s.frames[CUR_FRAME].tf, INT_MAX, 0);
                 return ret;
+            }
         }
 
         // Sum all counts fields into td[0].counts for tile threading
@@ -1785,4 +1804,26 @@ AVCodec ff_vp9_decoder = {
     .init_thread_copy      = ONLY_IF_THREADS_ENABLED(vp9_decode_init_thread_copy),
     .update_thread_context = ONLY_IF_THREADS_ENABLED(vp9_decode_update_thread_context),
     .profiles              = NULL_IF_CONFIG_SMALL(ff_vp9_profiles),
+    .bsfs                  = "vp9_superframe_split",
+    .hw_configs            = (const AVCodecHWConfigInternal*[]) {
+#if CONFIG_VP9_DXVA2_HWACCEL
+                               HWACCEL_DXVA2(vp9),
+#endif
+#if CONFIG_VP9_D3D11VA_HWACCEL
+                               HWACCEL_D3D11VA(vp9),
+#endif
+#if CONFIG_VP9_D3D11VA2_HWACCEL
+                               HWACCEL_D3D11VA2(vp9),
+#endif
+#if CONFIG_VP9_NVDEC_HWACCEL
+                               HWACCEL_NVDEC(vp9),
+#endif
+#if CONFIG_VP9_VAAPI_HWACCEL
+                               HWACCEL_VAAPI(vp9),
+#endif
+#if CONFIG_VP9_VDPAU_HWACCEL
+                               HWACCEL_VDPAU(vp9),
+#endif
+                               NULL
+                           },
 };

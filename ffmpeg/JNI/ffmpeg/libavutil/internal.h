@@ -52,7 +52,7 @@
 #endif
 
 #ifndef emms_c
-#   define emms_c() while(0)
+#   define emms_c() do {} while(0)
 #endif
 
 #ifndef attribute_align_arg
@@ -63,12 +63,8 @@
 #endif
 #endif
 
-#if defined(_WIN32) && CONFIG_SHARED
-#ifdef BUILDING_avutil
-#    define av_export_avutil __declspec(dllexport)
-#else
+#if defined(_WIN32) && CONFIG_SHARED && !defined(BUILDING_avutil)
 #    define av_export_avutil __declspec(dllimport)
-#endif
 #else
 #    define av_export_avutil
 #endif
@@ -81,8 +77,8 @@
 #        define FF_DISABLE_DEPRECATION_WARNINGS __pragma(warning(push)) __pragma(warning(disable:4996))
 #        define FF_ENABLE_DEPRECATION_WARNINGS  __pragma(warning(pop))
 #    else
-#        define FF_DISABLE_DEPRECATION_WARNINGS _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\"")
-#        define FF_ENABLE_DEPRECATION_WARNINGS  _Pragma("GCC diagnostic warning \"-Wdeprecated-declarations\"")
+#        define FF_DISABLE_DEPRECATION_WARNINGS _Pragma("GCC diagnostic push") _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\"")
+#        define FF_ENABLE_DEPRECATION_WARNINGS  _Pragma("GCC diagnostic pop")
 #    endif
 #else
 #    define FF_DISABLE_DEPRECATION_WARNINGS
@@ -363,5 +359,14 @@ void ff_check_pixfmt_descriptors(void);
  * @return <0 on error
  */
 int avpriv_dict_set_timestamp(AVDictionary **dict, const char *key, int64_t timestamp);
+
+// Helper macro for AV_PIX_FMT_FLAG_PSEUDOPAL deprecation. Code inside FFmpeg
+// should always use FF_PSEUDOPAL. Once the public API flag gets removed, all
+// code using it is dead code.
+#if FF_API_PSEUDOPAL
+#define FF_PSEUDOPAL AV_PIX_FMT_FLAG_PSEUDOPAL
+#else
+#define FF_PSEUDOPAL 0
+#endif
 
 #endif /* AVUTIL_INTERNAL_H */

@@ -61,7 +61,7 @@ enum {
 
 static int consume_from_fifos(FFFrameSync *fs);
 
-const AVClass *framesync_get_class(void)
+const AVClass *ff_framesync_get_class(void)
 {
     return &framesync_class;
 }
@@ -127,15 +127,15 @@ int ff_framesync_configure(FFFrameSync *fs)
         fs->opt_shortest = 1;
         fs->opt_eof_action = EOF_ACTION_ENDALL;
     }
-    if (fs->opt_shortest) {
-        for (i = 0; i < fs->nb_in; i++)
-            fs->in[i].after = EXT_STOP;
-    }
     if (!fs->opt_repeatlast) {
         for (i = 1; i < fs->nb_in; i++) {
             fs->in[i].after = EXT_NULL;
             fs->in[i].sync  = 0;
         }
+    }
+    if (fs->opt_shortest) {
+        for (i = 0; i < fs->nb_in; i++)
+            fs->in[i].after = EXT_STOP;
     }
 
     if (!fs->time_base.num) {
@@ -406,7 +406,7 @@ int ff_framesync_dualinput_get_writable(FFFrameSync *fs, AVFrame **f0, AVFrame *
     ret = ff_inlink_make_frame_writable(fs->parent->inputs[0], f0);
     if (ret < 0) {
         av_frame_free(f0);
-        av_frame_free(f1);
+        *f1 = NULL;
         return ret;
     }
     return 0;

@@ -81,7 +81,7 @@ typedef struct FourxmDemuxContext {
     AVRational fps;
 } FourxmDemuxContext;
 
-static int fourxm_probe(AVProbeData *p)
+static int fourxm_probe(const AVProbeData *p)
 {
     if ((AV_RL32(&p->buf[0]) != RIFF_TAG) ||
         (AV_RL32(&p->buf[8]) != FOURXMV_TAG))
@@ -241,7 +241,8 @@ static int fourxm_read_header(AVFormatContext *s)
         size       = AV_RL32(&header[i + 4]);
         if (size > header_size - i - 8 && (fourcc_tag == vtrk_TAG || fourcc_tag == strk_TAG)) {
             av_log(s, AV_LOG_ERROR, "chunk larger than array %d>%d\n", size, header_size - i - 8);
-            return AVERROR_INVALIDDATA;
+            ret = AVERROR_INVALIDDATA;
+            goto fail;
         }
 
         if (fourcc_tag == std__TAG) {
@@ -321,8 +322,10 @@ static int fourxm_read_packet(AVFormatContext *s,
         case cfr2_TAG:
             /* allocate 8 more bytes than 'size' to account for fourcc
              * and size */
-            if (size + 8 < size || av_new_packet(pkt, size + 8))
-                return AVERROR(EIO);
+            if (size > INT_MAX - AV_INPUT_BUFFER_PADDING_SIZE - 8)
+                return AVERROR_INVALIDDATA;
+            if ((ret = av_new_packet(pkt, size + 8)) < 0)
+                return ret;
             pkt->stream_index = fourxm->video_stream_index;
             pkt->pts          = fourxm->video_pts;
             pkt->pos          = avio_tell(s->pb);
@@ -346,7 +349,7 @@ static int fourxm_read_packet(AVFormatContext *s,
                 fourxm->tracks[track_number].channels > 0) {
                 ret = av_get_packet(s->pb, pkt, size);
                 if (ret < 0)
-                    return AVERROR(EIO);
+                    return ret;
                 pkt->stream_index =
                     fourxm->tracks[track_number].stream_index;
                 pkt->pts    = fourxm->tracks[track_number].audio_pts;

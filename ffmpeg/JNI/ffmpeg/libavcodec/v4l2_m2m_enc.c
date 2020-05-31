@@ -30,6 +30,7 @@
 #include "libavutil/opt.h"
 #include "v4l2_context.h"
 #include "v4l2_m2m.h"
+#include "v4l2_fmt.h"
 
 #define MPEG_CID(x) V4L2_CID_MPEG_VIDEO_##x
 #define MPEG_VIDEO(x) V4L2_MPEG_VIDEO_##x
@@ -48,7 +49,7 @@ static inline void v4l2_set_timeperframe(V4L2m2mContext *s, unsigned int num, un
 
 static inline void v4l2_set_ext_ctrl(V4L2m2mContext *s, unsigned int id, signed int value, const char *name)
 {
-    struct v4l2_ext_controls ctrls = { 0 };
+    struct v4l2_ext_controls ctrls = { { 0 } };
     struct v4l2_ext_control ctrl = { 0 };
 
     /* set ctrls */
@@ -58,17 +59,17 @@ static inline void v4l2_set_ext_ctrl(V4L2m2mContext *s, unsigned int id, signed 
 
     /* set ctrl*/
     ctrl.value = value;
-    ctrl.id = id ;
+    ctrl.id = id;
 
     if (ioctl(s->fd, VIDIOC_S_EXT_CTRLS, &ctrls) < 0)
-        av_log(s->avctx, AV_LOG_WARNING, "Failed to set %s\n", name);
+        av_log(s->avctx, AV_LOG_WARNING, "Failed to set %s: %s\n", name, strerror(errno));
     else
         av_log(s->avctx, AV_LOG_DEBUG, "Encoder: %s = %d\n", name, value);
 }
 
 static inline int v4l2_get_ext_ctrl(V4L2m2mContext *s, unsigned int id, signed int *value, const char *name)
 {
-    struct v4l2_ext_controls ctrls = { 0 };
+    struct v4l2_ext_controls ctrls = { { 0 } };
     struct v4l2_ext_control ctrl = { 0 };
     int ret;
 
@@ -82,7 +83,7 @@ static inline int v4l2_get_ext_ctrl(V4L2m2mContext *s, unsigned int id, signed i
 
     ret = ioctl(s->fd, VIDIOC_G_EXT_CTRLS, &ctrls);
     if (ret < 0) {
-        av_log(s->avctx, AV_LOG_WARNING, "Failed to set %s\n", name);
+        av_log(s->avctx, AV_LOG_WARNING, "Failed to get %s\n", name);
         return ret;
     }
 
@@ -242,15 +243,20 @@ static int v4l2_prepare_encoder(V4L2m2mContext *s)
 
 static int v4l2_send_frame(AVCodecContext *avctx, const AVFrame *frame)
 {
-    V4L2m2mContext *s = avctx->priv_data;
+    V4L2m2mContext *s = ((V4L2m2mPriv*)avctx->priv_data)->context;
     V4L2Context *const output = &s->output;
+
+#ifdef V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME
+    if (frame && frame->pict_type == AV_PICTURE_TYPE_I)
+        v4l2_set_ext_ctrl(s, MPEG_CID(FORCE_KEY_FRAME), 0, "force key frame");
+#endif
 
     return ff_v4l2_context_enqueue_frame(output, frame);
 }
 
 static int v4l2_receive_packet(AVCodecContext *avctx, AVPacket *avpkt)
 {
-    V4L2m2mContext *s = avctx->priv_data;
+    V4L2m2mContext *s = ((V4L2m2mPriv*)avctx->priv_data)->context;
     V4L2Context *const capture = &s->capture;
     V4L2Context *const output = &s->output;
     int ret;
@@ -261,7 +267,7 @@ static int v4l2_receive_packet(AVCodecContext *avctx, AVPacket *avpkt)
     if (!output->streamon) {
         ret = ff_v4l2_context_set_status(output, VIDIOC_STREAMON);
         if (ret) {
-            av_log(avctx, AV_LOG_ERROR, "VIDIOC_STREAMOFF failed on output context\n");
+            av_log(avctx, AV_LOG_ERROR, "VIDIOC_STREAMON failed on output context\n");
             return ret;
         }
     }
@@ -280,10 +286,19 @@ dequeue:
 
 static av_cold int v4l2_encode_init(AVCodecContext *avctx)
 {
-    V4L2m2mContext *s = avctx->priv_data;
-    V4L2Context *capture = &s->capture;
-    V4L2Context *output = &s->output;
+    V4L2Context *capture, *output;
+    V4L2m2mContext *s;
+    V4L2m2mPriv *priv = avctx->priv_data;
+    enum AVPixelFormat pix_fmt_output;
+    uint32_t v4l2_fmt_output;
     int ret;
+
+    ret = ff_v4l2_m2m_create_context(priv, &s);
+    if (ret < 0)
+        return ret;
+
+    capture = &s->capture;
+    output  = &s->output;
 
     /* common settings output/capture */
     output->height = capture->height = avctx->height;
@@ -297,45 +312,67 @@ static av_cold int v4l2_encode_init(AVCodecContext *avctx)
     capture->av_codec_id = avctx->codec_id;
     capture->av_pix_fmt = AV_PIX_FMT_NONE;
 
-    ret = ff_v4l2_m2m_codec_init(avctx);
+    s->avctx = avctx;
+    ret = ff_v4l2_m2m_codec_init(priv);
     if (ret) {
         av_log(avctx, AV_LOG_ERROR, "can't configure encoder\n");
         return ret;
     }
 
+    if (V4L2_TYPE_IS_MULTIPLANAR(output->type))
+        v4l2_fmt_output = output->format.fmt.pix_mp.pixelformat;
+    else
+        v4l2_fmt_output = output->format.fmt.pix.pixelformat;
+
+    pix_fmt_output = ff_v4l2_format_v4l2_to_avfmt(v4l2_fmt_output, AV_CODEC_ID_RAWVIDEO);
+    if (pix_fmt_output != avctx->pix_fmt) {
+        const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt_output);
+        av_log(avctx, AV_LOG_ERROR, "Encoder requires %s pixel format.\n", desc->name);
+        return AVERROR(EINVAL);
+    }
+
     return v4l2_prepare_encoder(s);
 }
 
-#define OFFSET(x) offsetof(V4L2m2mContext, x)
+static av_cold int v4l2_encode_close(AVCodecContext *avctx)
+{
+    return ff_v4l2_m2m_codec_end(avctx->priv_data);
+}
+
+#define OFFSET(x) offsetof(V4L2m2mPriv, x)
 #define FLAGS AV_OPT_FLAG_VIDEO_PARAM | AV_OPT_FLAG_ENCODING_PARAM
 
 static const AVOption options[] = {
     V4L_M2M_DEFAULT_OPTS,
     { "num_capture_buffers", "Number of buffers in the capture context",
-        OFFSET(capture.num_buffers), AV_OPT_TYPE_INT, {.i64 = 4 }, 4, INT_MAX, FLAGS },
+        OFFSET(num_capture_buffers), AV_OPT_TYPE_INT, {.i64 = 4 }, 4, INT_MAX, FLAGS },
     { NULL },
 };
 
+#define M2MENC_CLASS(NAME) \
+    static const AVClass v4l2_m2m_ ## NAME ## _enc_class = { \
+        .class_name = #NAME "_v4l2m2m_encoder", \
+        .item_name  = av_default_item_name, \
+        .option     = options, \
+        .version    = LIBAVUTIL_VERSION_INT, \
+    };
+
 #define M2MENC(NAME, LONGNAME, CODEC) \
-static const AVClass v4l2_m2m_ ## NAME ## _enc_class = {\
-    .class_name = #NAME "_v4l2_m2m_encoder",\
-    .item_name  = av_default_item_name,\
-    .option     = options,\
-    .version    = LIBAVUTIL_VERSION_INT,\
-};\
-\
-AVCodec ff_ ## NAME ## _v4l2m2m_encoder = { \
-    .name           = #NAME "_v4l2m2m" ,\
-    .long_name      = NULL_IF_CONFIG_SMALL("V4L2 mem2mem " LONGNAME " encoder wrapper"),\
-    .type           = AVMEDIA_TYPE_VIDEO,\
-    .id             = CODEC ,\
-    .priv_data_size = sizeof(V4L2m2mContext),\
-    .priv_class     = &v4l2_m2m_ ## NAME ##_enc_class,\
-    .init           = v4l2_encode_init,\
-    .send_frame     = v4l2_send_frame,\
-    .receive_packet = v4l2_receive_packet,\
-    .close          = ff_v4l2_m2m_codec_end,\
-};
+    M2MENC_CLASS(NAME) \
+    AVCodec ff_ ## NAME ## _v4l2m2m_encoder = { \
+        .name           = #NAME "_v4l2m2m" , \
+        .long_name      = NULL_IF_CONFIG_SMALL("V4L2 mem2mem " LONGNAME " encoder wrapper"), \
+        .type           = AVMEDIA_TYPE_VIDEO, \
+        .id             = CODEC , \
+        .priv_data_size = sizeof(V4L2m2mPriv), \
+        .priv_class     = &v4l2_m2m_ ## NAME ##_enc_class, \
+        .init           = v4l2_encode_init, \
+        .send_frame     = v4l2_send_frame, \
+        .receive_packet = v4l2_receive_packet, \
+        .close          = v4l2_encode_close, \
+        .capabilities   = AV_CODEC_CAP_HARDWARE | AV_CODEC_CAP_DELAY, \
+        .wrapper_name   = "v4l2m2m", \
+    };
 
 M2MENC(mpeg4,"MPEG4", AV_CODEC_ID_MPEG4);
 M2MENC(h263, "H.263", AV_CODEC_ID_H263);

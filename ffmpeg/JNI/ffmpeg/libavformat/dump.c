@@ -210,7 +210,7 @@ static void dump_paramchange(void *ctx, AVPacketSideData *sd)
 
     return;
 fail:
-    av_log(ctx, AV_LOG_INFO, "unknown param");
+    av_log(ctx, AV_LOG_ERROR, "unknown param");
 }
 
 /* replaygain side data*/
@@ -239,7 +239,7 @@ static void dump_replaygain(void *ctx, AVPacketSideData *sd)
     AVReplayGain *rg;
 
     if (sd->size < sizeof(*rg)) {
-        av_log(ctx, AV_LOG_INFO, "invalid data");
+        av_log(ctx, AV_LOG_ERROR, "invalid data");
         return;
     }
     rg = (AVReplayGain*)sd->data;
@@ -255,7 +255,7 @@ static void dump_stereo3d(void *ctx, AVPacketSideData *sd)
     AVStereo3D *stereo;
 
     if (sd->size < sizeof(*stereo)) {
-        av_log(ctx, AV_LOG_INFO, "invalid data");
+        av_log(ctx, AV_LOG_ERROR, "invalid data");
         return;
     }
 
@@ -272,7 +272,7 @@ static void dump_audioservicetype(void *ctx, AVPacketSideData *sd)
     enum AVAudioServiceType *ast = (enum AVAudioServiceType *)sd->data;
 
     if (sd->size < sizeof(*ast)) {
-        av_log(ctx, AV_LOG_INFO, "invalid data");
+        av_log(ctx, AV_LOG_ERROR, "invalid data");
         return;
     }
 
@@ -293,7 +293,7 @@ static void dump_audioservicetype(void *ctx, AVPacketSideData *sd)
         av_log(ctx, AV_LOG_INFO, "dialogue");
         break;
     case AV_AUDIO_SERVICE_TYPE_COMMENTARY:
-        av_log(ctx, AV_LOG_INFO, "comentary");
+        av_log(ctx, AV_LOG_INFO, "commentary");
         break;
     case AV_AUDIO_SERVICE_TYPE_EMERGENCY:
         av_log(ctx, AV_LOG_INFO, "emergency");
@@ -315,15 +315,22 @@ static void dump_cpb(void *ctx, AVPacketSideData *sd)
     AVCPBProperties *cpb = (AVCPBProperties *)sd->data;
 
     if (sd->size < sizeof(*cpb)) {
-        av_log(ctx, AV_LOG_INFO, "invalid data");
+        av_log(ctx, AV_LOG_ERROR, "invalid data");
         return;
     }
 
     av_log(ctx, AV_LOG_INFO,
-           "bitrate max/min/avg: %d/%d/%d buffer size: %d vbv_delay: %"PRId64,
+#if FF_API_UNSANITIZED_BITRATES
+           "bitrate max/min/avg: %d/%d/%d buffer size: %d ",
+#else
+           "bitrate max/min/avg: %"PRId64"/%"PRId64"/%"PRId64" buffer size: %d ",
+#endif
            cpb->max_bitrate, cpb->min_bitrate, cpb->avg_bitrate,
-           cpb->buffer_size,
-           cpb->vbv_delay);
+           cpb->buffer_size);
+    if (cpb->vbv_delay == UINT64_MAX)
+        av_log(ctx, AV_LOG_INFO, "vbv_delay: N/A");
+    else
+        av_log(ctx, AV_LOG_INFO, "vbv_delay: %"PRIu64"", cpb->vbv_delay);
 }
 
 static void dump_mastering_display_metadata(void *ctx, AVPacketSideData* sd) {
@@ -357,7 +364,7 @@ static void dump_spherical(void *ctx, AVCodecParameters *par, AVPacketSideData *
     double yaw, pitch, roll;
 
     if (sd->size < sizeof(*spherical)) {
-        av_log(ctx, AV_LOG_INFO, "invalid data");
+        av_log(ctx, AV_LOG_ERROR, "invalid data");
         return;
     }
 
@@ -372,7 +379,9 @@ static void dump_spherical(void *ctx, AVCodecParameters *par, AVPacketSideData *
         size_t l, t, r, b;
         av_spherical_tile_bounds(spherical, par->width, par->height,
                                  &l, &t, &r, &b);
-        av_log(ctx, AV_LOG_INFO, "[%zu, %zu, %zu, %zu] ", l, t, r, b);
+        av_log(ctx, AV_LOG_INFO,
+               "[%"SIZE_SPECIFIER", %"SIZE_SPECIFIER", %"SIZE_SPECIFIER", %"SIZE_SPECIFIER"] ",
+               l, t, r, b);
     } else if (spherical->projection == AV_SPHERICAL_CUBEMAP) {
         av_log(ctx, AV_LOG_INFO, "[pad %"PRIu32"] ", spherical->padding);
     }
@@ -436,6 +445,9 @@ static void dump_sidedata(void *ctx, AVStream *st, const char *indent)
             break;
         case AV_PKT_DATA_CONTENT_LIGHT_LEVEL:
             dump_content_light_metadata(ctx, &sd);
+            break;
+        case AV_PKT_DATA_ICC_PROFILE:
+            av_log(ctx, AV_LOG_INFO, "ICC Profile");
             break;
         default:
             av_log(ctx, AV_LOG_INFO,
@@ -545,6 +557,20 @@ static void dump_stream_format(AVFormatContext *ic, int i,
         av_log(NULL, AV_LOG_INFO, " (visual impaired)");
     if (st->disposition & AV_DISPOSITION_CLEAN_EFFECTS)
         av_log(NULL, AV_LOG_INFO, " (clean effects)");
+    if (st->disposition & AV_DISPOSITION_ATTACHED_PIC)
+        av_log(NULL, AV_LOG_INFO, " (attached pic)");
+    if (st->disposition & AV_DISPOSITION_TIMED_THUMBNAILS)
+        av_log(NULL, AV_LOG_INFO, " (timed thumbnails)");
+    if (st->disposition & AV_DISPOSITION_CAPTIONS)
+        av_log(NULL, AV_LOG_INFO, " (captions)");
+    if (st->disposition & AV_DISPOSITION_DESCRIPTIONS)
+        av_log(NULL, AV_LOG_INFO, " (descriptions)");
+    if (st->disposition & AV_DISPOSITION_METADATA)
+        av_log(NULL, AV_LOG_INFO, " (metadata)");
+    if (st->disposition & AV_DISPOSITION_DEPENDENT)
+        av_log(NULL, AV_LOG_INFO, " (dependent)");
+    if (st->disposition & AV_DISPOSITION_STILL_IMAGE)
+        av_log(NULL, AV_LOG_INFO, " (still image)");
     av_log(NULL, AV_LOG_INFO, "\n");
 
     dump_metadata(NULL, st->metadata, "    ");

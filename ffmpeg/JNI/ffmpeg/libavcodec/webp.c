@@ -1335,6 +1335,7 @@ static int vp8_lossy_decode_frame(AVCodecContext *avctx, AVFrame *p,
     if (!s->initialized) {
         ff_vp8_decode_init(avctx);
         s->initialized = 1;
+        s->v.actually_webp = 1;
     }
     avctx->pix_fmt = s->has_alpha ? AV_PIX_FMT_YUVA420P : AV_PIX_FMT_YUV420P;
     s->lossless = 0;
@@ -1411,8 +1412,11 @@ static int webp_decode_frame(AVCodecContext *avctx, void *data, int *got_frame,
             return AVERROR_INVALIDDATA;
         chunk_size += chunk_size & 1;
 
-        if (bytestream2_get_bytes_left(&gb) < chunk_size)
-            return AVERROR_INVALIDDATA;
+        if (bytestream2_get_bytes_left(&gb) < chunk_size) {
+           /* we seem to be running out of data, but it could also be that the
+              bitstream has trailing junk leading to bogus chunk_size. */
+            break;
+        }
 
         switch (chunk_type) {
         case MKTAG('V', 'P', '8', ' '):

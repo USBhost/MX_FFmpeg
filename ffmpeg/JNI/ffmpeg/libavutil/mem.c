@@ -61,7 +61,7 @@ void  free(void *ptr);
 
 #include "mem_internal.h"
 
-#define ALIGN (HAVE_AVX ? 32 : 16)
+#define ALIGN (HAVE_AVX512 ? 64 : (HAVE_AVX ? 32 : 16))
 
 /* NOTE: if you want to override these functions with your own
  * implementations (not recommended) you have to link libav* as
@@ -399,6 +399,18 @@ static void fill32(uint8_t *dst, int len)
 {
     uint32_t v = AV_RN32(dst - 4);
 
+#if HAVE_FAST_64BIT
+    uint64_t v2= v + ((uint64_t)v<<32);
+    while (len >= 32) {
+        AV_WN64(dst   , v2);
+        AV_WN64(dst+ 8, v2);
+        AV_WN64(dst+16, v2);
+        AV_WN64(dst+24, v2);
+        dst += 32;
+        len -= 32;
+    }
+#endif
+
     while (len >= 4) {
         AV_WN32(dst, v);
         dst += 4;
@@ -463,10 +475,15 @@ void av_memcpy_backptr(uint8_t *dst, int back, int cnt)
 
 void *av_fast_realloc(void *ptr, unsigned int *size, size_t min_size)
 {
-    if (min_size < *size)
+    if (min_size <= *size)
         return ptr;
 
-    min_size = FFMAX(min_size + min_size / 16 + 32, min_size);
+    if (min_size > max_alloc_size - 32) {
+        *size = 0;
+        return NULL;
+    }
+
+    min_size = FFMIN(max_alloc_size - 32, FFMAX(min_size + min_size / 16 + 32, min_size));
 
     ptr = av_realloc(ptr, min_size);
     /* we could set this to the unmodified min_size but this is safer

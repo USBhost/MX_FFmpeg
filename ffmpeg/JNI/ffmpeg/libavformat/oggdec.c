@@ -128,7 +128,10 @@ static int ogg_restore(AVFormatContext *s)
     ogg->state = ost->next;
 
         for (i = 0; i < ogg->nstreams; i++) {
-            av_freep(&ogg->streams[i].buf);
+            struct ogg_stream *stream = &ogg->streams[i];
+            av_freep(&stream->buf);
+            av_freep(&stream->new_metadata);
+
             if (i >= ost->nstreams || !ost->streams[i].private) {
                 free_stream(s, i);
             }
@@ -543,7 +546,11 @@ static int ogg_packet(AVFormatContext *s, int *sid, int *dstart, int *dsize,
     os->incomplete = 0;
 
     if (os->header) {
-        os->header = os->codec->header(s, idx);
+        if ((ret = os->codec->header(s, idx)) < 0) {
+            av_log(s, AV_LOG_ERROR, "Header processing failed: %s\n", av_err2str(ret));
+            return ret;
+        }
+        os->header = ret;
         if (!os->header) {
             os->segp  = segp;
             os->psize = psize;
@@ -574,8 +581,12 @@ static int ogg_packet(AVFormatContext *s, int *sid, int *dstart, int *dsize,
     } else {
         os->pflags    = 0;
         os->pduration = 0;
-        if (os->codec && os->codec->packet)
-            os->codec->packet(s, idx);
+        if (os->codec && os->codec->packet) {
+            if ((ret = os->codec->packet(s, idx)) < 0) {
+                av_log(s, AV_LOG_ERROR, "Packet processing failed: %s\n", av_err2str(ret));
+                return ret;
+            }
+        }
         if (sid)
             *sid = idx;
         if (dstart)
@@ -719,8 +730,10 @@ static int ogg_read_header(AVFormatContext *s)
                    "Headers mismatch for stream %d: "
                    "expected %d received %d.\n",
                    i, os->codec->nb_header, os->nb_header);
-            if (s->error_recognition & AV_EF_EXPLODE)
+            if (s->error_recognition & AV_EF_EXPLODE) {
+                ogg_read_close(s);
                 return AVERROR_INVALIDDATA;
+            }
         }
         if (os->start_granule != OGG_NOGRANULE_VALUE)
             os->lastpts = s->streams[i]->start_time =
@@ -838,7 +851,7 @@ retry:
                                                      AV_PKT_DATA_SKIP_SAMPLES,
                                                      10);
         if(!side_data)
-            goto fail;
+            return AVERROR(ENOMEM);
         AV_WL32(side_data + 4, os->end_trimming);
         os->end_trimming = 0;
     }
@@ -848,7 +861,7 @@ retry:
                                                      AV_PKT_DATA_METADATA_UPDATE,
                                                      os->new_metadata_size);
         if(!side_data)
-            goto fail;
+            return AVERROR(ENOMEM);
 
         memcpy(side_data, os->new_metadata, os->new_metadata_size);
         av_freep(&os->new_metadata);
@@ -856,9 +869,6 @@ retry:
     }
 
     return psize;
-fail:
-    av_packet_unref(pkt);
-    return AVERROR(ENOMEM);
 }
 
 static int64_t ogg_read_timestamp(AVFormatContext *s, int stream_index,
@@ -928,7 +938,7 @@ static int ogg_read_seek(AVFormatContext *s, int stream_index,
     return ret;
 }
 
-static int ogg_probe(AVProbeData *p)
+static int ogg_probe(const AVProbeData *p)
 {
     if (!memcmp("OggS", p->buf, 5) && p->buf[5] <= 0x7)
         return AVPROBE_SCORE_MAX;

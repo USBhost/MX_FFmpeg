@@ -202,11 +202,11 @@ static av_cold int libsmb2_connect(URLContext *h)
     }
 
     if (libsmb2->url->user) {
-        user = ff_urldecode(libsmb2->url->user);
-        password = ff_urldecode(libsmb2->url->password);
+        user = ff_urldecode(libsmb2->url->user, 0);
+        password = ff_urldecode(libsmb2->url->password, 0);
     } else if (libsmb2->user) {
-        user = ff_urldecode(libsmb2->user);
-        password = ff_urldecode(libsmb2->password);
+        user = av_strdup(libsmb2->user);
+        password = av_strdup(libsmb2->password);
     } else {
         user = av_strdup("Guest");
         password = av_strdup("");
@@ -220,7 +220,7 @@ static av_cold int libsmb2_connect(URLContext *h)
     }
     smb2_set_security_mode(libsmb2->smb2, SMB2_NEGOTIATE_SIGNING_ENABLED);
 
-    share = ff_urldecode(libsmb2->url->share);
+    share = ff_urldecode(libsmb2->url->share, 0);
     ff_dlog(h, "domain=%s server=%s share=%s user=%s\n", libsmb2->url->domain, libsmb2->url->server, share, user);
     ret = smb2_connect_share_async(libsmb2->smb2, libsmb2->url->server, share, user, generic_callback, libsmb2);
     if (ret != 0) {
@@ -259,7 +259,7 @@ static av_cold int libsmb2_open(URLContext *h, const char *url, int flags)
     } else
         access = O_RDONLY;
 
-    path = ff_urldecode(libsmb2->url->path);
+    path = ff_urldecode(libsmb2->url->path, 0);
     ret = smb2_open_async(libsmb2->smb2, path, access, open_callback, libsmb2);
     if (ret != 0) {
         av_log(h, AV_LOG_ERROR, "smb2_open_async failed. %s\n", smb2_get_error(libsmb2->smb2));
@@ -360,7 +360,7 @@ static int libsmb2_open_dir(URLContext *h)
         goto fail;
     }
 
-    path = ff_urldecode(libsmb2->url->path);
+    path = ff_urldecode(libsmb2->url->path, 0);
     ret = smb2_opendir_async(libsmb2->smb2, path, opendir_callback, libsmb2);
     if (0 != ret) {
         av_log(h, AV_LOG_ERROR, "smb2_opendir_async failed. %s\n", smb2_get_error(libsmb2->smb2));
@@ -462,7 +462,7 @@ static int libsmb2_delete(URLContext *h)
     if ((ret = libsmb2_connect(h)) < 0)
         goto cleanup;
 
-    path = ff_urldecode(libsmb2->url->path);
+    path = ff_urldecode(libsmb2->url->path, 0);
     ret = smb2_open_async(libsmb2->smb2, path, O_WRONLY, open_callback, libsmb2);
     if (ret != 0) {
         av_log(h, AV_LOG_ERROR, "smb2_open_async failed. %s\n", smb2_get_error(libsmb2->smb2));

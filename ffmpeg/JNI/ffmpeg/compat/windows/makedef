@@ -48,7 +48,7 @@ trap 'rm -f -- $libname' EXIT
 if [ -n "$AR" ]; then
     $AR rcs ${libname} $@ >/dev/null
 else
-    lib -out:${libname} $@ >/dev/null
+    lib.exe -out:${libname} $@ >/dev/null
 fi
 if [ $? != 0 ]; then
     echo "Could not create temporary library." >&2
@@ -58,33 +58,7 @@ fi
 IFS='
 '
 
-# Determine if we're building for x86 or x86_64 and
-# set the symbol prefix accordingly.
-prefix=""
-if [ -n "$NM" ]; then
-    case $ARCH in
-    *86)
-        prefix="_"
-        ;;
-    *)
-        ;;
-    esac
-else
-    arch=$(dumpbin -headers ${libname} |
-           tr '\t' ' ' |
-           grep '^ \+.\+machine \+(.\+)' |
-           head -1 |
-           sed -e 's/^ \{1,\}.\{1,\} \{1,\}machine \{1,\}(\(.\{3,5\}\)).*/\1/')
-
-    if [ "${arch}" = "x86" ]; then
-        prefix="_"
-    else
-        if [ "${arch}" != "ARM" ] && [ "${arch}" != "x64" ] && [ "${arch}" != "ARM64" ]; then
-            echo "Unknown machine type." >&2
-            exit 1
-        fi
-    fi
-fi
+prefix="$EXTERN_PREFIX"
 
 started=0
 regex="none"
@@ -134,7 +108,7 @@ if [ -n "$NM" ]; then
               cut -d' ' -f3 |
               sed -e "s/^${prefix}//")
 else
-    dump=$(dumpbin -linkermember:1 ${libname} |
+    dump=$(dumpbin.exe -linkermember:1 ${libname} |
               sed -e '/public symbols/,$!d' -e '/^ \{1,\}Summary/,$d' -e "s/ \{1,\}${prefix}/ /" -e 's/ \{1,\}/ /g' |
               tail -n +2 |
               cut -d' ' -f3)

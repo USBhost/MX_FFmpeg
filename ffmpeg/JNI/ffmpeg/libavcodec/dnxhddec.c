@@ -25,7 +25,6 @@
  */
 
 #include "libavutil/imgutils.h"
-#include "libavutil/timer.h"
 #include "avcodec.h"
 #include "blockdsp.h"
 #define  UNCHECKED_BITSTREAM_READER 1
@@ -37,7 +36,7 @@
 #include "thread.h"
 
 typedef struct RowContext {
-    DECLARE_ALIGNED(16, int16_t, blocks)[12][64];
+    DECLARE_ALIGNED(32, int16_t, blocks)[12][64];
     int luma_scale[64];
     int chroma_scale[64];
     GetBitContext gb;
@@ -67,6 +66,8 @@ typedef struct DNXHDContext {
     const CIDEntry *cid_table;
     int bit_depth; // 8, 10, 12 or 0 if not initialized at all.
     int is_444;
+    int alpha;
+    int lla;
     int mbaff;
     int act;
     int (*decode_dct_block)(const struct DNXHDContext *ctx,
@@ -93,7 +94,9 @@ static av_cold int dnxhd_decode_init(AVCodecContext *avctx)
 
     ctx->avctx = avctx;
     ctx->cid = -1;
-    avctx->colorspace = AVCOL_SPC_BT709;
+    if (avctx->colorspace == AVCOL_SPC_UNSPECIFIED) {
+        avctx->colorspace = AVCOL_SPC_BT709;
+    }
 
     avctx->coded_width  = FFALIGN(avctx->width,  16);
     avctx->coded_height = FFALIGN(avctx->height, 16);
@@ -203,6 +206,10 @@ static int dnxhd_decode_header(DNXHDContext *ctx, AVFrame *frame,
         ctx->cur_field = 0;
     }
     ctx->mbaff = (buf[0x6] >> 5) & 1;
+    ctx->alpha = buf[0x7] & 1;
+    ctx->lla   = (buf[0x7] >> 1) & 1;
+    if (ctx->alpha)
+        avpriv_request_sample(ctx->avctx, "alpha");
 
     ctx->height = AV_RB16(buf + 0x18);
     ctx->width  = AV_RB16(buf + 0x1a);
@@ -227,7 +234,14 @@ static int dnxhd_decode_header(DNXHDContext *ctx, AVFrame *frame,
         av_log(ctx->avctx, AV_LOG_WARNING,
                "Adaptive MB interlace flag in an unsupported profile.\n");
 
-    ctx->act = buf[0x2C] & 7;
+    switch ((buf[0x2C] >> 1) & 3) {
+    case 0: frame->colorspace = AVCOL_SPC_BT709;       break;
+    case 1: frame->colorspace = AVCOL_SPC_BT2020_NCL;  break;
+    case 2: frame->colorspace = AVCOL_SPC_BT2020_CL;   break;
+    case 3: frame->colorspace = AVCOL_SPC_UNSPECIFIED; break;
+    }
+
+    ctx->act = buf[0x2C] & 1;
     if (ctx->act && ctx->cid_table->cid != 1256 && ctx->cid_table->cid != 1270)
         av_log(ctx->avctx, AV_LOG_WARNING,
                "Adaptive color transform in an unsupported profile.\n");
@@ -381,6 +395,10 @@ static av_always_inline int dnxhd_decode_dct_block(const DNXHDContext *ctx,
 
     UPDATE_CACHE(bs, &row->gb);
     GET_VLC(len, bs, &row->gb, ctx->dc_vlc.table, DNXHD_DC_VLC_BITS, 1);
+    if (len < 0) {
+        ret = len;
+        goto error;
+    }
     if (len) {
         level = GET_CACHE(bs, &row->gb);
         LAST_SKIP_BITS(bs, &row->gb, len);
@@ -434,7 +452,7 @@ static av_always_inline int dnxhd_decode_dct_block(const DNXHDContext *ctx,
         GET_VLC(index1, bs, &row->gb, ctx->ac_vlc.table,
                 DNXHD_VLC_BITS, 2);
     }
-
+error:
     CLOSE_READER(bs, &row->gb);
     return ret;
 }
@@ -577,20 +595,22 @@ static int dnxhd_decode_row(AVCodecContext *avctx, void *data,
     const DNXHDContext *ctx = avctx->priv_data;
     uint32_t offset = ctx->mb_scan_index[rownb];
     RowContext *row = ctx->rows + threadnb;
-    int x;
+    int x, ret;
 
     row->last_dc[0] =
     row->last_dc[1] =
     row->last_dc[2] = 1 << (ctx->bit_depth + 2); // for levels +2^(bitdepth-1)
-    init_get_bits(&row->gb, ctx->buf + offset, (ctx->buf_size - offset) << 3);
+    ret = init_get_bits8(&row->gb, ctx->buf + offset, ctx->buf_size - offset);
+    if (ret < 0) {
+        row->errors++;
+        return ret;
+    }
     for (x = 0; x < ctx->mb_width; x++) {
-        //START_TIMER;
         int ret = dnxhd_decode_macroblock(ctx, row, data, x, rownb);
         if (ret < 0) {
             row->errors++;
             return ret;
         }
-        //STOP_TIMER("decode macroblock");
     }
 
     return 0;

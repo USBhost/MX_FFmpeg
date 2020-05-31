@@ -25,6 +25,18 @@
  * @todo need to support extended markups and cue settings
  */
 
+#ifdef MXTECHS
+#include "mxsubdec.c"
+#if CONFIG_WEBVTT_DECODER
+AVCodec ff_webvtt_decoder = {
+    .name           = "webvtt",
+    .long_name      = NULL_IF_CONFIG_SMALL("WebVTT subtitle"),
+    .type           = AVMEDIA_TYPE_SUBTITLE,
+    .id             = AV_CODEC_ID_WEBVTT,
+    .decode         = mx_decode_frame,
+};
+#endif
+#else
 #include "avcodec.h"
 #include "ass.h"
 #include "libavutil/bprint.h"
@@ -108,3 +120,4 @@ AVCodec ff_webvtt_decoder = {
     .flush          = ff_ass_decoder_flush,
     .priv_data_size = sizeof(FFASSDecoderContext),
 };
+#endif

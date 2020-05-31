@@ -70,16 +70,10 @@ static int rm_read_close(AVFormatContext *s);
 
 static inline void get_strl(AVIOContext *pb, char *buf, int buf_size, int len)
 {
-    int i;
-    char *q, r;
+    int read = avio_get_str(pb, len, buf, buf_size);
 
-    q = buf;
-    for(i=0;i<len;i++) {
-        r = avio_r8(pb);
-        if (i < buf_size - 1)
-            *q++ = r;
-    }
-    if (buf_size > 0) *q = '\0';
+    if (read > 0)
+        avio_skip(pb, len - read);
 }
 
 static void get_str8(AVIOContext *pb, char *buf, int buf_size)
@@ -93,9 +87,7 @@ static int rm_read_extradata(AVFormatContext *s, AVIOContext *pb, AVCodecParamet
         av_log(s, AV_LOG_ERROR, "extradata size %u too large\n", size);
         return -1;
     }
-    if (ff_get_extradata(s, par, pb, size) < 0)
-        return AVERROR(ENOMEM);
-    return 0;
+    return ff_get_extradata(s, par, pb, size);
 }
 
 static void rm_read_metadata(AVFormatContext *s, AVIOContext *pb, int wide)
@@ -105,8 +97,10 @@ static void rm_read_metadata(AVFormatContext *s, AVIOContext *pb, int wide)
 
     for (i=0; i<FF_ARRAY_ELEMS(ff_rm_metadata); i++) {
         int len = wide ? avio_rb16(pb) : avio_r8(pb);
-        get_strl(pb, buf, sizeof(buf), len);
-        av_dict_set(&s->metadata, ff_rm_metadata[i], buf, 0);
+        if (len > 0) {
+            get_strl(pb, buf, sizeof(buf), len);
+            av_dict_set(&s->metadata, ff_rm_metadata[i], buf, 0);
+        }
     }
 }
 
@@ -526,7 +520,7 @@ static int rm_read_multi(AVFormatContext *s, AVIOContext *pb,
 
         size2 = avio_rb32(pb);
         ret = ff_rm_read_mdpr_codecdata(s, s->pb, st2, st2->priv_data,
-                                        size2, mime);
+                                        size2, NULL);
         if (ret < 0)
             return ret;
     }
@@ -728,8 +722,8 @@ static int rm_sync(AVFormatContext *s, int64_t *timestamp, int *flags, int *stre
 
             num = avio_rb16(pb);
             *timestamp = avio_rb32(pb);
-            mlti_id = (avio_r8(pb)>>1)-1<<16;
-            mlti_id = FFMAX(mlti_id, 0);
+            mlti_id = (avio_r8(pb) >> 1) - 1;
+            mlti_id = FFMAX(mlti_id, 0) << 16;
             *flags = avio_r8(pb); /* flags */
         }
         for(i=0;i<s->nb_streams;i++) {
@@ -787,8 +781,8 @@ static int rm_assemble_video_frame(AVFormatContext *s, AVIOContext *pb,
             return -1;
         }
         rm->remaining_len -= len;
-        if(av_new_packet(pkt, len + 9) < 0)
-            return AVERROR(EIO);
+        if ((ret = av_new_packet(pkt, len + 9)) < 0)
+            return ret;
         pkt->data[0] = 0;
         AV_WL32(pkt->data + 1, 1);
         AV_WL32(pkt->data + 5, 0);
@@ -810,8 +804,8 @@ static int rm_assemble_video_frame(AVFormatContext *s, AVIOContext *pb,
         vst->slices = ((hdr & 0x3F) << 1) + 1;
         vst->videobufsize = len2 + 8*vst->slices + 1;
         av_packet_unref(&vst->pkt); //FIXME this should be output.
-        if(av_new_packet(&vst->pkt, vst->videobufsize) < 0)
-            return AVERROR(ENOMEM);
+        if ((ret = av_new_packet(&vst->pkt, vst->videobufsize)) < 0)
+            return ret;
         memset(vst->pkt.data, 0, vst->pkt.size);
         vst->videobufpos = 8*vst->slices + 1;
         vst->cur_slice = 0;
@@ -840,10 +834,7 @@ static int rm_assemble_video_frame(AVFormatContext *s, AVIOContext *pb,
 
     if (type == 2 || vst->videobufpos == vst->videobufsize) {
         vst->pkt.data[0] = vst->cur_slice-1;
-        *pkt= vst->pkt;
-        vst->pkt.data= NULL;
-        vst->pkt.size= 0;
-        vst->pkt.buf = NULL;
+        av_packet_move_ref(pkt, &vst->pkt);
         if(vst->slices != vst->cur_slice) //FIXME find out how to set slices correct from the begin
             memmove(pkt->data + 1 + 8*vst->cur_slice, pkt->data + 1 + 8*vst->slices,
                 vst->videobufpos - 1 - 8*vst->slices);
@@ -1071,7 +1062,7 @@ static int rm_read_close(AVFormatContext *s)
     return 0;
 }
 
-static int rm_probe(AVProbeData *p)
+static int rm_probe(const AVProbeData *p)
 {
     /* check file header */
     if ((p->buf[0] == '.' && p->buf[1] == 'R' &&
@@ -1162,7 +1153,7 @@ AVInputFormat ff_rdt_demuxer = {
     .flags          = AVFMT_NOFILE,
 };
 
-static int ivr_probe(AVProbeData *p)
+static int ivr_probe(const AVProbeData *p)
 {
     if (memcmp(p->buf, ".R1M\x0\x1\x1", 7) &&
         memcmp(p->buf, ".REC", 4))
@@ -1178,7 +1169,7 @@ static int ivr_read_header(AVFormatContext *s)
     uint8_t key[256], val[256];
     AVIOContext *pb = s->pb;
     AVStream *st;
-    int64_t pos, offset, temp;
+    int64_t pos, offset=0, temp;
 
     pos = avio_tell(pb);
     tag = avio_rl32(pb);
@@ -1195,6 +1186,8 @@ static int ivr_read_header(AVFormatContext *s)
             offset = temp;
             temp = avio_rb64(pb);
         }
+        if (offset <= 0)
+            return AVERROR_INVALIDDATA;
         avio_skip(pb, offset - avio_tell(pb));
         if (avio_r8(pb) != 1)
             return AVERROR_INVALIDDATA;
@@ -1273,6 +1266,8 @@ static int ivr_read_header(AVFormatContext *s)
                 if (avio_rb32(pb) == MKBETAG('M', 'L', 'T', 'I')) {
                     ret = rm_read_multi(s, pb, st, NULL);
                 } else {
+                    if (avio_feof(pb))
+                        return AVERROR_INVALIDDATA;
                     avio_seek(pb, -4, SEEK_CUR);
                     ret = ff_rm_read_mdpr_codecdata(s, pb, st, st->priv_data, len, NULL);
                 }

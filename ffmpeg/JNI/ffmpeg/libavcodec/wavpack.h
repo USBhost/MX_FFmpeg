@@ -35,6 +35,7 @@
 #define WV_FLOAT_DATA     0x00000080
 #define WV_INT32_DATA     0x00000100
 #define WV_FALSE_STEREO   0x40000000
+#define WV_DSD_DATA       0x80000000
 
 #define WV_HYBRID_MODE    0x00000008
 #define WV_HYBRID_SHAPE   0x00000008
@@ -77,6 +78,7 @@ enum WP_ID {
     WP_ID_CORR,
     WP_ID_EXTRABITS,
     WP_ID_CHANINFO,
+    WP_ID_DSD_DATA,
     WP_ID_SAMPLE_RATE = 0x27,
 };
 
@@ -99,8 +101,8 @@ typedef struct WvChannel {
 
 // macros for manipulating median values
 #define GET_MED(n) ((c->median[n] >> 4) + 1)
-#define DEC_MED(n) c->median[n] -= ((c->median[n] + (128 >> (n)) - 2) / (128 >> (n))) * 2U
-#define INC_MED(n) c->median[n] += ((c->median[n] + (128 >> (n))    ) / (128 >> (n))) * 5U
+#define DEC_MED(n) c->median[n] -= ((int)(c->median[n] + (128U >> (n)) - 2) / (128 >> (n))) * 2U
+#define INC_MED(n) c->median[n] += ((int)(c->median[n] + (128U >> (n))    ) / (128 >> (n))) * 5U
 
 // macros for applying weight
 #define UPDATE_WEIGHT_CLIP(weight, delta, samples, in) \

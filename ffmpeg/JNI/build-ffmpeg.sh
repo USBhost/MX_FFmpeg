@@ -46,7 +46,3 @@ cd ..
 if test "$?" != 0; then 
     die "ERROR: failed to build ffmpeg for $1"
 fi
-
-. copy_to_$1.sh ffmpeg.mx
-
-

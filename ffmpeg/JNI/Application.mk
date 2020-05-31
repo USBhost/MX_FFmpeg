@@ -1,4 +1,4 @@
-NDK_TOOLCHAIN_VERSION := 4.9
+NDK_TOOLCHAIN_VERSION := clang
 
 APP_STL := c++_shared
 

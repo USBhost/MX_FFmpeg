@@ -18,10 +18,6 @@
 
 #include <windows.h>
 
-#if !defined(_WIN32_WINNT) || _WIN32_WINNT < 0x0600
-#undef _WIN32_WINNT
-#define _WIN32_WINNT 0x0600
-#endif
 #define DXVA2API_USE_BITFIELDS
 #define COBJMACROS
 
@@ -352,7 +348,7 @@ static int dxva2_transfer_data_to(AVHWFramesContext *ctx, AVFrame *dst,
     if (ret < 0)
         goto fail;
 
-    av_image_copy(map->data, map->linesize, src->data, src->linesize,
+    av_image_copy(map->data, map->linesize, (const uint8_t **)src->data, src->linesize,
                   ctx->sw_format, src->width, src->height);
 
 fail:
@@ -383,7 +379,7 @@ static int dxva2_transfer_data_from(AVHWFramesContext *ctx, AVFrame *dst,
         dst_linesize[i] = dst->linesize[i];
         src_linesize[i] = map->linesize[i];
     }
-    av_image_copy_uc_from(dst->data, dst_linesize, map->data, src_linesize,
+    av_image_copy_uc_from(dst->data, dst_linesize, (const uint8_t **)map->data, src_linesize,
                           ctx->sw_format, src->width, src->height);
 fail:
     av_frame_free(&map);
@@ -485,7 +481,12 @@ static int dxva2_device_create9ex(AVHWDeviceContext *ctx, UINT adapter)
     if (FAILED(hr))
         return AVERROR_UNKNOWN;
 
-    IDirect3D9Ex_GetAdapterDisplayModeEx(d3d9ex, adapter, &modeex, NULL);
+    modeex.Size = sizeof(D3DDISPLAYMODEEX);
+    hr = IDirect3D9Ex_GetAdapterDisplayModeEx(d3d9ex, adapter, &modeex, NULL);
+    if (FAILED(hr)) {
+        IDirect3D9Ex_Release(d3d9ex);
+        return AVERROR_UNKNOWN;
+    }
 
     d3dpp.BackBufferFormat = modeex.Format;
 

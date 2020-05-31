@@ -207,11 +207,26 @@ static int h263_decode_gob_header(MpegEncContext *s)
 }
 
 /**
- * Decode the group of blocks / video packet header.
+ * Decode the group of blocks / video packet header / slice header (MPEG-4 Studio).
  * @return bit position of the resync_marker, or <0 if none was found
  */
 int ff_h263_resync(MpegEncContext *s){
     int left, pos, ret;
+
+    /* In MPEG-4 studio mode look for a new slice startcode
+     * and decode slice header */
+    if(s->codec_id==AV_CODEC_ID_MPEG4 && s->studio_profile) {
+        align_get_bits(&s->gb);
+
+        while (get_bits_left(&s->gb) >= 32 && show_bits_long(&s->gb, 32) != SLICE_START_CODE) {
+            get_bits(&s->gb, 8);
+        }
+
+        if (get_bits_left(&s->gb) >= 32 && show_bits_long(&s->gb, 32) == SLICE_START_CODE)
+            return get_bits_count(&s->gb);
+        else
+            return -1;
+    }
 
     if(s->codec_id==AV_CODEC_ID_MPEG4){
         skip_bits1(&s->gb);
@@ -1203,6 +1218,11 @@ int ff_h263_decode_picture_header(MpegEncContext *s)
     if ((ret = av_image_check_size(s->width, s->height, 0, s)) < 0)
         return ret;
 
+    if (!(s->avctx->flags2 & AV_CODEC_FLAG2_CHUNKS)) {
+        if ((s->width * s->height / 256 / 8) > get_bits_left(&s->gb))
+            return AVERROR_INVALIDDATA;
+    }
+
     s->mb_width = (s->width  + 15) / 16;
     s->mb_height = (s->height  + 15) / 16;
     s->mb_num = s->mb_width * s->mb_height;
@@ -1266,7 +1286,7 @@ int ff_h263_decode_picture_header(MpegEncContext *s)
         for(i=0; i<13; i++){
             for(j=0; j<3; j++){
                 int v= get_bits(&s->gb, 8);
-                v |= get_sbits(&s->gb, 8)<<8;
+                v |= get_sbits(&s->gb, 8) * (1 << 8);
                 av_log(s->avctx, AV_LOG_DEBUG, " %5d", v);
             }
             av_log(s->avctx, AV_LOG_DEBUG, "\n");

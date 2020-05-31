@@ -156,14 +156,22 @@ int ff_hwframe_map_create(AVBufferRef *hwframe_ref,
                                         HWMapDescriptor *hwmap),
                           void *priv);
 
+/**
+ * Replace the current hwmap of dst with the one from src, used for indirect
+ * mappings like VAAPI->(DRM)->OpenCL/Vulkan where a direct interop is missing
+ */
+int ff_hwframe_map_replace(AVFrame *dst, const AVFrame *src);
 
 extern const HWContextType ff_hwcontext_type_cuda;
 extern const HWContextType ff_hwcontext_type_d3d11va;
 extern const HWContextType ff_hwcontext_type_drm;
 extern const HWContextType ff_hwcontext_type_dxva2;
+extern const HWContextType ff_hwcontext_type_opencl;
 extern const HWContextType ff_hwcontext_type_qsv;
 extern const HWContextType ff_hwcontext_type_vaapi;
 extern const HWContextType ff_hwcontext_type_vdpau;
 extern const HWContextType ff_hwcontext_type_videotoolbox;
+extern const HWContextType ff_hwcontext_type_mediacodec;
+extern const HWContextType ff_hwcontext_type_vulkan;
 
 #endif /* AVUTIL_HWCONTEXT_INTERNAL_H */

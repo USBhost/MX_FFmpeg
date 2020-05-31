@@ -43,17 +43,19 @@
 #include "thread.h"
 
 #define OFFSET(x) offsetof(AVFilterGraph, x)
-#define FLAGS AV_OPT_FLAG_VIDEO_PARAM|AV_OPT_FLAG_FILTERING_PARAM
+#define F AV_OPT_FLAG_FILTERING_PARAM
+#define V AV_OPT_FLAG_VIDEO_PARAM
+#define A AV_OPT_FLAG_AUDIO_PARAM
 static const AVOption filtergraph_options[] = {
     { "thread_type", "Allowed thread types", OFFSET(thread_type), AV_OPT_TYPE_FLAGS,
-        { .i64 = AVFILTER_THREAD_SLICE }, 0, INT_MAX, FLAGS, "thread_type" },
-        { "slice", NULL, 0, AV_OPT_TYPE_CONST, { .i64 = AVFILTER_THREAD_SLICE }, .flags = FLAGS, .unit = "thread_type" },
+        { .i64 = AVFILTER_THREAD_SLICE }, 0, INT_MAX, F|V|A, "thread_type" },
+        { "slice", NULL, 0, AV_OPT_TYPE_CONST, { .i64 = AVFILTER_THREAD_SLICE }, .flags = F|V|A, .unit = "thread_type" },
     { "threads",     "Maximum number of threads", OFFSET(nb_threads),
-        AV_OPT_TYPE_INT,   { .i64 = 0 }, 0, INT_MAX, FLAGS },
+        AV_OPT_TYPE_INT,   { .i64 = 0 }, 0, INT_MAX, F|V|A },
     {"scale_sws_opts"       , "default scale filter options"        , OFFSET(scale_sws_opts)        ,
-        AV_OPT_TYPE_STRING, {.str = NULL}, 0, 0, FLAGS },
+        AV_OPT_TYPE_STRING, {.str = NULL}, 0, 0, F|V },
     {"aresample_swr_opts"   , "default aresample filter options"    , OFFSET(aresample_swr_opts)    ,
-        AV_OPT_TYPE_STRING, {.str = NULL}, 0, 0, FLAGS },
+        AV_OPT_TYPE_STRING, {.str = NULL}, 0, 0, F|A },
     { NULL },
 };
 
@@ -417,8 +419,10 @@ static int can_merge_formats(AVFilterFormats *a_arg,
         av_freep(&ret);
         return 1;
     } else {
-        av_freep(&a->formats);
-        av_freep(&b->formats);
+        if (a)
+            av_freep(&a->formats);
+        if (b)
+            av_freep(&b->formats);
         av_freep(&a);
         av_freep(&b);
         return 0;
@@ -516,7 +520,6 @@ static int query_formats(AVFilterGraph *graph, AVClass *log_ctx)
                 AVFilterContext *convert;
                 const AVFilter *filter;
                 AVFilterLink *inlink, *outlink;
-                char scale_args[256];
                 char inst_name[30];
 
                 if (graph->disable_auto_convert) {
@@ -553,10 +556,6 @@ static int query_formats(AVFilterGraph *graph, AVClass *log_ctx)
 
                     snprintf(inst_name, sizeof(inst_name), "auto_resampler_%d",
                              resampler_count++);
-                    scale_args[0] = '\0';
-                    if (graph->aresample_swr_opts)
-                        snprintf(scale_args, sizeof(scale_args), "%s",
-                                 graph->aresample_swr_opts);
                     if ((ret = avfilter_graph_create_filter(&convert, filter,
                                                             inst_name, graph->aresample_swr_opts,
                                                             NULL, graph)) < 0)
@@ -682,6 +681,7 @@ static int pick_format(AVFilterLink *link, AVFilterLink *ref)
 
     if (link->type == AVMEDIA_TYPE_VIDEO) {
         if(ref && ref->type == AVMEDIA_TYPE_VIDEO){
+            //FIXME: This should check for AV_PIX_FMT_FLAG_ALPHA after PAL8 pixel format without alpha is implemented
             int has_alpha= av_pix_fmt_desc_get(ref->format)->nb_components % 2 == 0;
             enum AVPixelFormat best= AV_PIX_FMT_NONE;
             int i;

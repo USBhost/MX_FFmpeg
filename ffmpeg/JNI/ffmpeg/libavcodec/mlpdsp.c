@@ -79,7 +79,7 @@ void ff_mlp_rematrix_channel(int32_t *samples,
 
         if (matrix_noise_shift) {
             index &= access_unit_size_pow2 - 1;
-            accum += noise_buffer[index] << (matrix_noise_shift + 7);
+            accum += noise_buffer[index] * (1 << (matrix_noise_shift + 7));
             index += index2;
         }
 
@@ -117,7 +117,7 @@ int32_t ff_mlp_pack_output(int32_t lossless_check_data,
                           (1U << output_shift[mat_ch]);
             lossless_check_data ^= (sample & 0xffffff) << mat_ch;
             if (is32)
-                *data_32++ = sample << 8;
+                *data_32++ = sample * 256U;
             else
                 *data_16++ = sample >> 8;
         }

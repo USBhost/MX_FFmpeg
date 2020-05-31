@@ -311,7 +311,7 @@ static int gxf_write_material_data_section(AVFormatContext *s)
     AVIOContext *pb = s->pb;
     int64_t pos;
     int len;
-    const char *filename = strrchr(s->filename, '/');
+    const char *filename = strrchr(s->url, '/');
 
     pos = avio_tell(pb);
     avio_wb16(pb, 0); /* size */
@@ -320,7 +320,7 @@ static int gxf_write_material_data_section(AVFormatContext *s)
     if (filename)
         filename++;
     else
-        filename = s->filename;
+        filename = s->url;
     len = strlen(filename);
 
     avio_w8(pb, MAT_NAME);
@@ -663,7 +663,7 @@ static int gxf_write_umf_packet(AVFormatContext *s)
     return updatePacketSize(pb, pos);
 }
 
-static const int GXF_samples_per_frame[] = { 32768, 0 };
+static const int GXF_samples_per_frame = 32768;
 
 static void gxf_init_timecode_track(GXFStreamContext *sc, GXFStreamContext *vsc)
 {
@@ -834,7 +834,6 @@ static int gxf_write_header(AVFormatContext *s)
 
     gxf->packet_count = 3;
 
-    avio_flush(pb);
     return 0;
 }
 
@@ -854,8 +853,6 @@ static int gxf_write_trailer(AVFormatContext *s)
     int i;
     int ret;
 
-    ff_audio_interleave_close(s);
-
     gxf_write_eos_packet(pb);
     end = avio_tell(pb);
     avio_seek(pb, 0, SEEK_SET);
@@ -864,21 +861,26 @@ static int gxf_write_trailer(AVFormatContext *s)
         return ret;
     gxf_write_flt_packet(s);
     gxf_write_umf_packet(s);
-    avio_flush(pb);
     /* update duration in all map packets */
     for (i = 1; i < gxf->map_offsets_nb; i++) {
         avio_seek(pb, gxf->map_offsets[i], SEEK_SET);
         if ((ret = gxf_write_map_packet(s, 1)) < 0)
             return ret;
-        avio_flush(pb);
     }
 
     avio_seek(pb, end, SEEK_SET);
 
+    return 0;
+}
+
+static void gxf_deinit(AVFormatContext *s)
+{
+    GXFContext *gxf = s->priv_data;
+
+    ff_audio_interleave_close(s);
+
     av_freep(&gxf->flt_entries);
     av_freep(&gxf->map_offsets);
-
-    return 0;
 }
 
 static int gxf_parse_mpeg_frame(GXFStreamContext *sc, const uint8_t *buf, int size)
@@ -987,10 +989,11 @@ static int gxf_write_packet(AVFormatContext *s, AVPacket *pkt)
     return 0;
 }
 
-static int gxf_compare_field_nb(AVFormatContext *s, AVPacket *next, AVPacket *cur)
+static int gxf_compare_field_nb(AVFormatContext *s, const AVPacket *next,
+                                                    const AVPacket *cur)
 {
     GXFContext *gxf = s->priv_data;
-    AVPacket *pkt[2] = { cur, next };
+    const AVPacket *pkt[2] = { cur, next };
     int i, field_nb[2];
     GXFStreamContext *sc[2];
 
@@ -1027,5 +1030,6 @@ AVOutputFormat ff_gxf_muxer = {
     .write_header      = gxf_write_header,
     .write_packet      = gxf_write_packet,
     .write_trailer     = gxf_write_trailer,
+    .deinit            = gxf_deinit,
     .interleave_packet = gxf_interleave_packet,
 };

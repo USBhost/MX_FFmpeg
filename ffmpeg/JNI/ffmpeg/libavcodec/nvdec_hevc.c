@@ -58,12 +58,13 @@ static void fill_scaling_lists(CUVIDHEVCPICPARAMS *ppc, const HEVCContext *s)
             ppc->ScalingList16x16[i][j] = sl->sl[2][i][pos];
 
             if (i < 2)
-                ppc->ScalingList32x32[i][j] = sl->sl[3][i][pos];
+                ppc->ScalingList32x32[i][j] = sl->sl[3][i * 3][pos];
         }
-    }
 
-    memcpy(ppc->ScalingListDCCoeff16x16, sl->sl_dc[0], sizeof(ppc->ScalingListDCCoeff16x16));
-    memcpy(ppc->ScalingListDCCoeff32x32, sl->sl_dc[1], sizeof(ppc->ScalingListDCCoeff32x32));
+        ppc->ScalingListDCCoeff16x16[i] = sl->sl_dc[0][i];
+        if (i < 2)
+            ppc->ScalingListDCCoeff32x32[i] = sl->sl_dc[1][i * 3];
+    }
 }
 
 static int nvdec_hevc_start_frame(AVCodecContext *avctx,
@@ -93,7 +94,7 @@ static int nvdec_hevc_start_frame(AVCodecContext *avctx,
         .FrameHeightInMbs  = sps->height / 16,
         .CurrPicIdx        = cf->idx,
         .ref_pic_flag      = 1,
-        .intra_pic_flag    = 0,
+        .intra_pic_flag    = IS_IRAP(s),
 
         .CodecSpecific.hevc = {
             .pic_width_in_luma_samples                    = sps->width,
@@ -107,6 +108,12 @@ static int nvdec_hevc_start_frame(AVCodecContext *avctx,
             .log2_diff_max_min_pcm_luma_coding_block_size = sps->pcm.log2_max_pcm_cb_size - sps->pcm.log2_min_pcm_cb_size,
             .pcm_sample_bit_depth_luma_minus1             = sps->pcm_enabled_flag ? sps->pcm.bit_depth - 1 : 0,
             .pcm_sample_bit_depth_chroma_minus1           = sps->pcm_enabled_flag ? sps->pcm.bit_depth_chroma - 1 : 0,
+#if NVDECAPI_CHECK_VERSION(8, 1)
+            .log2_max_transform_skip_block_size_minus2    = pps->log2_max_transform_skip_block_size - 2,
+            .log2_sao_offset_scale_luma                   = pps->log2_sao_offset_scale_luma,
+            .log2_sao_offset_scale_chroma                 = pps->log2_sao_offset_scale_chroma,
+            .high_precision_offsets_enabled_flag          = sps->high_precision_offsets_enabled_flag,
+#endif
             .pcm_loop_filter_disabled_flag                = sps->pcm.loop_filter_disable_flag,
             .strong_intra_smoothing_enabled_flag          = sps->sps_strong_intra_smoothing_enable_flag,
             .max_transform_hierarchy_depth_intra          = sps->max_transform_hierarchy_depth_intra,
@@ -124,6 +131,17 @@ static int nvdec_hevc_start_frame(AVCodecContext *avctx,
             .IdrPicFlag                                   = IS_IDR(s),
             .bit_depth_luma_minus8                        = sps->bit_depth - 8,
             .bit_depth_chroma_minus8                      = sps->bit_depth - 8,
+#if NVDECAPI_CHECK_VERSION(9, 0)
+            .sps_range_extension_flag                     = sps->sps_range_extension_flag,
+            .transform_skip_rotation_enabled_flag         = sps->transform_skip_rotation_enabled_flag,
+            .transform_skip_context_enabled_flag          = sps->transform_skip_context_enabled_flag,
+            .implicit_rdpcm_enabled_flag                  = sps->implicit_rdpcm_enabled_flag,
+            .explicit_rdpcm_enabled_flag                  = sps->explicit_rdpcm_enabled_flag,
+            .extended_precision_processing_flag           = sps->extended_precision_processing_flag,
+            .intra_smoothing_disabled_flag                = sps->intra_smoothing_disabled_flag,
+            .persistent_rice_adaptation_enabled_flag      = sps->persistent_rice_adaptation_enabled_flag,
+            .cabac_bypass_alignment_enabled_flag          = sps->cabac_bypass_alignment_enabled_flag,
+#endif
 
             .dependent_slice_segments_enabled_flag        = pps->dependent_slice_segments_enabled_flag,
             .slice_segment_header_extension_present_flag  = pps->slice_header_extension_present_flag,
@@ -157,11 +175,17 @@ static int nvdec_hevc_start_frame(AVCodecContext *avctx,
             .uniform_spacing_flag                         = pps->uniform_spacing_flag,
             .num_tile_columns_minus1                      = pps->num_tile_columns - 1,
             .num_tile_rows_minus1                         = pps->num_tile_rows - 1,
+#if NVDECAPI_CHECK_VERSION(9, 0)
+            .pps_range_extension_flag                     = pps->pps_range_extensions_flag,
+            .cross_component_prediction_enabled_flag      = pps->cross_component_prediction_enabled_flag,
+            .chroma_qp_offset_list_enabled_flag           = pps->chroma_qp_offset_list_enabled_flag,
+            .diff_cu_chroma_qp_offset_depth               = pps->diff_cu_chroma_qp_offset_depth,
+            .chroma_qp_offset_list_len_minus1             = pps->chroma_qp_offset_list_len_minus1,
+#endif
 
             .NumBitsForShortTermRPSInSlice                = s->sh.short_term_rps ? s->sh.short_term_ref_pic_set_size : 0,
             .NumDeltaPocsOfRefRpsIdx                      = s->sh.short_term_rps ? s->sh.short_term_rps->rps_idx_num_delta_pocs : 0,
-            .NumPocTotalCurr                              = s->rps[ST_CURR_BEF].nb_refs + s->rps[ST_CURR_AFT].nb_refs +
-                                                            s->rps[LT_CURR].nb_refs,
+            .NumPocTotalCurr                              = ff_hevc_frame_nb_refs(s),
             .NumPocStCurrBefore                           = s->rps[ST_CURR_BEF].nb_refs,
             .NumPocStCurrAfter                            = s->rps[ST_CURR_AFT].nb_refs,
             .NumPocLtCurr                                 = s->rps[LT_CURR].nb_refs,
@@ -178,6 +202,18 @@ static int nvdec_hevc_start_frame(AVCodecContext *avctx,
         ppc->column_width_minus1[i] = pps->column_width[i] - 1;
     for (i = 0; i < pps->num_tile_rows; i++)
         ppc->row_height_minus1[i] = pps->row_height[i] - 1;
+
+#if NVDECAPI_CHECK_VERSION(9, 0)
+    if (pps->chroma_qp_offset_list_len_minus1 > FF_ARRAY_ELEMS(ppc->cb_qp_offset_list) ||
+        pps->chroma_qp_offset_list_len_minus1 > FF_ARRAY_ELEMS(ppc->cr_qp_offset_list)) {
+        av_log(avctx, AV_LOG_ERROR, "Too many chroma_qp_offsets\n");
+        return AVERROR(ENOSYS);
+    }
+    for (i = 0; i <= pps->chroma_qp_offset_list_len_minus1; i++) {
+        ppc->cb_qp_offset_list[i] = pps->cb_qp_offset_list[i];
+        ppc->cr_qp_offset_list[i] = pps->cr_qp_offset_list[i];
+    }
+#endif
 
     if (s->rps[LT_CURR].nb_refs     > FF_ARRAY_ELEMS(ppc->RefPicSetLtCurr)       ||
         s->rps[ST_CURR_BEF].nb_refs > FF_ARRAY_ELEMS(ppc->RefPicSetStCurrBefore) ||
@@ -263,10 +299,16 @@ static int nvdec_hevc_frame_params(AVCodecContext *avctx,
 {
     const HEVCContext *s = avctx->priv_data;
     const HEVCSPS *sps = s->ps.sps;
-    return ff_nvdec_frame_params(avctx, hw_frames_ctx, sps->temporal_layer[sps->max_sub_layers - 1].max_dec_pic_buffering + 1);
+    return ff_nvdec_frame_params(avctx, hw_frames_ctx, sps->temporal_layer[sps->max_sub_layers - 1].max_dec_pic_buffering + 1, 1);
 }
 
-AVHWAccel ff_hevc_nvdec_hwaccel = {
+static int nvdec_hevc_decode_init(AVCodecContext *avctx) {
+    NVDECContext *ctx = avctx->internal->hwaccel_priv_data;
+    ctx->supports_444 = 1;
+    return ff_nvdec_decode_init(avctx);
+}
+
+const AVHWAccel ff_hevc_nvdec_hwaccel = {
     .name                 = "hevc_nvdec",
     .type                 = AVMEDIA_TYPE_VIDEO,
     .id                   = AV_CODEC_ID_HEVC,
@@ -275,7 +317,7 @@ AVHWAccel ff_hevc_nvdec_hwaccel = {
     .end_frame            = ff_nvdec_end_frame,
     .decode_slice         = nvdec_hevc_decode_slice,
     .frame_params         = nvdec_hevc_frame_params,
-    .init                 = ff_nvdec_decode_init,
+    .init                 = nvdec_hevc_decode_init,
     .uninit               = ff_nvdec_decode_uninit,
     .priv_data_size       = sizeof(NVDECContext),
 };

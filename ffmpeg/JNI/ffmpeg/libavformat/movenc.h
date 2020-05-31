@@ -46,6 +46,7 @@
 typedef struct MOVIentry {
     uint64_t     pos;
     int64_t      dts;
+    int64_t      pts;
     unsigned int size;
     unsigned int samples_in_chunk;
     unsigned int chunkNum;              ///< Chunk number if the current entry is a chunk start otherwise 0
@@ -53,7 +54,9 @@ typedef struct MOVIentry {
     int          cts;
 #define MOV_SYNC_SAMPLE         0x0001
 #define MOV_PARTIAL_SYNC_SAMPLE 0x0002
+#define MOV_DISPOSABLE_SAMPLE   0x0004
     uint32_t     flags;
+    AVProducerReferenceTime prft;
 } MOVIentry;
 
 typedef struct HintSample {
@@ -89,6 +92,7 @@ typedef struct MOVTrack {
     long        sample_size;
     long        chunkCount;
     int         has_keyframes;
+    int         has_disposable;
 #define MOV_TRACK_CTTS         0x0001
 #define MOV_TRACK_STPS         0x0002
 #define MOV_TRACK_ENABLED      0x0004
@@ -130,6 +134,7 @@ typedef struct MOVTrack {
     uint32_t    default_size;
 
     HintSampleQueue sample_queue;
+    AVPacket cover_image;
 
     AVIOContext *mdat_buf;
     int64_t     data_offset;
@@ -165,6 +170,13 @@ typedef enum {
     MOV_ENC_NONE = 0,
     MOV_ENC_CENC_AES_CTR,
 } MOVEncryptionScheme;
+
+typedef enum {
+    MOV_PRFT_NONE = 0,
+    MOV_PRFT_SRC_WALLCLOCK,
+    MOV_PRFT_SRC_PTS,
+    MOV_PRFT_NB
+} MOVPrftBox;
 
 typedef struct MOVMuxContext {
     const AVClass *av_class;
@@ -221,6 +233,9 @@ typedef struct MOVMuxContext {
     int use_stream_ids_as_track_ids;
     int track_ids_ok;
     int write_tmcd;
+    MOVPrftBox write_prft;
+    int empty_hdlr_name;
+    int add_mxv_tag;
 } MOVMuxContext;
 
 #define FF_MOV_FLAG_RTP_HINT              (1 <<  0)
@@ -243,6 +258,10 @@ typedef struct MOVMuxContext {
 #define FF_MOV_FLAG_USE_MDTA              (1 << 17)
 #define FF_MOV_FLAG_SKIP_TRAILER          (1 << 18)
 #define FF_MOV_FLAG_NEGATIVE_CTS_OFFSETS  (1 << 19)
+#define FF_MOV_FLAG_FRAG_EVERY_FRAME      (1 << 20)
+#define FF_MOV_FLAG_SKIP_SIDX             (1 << 21)
+#define FF_MOV_FLAG_CMAF                  (1 << 22)
+#define FF_MOV_FLAG_PREFER_ICC            (1 << 23)
 
 int ff_mov_write_packet(AVFormatContext *s, AVPacket *pkt);
 

@@ -185,7 +185,7 @@ static int compand_nodelay(AVFilterContext *ctx, AVFrame *frame)
     if (av_frame_is_writable(frame)) {
         out_frame = frame;
     } else {
-        out_frame = ff_get_audio_buffer(inlink, nb_samples);
+        out_frame = ff_get_audio_buffer(ctx->outputs[0], nb_samples);
         if (!out_frame) {
             av_frame_free(&frame);
             return AVERROR(ENOMEM);
@@ -249,7 +249,7 @@ static int compand_delay(AVFilterContext *ctx, AVFrame *frame)
 
             if (count >= s->delay_samples) {
                 if (!out_frame) {
-                    out_frame = ff_get_audio_buffer(inlink, nb_samples - i);
+                    out_frame = ff_get_audio_buffer(ctx->outputs[0], nb_samples - i);
                     if (!out_frame) {
                         av_frame_free(&frame);
                         return AVERROR(ENOMEM);
@@ -349,9 +349,10 @@ static int config_output(AVFilterLink *outlink)
     }
 
     if (nb_attacks > channels || nb_decays > channels) {
-        av_log(ctx, AV_LOG_ERROR,
-                "Number of attacks/decays bigger than number of channels.\n");
-        return AVERROR(EINVAL);
+        av_log(ctx, AV_LOG_WARNING,
+                "Number of attacks/decays bigger than number of channels. Ignoring rest of entries.\n");
+        nb_attacks = FFMIN(nb_attacks, channels);
+        nb_decays  = FFMIN(nb_decays, channels);
     }
 
     uninit(ctx);

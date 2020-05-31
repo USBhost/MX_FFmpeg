@@ -25,40 +25,23 @@
 #include <string.h>
 
 #include "libavutil/avassert.h"
-#include "libavutil/atomic.h"
 #include "libavutil/internal.h"
 #include "libavutil/mem.h"
 
 #include "internal.h"
 #include "parser.h"
 
-static AVCodecParser *av_first_parser = NULL;
-
-AVCodecParser *av_parser_next(const AVCodecParser *p)
-{
-    if (p)
-        return p->next;
-    else
-        return av_first_parser;
-}
-
-void av_register_codec_parser(AVCodecParser *parser)
-{
-    do {
-        parser->next = av_first_parser;
-    } while (parser->next != avpriv_atomic_ptr_cas((void * volatile *)&av_first_parser, parser->next, parser));
-}
-
 AVCodecParserContext *av_parser_init(int codec_id)
 {
     AVCodecParserContext *s = NULL;
-    AVCodecParser *parser;
+    const AVCodecParser *parser;
+    void *i = 0;
     int ret;
 
     if (codec_id == AV_CODEC_ID_NONE)
         return NULL;
 
-    for (parser = av_first_parser; parser; parser = parser->next) {
+    while ((parser = av_parser_iterate(&i))) {
         if (parser->codec_ids[0] == codec_id ||
             parser->codec_ids[1] == codec_id ||
             parser->codec_ids[2] == codec_id ||
@@ -72,7 +55,7 @@ found:
     s = av_mallocz(sizeof(AVCodecParserContext));
     if (!s)
         goto err_out;
-    s->parser = parser;
+    s->parser = (AVCodecParser*)parser;
     s->priv_data = av_mallocz(parser->priv_data_size);
     if (!s->priv_data)
         goto err_out;
@@ -262,6 +245,9 @@ int ff_combine_frame(ParseContext *pc, int next,
     for (; pc->overread > 0; pc->overread--)
         pc->buffer[pc->index++] = pc->buffer[pc->overread_index++];
 
+    if (next > *buf_size)
+        return AVERROR(EINVAL);
+
     /* flush remaining if EOF */
     if (!*buf_size && next == END_NOT_FOUND)
         next = 0;
@@ -309,6 +295,10 @@ int ff_combine_frame(ParseContext *pc, int next,
         *buf      = pc->buffer;
     }
 
+    if (next < -8) {
+        pc->overread += -8 - next;
+        next = -8;
+    }
     /* store overread bytes */
     for (; next < 0; next++) {
         pc->state   = pc->state   << 8 | pc->buffer[pc->last_index + next];
