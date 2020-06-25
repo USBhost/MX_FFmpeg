@@ -205,8 +205,8 @@ static av_cold int libsmb2_connect(URLContext *h)
         user = ff_urldecode(libsmb2->url->user, 0);
         password = ff_urldecode(libsmb2->url->password, 0);
     } else if (libsmb2->user) {
-        user = av_strdup(libsmb2->user);
-        password = av_strdup(libsmb2->password);
+        user = ff_urldecode(libsmb2->user, 0);
+        password = ff_urldecode(libsmb2->password, 0);
     } else {
         user = av_strdup("Guest");
         password = av_strdup("");

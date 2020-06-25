@@ -148,6 +148,7 @@ OBJS-$(CONFIG_DATA_DEMUXER)              += rawdec.o
 OBJS-$(CONFIG_DATA_MUXER)                += rawenc.o
 OBJS-$(CONFIG_DASH_MUXER)                += dash.o dashenc.o hlsplaylist.o
 OBJS-$(CONFIG_DASH_DEMUXER)              += dash.o dashdec.o
+OBJS-$(CONFIG_MXD_DEMUXER)               += mxddec.o
 OBJS-$(CONFIG_DAUD_DEMUXER)              += dauddec.o
 OBJS-$(CONFIG_DAUD_MUXER)                += daudenc.o
 OBJS-$(CONFIG_DCSTR_DEMUXER)             += dcstr.o
