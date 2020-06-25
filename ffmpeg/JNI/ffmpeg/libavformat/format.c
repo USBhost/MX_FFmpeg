@@ -255,6 +255,40 @@ int av_probe_input_buffer2(AVIOContext *pb, ff_const59 AVInputFormat **fmt,
         }
     }
 
+#ifdef MXTECHS
+    /*
+     * For some special use case, we have to recognize the actual file
+     * type through the data at the end of file.Generally,MXD_MAGIC_SIZE
+     * is enougth, so I didn't implement it in a loop.
+     */
+    if (pb->seekable & AVIO_SEEKABLE_NORMAL) {
+        int64_t file_size = avio_size(pb);
+#define MXD_MAGIC_SIZE 12
+        probe_size = MXD_MAGIC_SIZE;
+        if (file_size >= probe_size) {
+            int64_t pos = avio_tell(pb);
+            ret = avio_seek(pb, file_size - probe_size, SEEK_SET);
+            if (ret >= 0) {
+                if ((ret = av_reallocp(&buf, probe_size + AVPROBE_PADDING_SIZE)) >= 0) {
+                    if ((ret = avio_read(pb, buf, probe_size))>= 0) {
+                        pd.buf_size = ret;
+                        pd.buf = buf;
+                        *fmt = av_probe_input_format2(&pd, 1, &score);
+                        if (*fmt) {
+                            if (score == AVPROBE_SCORE_MAX) {
+                                av_log(logctx, AV_LOG_DEBUG, "Format %s probed with size=%d and score=%d\n", (*fmt)->name, probe_size, score);
+                            } else {
+                                *fmt = NULL;
+                            }
+                        }
+                    }
+                }
+            }
+            avio_seek(pb, pos, SEEK_SET);
+        }
+    }
+#endif
+
     for (probe_size = PROBE_BUF_MIN; probe_size <= max_probe_size && !*fmt;
          probe_size = FFMIN(probe_size << 1,
                             FFMAX(max_probe_size, probe_size + 1))) {

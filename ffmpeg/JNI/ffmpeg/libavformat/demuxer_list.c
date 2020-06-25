@@ -53,6 +53,7 @@ static const AVInputFormat * const demuxer_list[] = {
     &ff_codec2raw_demuxer,
     &ff_concat_demuxer,
     &ff_dash_demuxer,
+    &ff_mxd_demuxer,
     &ff_data_demuxer,
     &ff_daud_demuxer,
     &ff_dcstr_demuxer,

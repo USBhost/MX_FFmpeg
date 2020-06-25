@@ -159,6 +159,7 @@ INC_OPUS=../opus-1.1/include
 INC_SPEEX=../speex-1.2rc1/include
 INC_ZVBI=../zvbi-0.2.35/src
 INC_ICONV=../modified_src/iconv
+INC_MXD=../modified_src/mxd
 INC_MODPLUG=../libmodplug/src
 INC_LIBMXL2=../libxml2/include
 INC_LIBSMB2=../libsmb2/include
@@ -213,8 +214,6 @@ then
 		EXTRA_CFLAGS+=" -fstack-protector-strong "
 	fi
 
-	#OPTFLAGS="-O2 -fpic"
-	OPTFLAGS="-O2 -fPIC"
 	LINK_AGAINST=21-x86_64
 elif [ $ARCH == 'x86' ] 
 then
@@ -304,151 +303,17 @@ FF_FEATURE_DEMUXER="\
 --disable-demuxer=webvtt \
 "
 FF_FEATURE_DECODER="\
---disable-decoder=dca \
---disable-decoder=eac3 \
 --disable-decoder=jacosub \
 --disable-decoder=microdvd \
---disable-decoder=mlp \
 --disable-decoder=mpl2 \
 --disable-decoder=pjs \
 --disable-decoder=realtext \
 --disable-decoder=sami \
 --disable-decoder=srt \
 --disable-decoder=stl \
---disable-decoder=subrip \
 --disable-decoder=subviewer \
 --disable-decoder=subviewer1 \
---disable-decoder=text \
---disable-decoder=truehd \
 --disable-decoder=vplayer \
---disable-decoder=webvtt \
-\
---disable-decoder=rv10 \
---disable-decoder=rv20 \
---disable-decoder=rv30 \
---disable-decoder=rv40 \
---disable-decoder=cook \
---disable-decoder=ra_144 \
---disable-decoder=ra_288 \
-\
---disable-decoder=wmv1 \
---disable-decoder=wmv2 \
---disable-decoder=wmv3 \
---disable-decoder=wmv3image \
---disable-decoder=wmav1 \
---disable-decoder=wmav2 \
---disable-decoder=wmavoice \
---disable-decoder=wmalossless \
---disable-decoder=wmapro \
---disable-decoder=gsm_ms \
---disable-decoder=msmpeg4v1 \
---disable-decoder=msmpeg4v2 \
---disable-decoder=msmpeg4v3 \
---disable-decoder=msrle \
---disable-decoder=mss1 \
---disable-decoder=mss2 \
---disable-decoder=msa1 \
---disable-decoder=mszh \
---disable-decoder=msvideo1 \
---disable-decoder=adpcm_ms \
---disable-decoder=vc1 \
---disable-decoder=vc1image \
---disable-decoder=dvvideo \
-\
---disable-decoder=indeo2 \
---disable-decoder=indeo3 \
---disable-decoder=indeo4 \
---disable-decoder=indeo5 \
-\
---disable-decoder=mpeg2video \
---disable-decoder=mpegvideo \
-\
---disable-decoder=qtrle \
-\
---disable-decoder=tscc \
---disable-decoder=tscc2 \
---disable-decoder=cinepak \
---disable-decoder=bink \
---disable-decoder=binkaudio_dct \
---disable-decoder=binkaudio_rdft \
---disable-decoder=prores \
---disable-decoder=prores_lgpl \
---disable-decoder=svq1 \
---disable-decoder=svq3 \
---disable-decoder=hq_hqa \
---disable-decoder=fraps \
---disable-decoder=nellymoser \
---disable-decoder=qcelp \
---disable-decoder=evrc \
---disable-decoder=atrac1 \
---disable-decoder=atrac3 \
---disable-decoder=atrac3p \
---disable-decoder=truespeech \
---disable-decoder=metasound \
---disable-decoder=gsm \
---disable-decoder=wavpack \
---disable-decoder=mace3 \
---disable-decoder=mace6 \
---disable-decoder=smackaud \
---disable-decoder=smacker \
---disable-decoder=ffwavesynth \
---disable-decoder=dss_sp \
---disable-decoder=tak \
---disable-decoder=dst \
---disable-decoder=imc \
---disable-decoder=roq \
---disable-decoder=roq_dpcm \
---disable-decoder=ralf \
---disable-decoder=g723_1 \
---disable-decoder=bmv_video \
---disable-decoder=bmv_audio \
---disable-decoder=sipr \
-\
---disable-decoder=dsd_lsbf \
---disable-decoder=dsd_lsbf_planar \
---disable-decoder=dsd_msbf \
---disable-decoder=dsd_msbf_planar \
-\
---disable-decoder=adpcm_4xm \
---disable-decoder=adpcm_adx \
---disable-decoder=adpcm_afc \
---disable-decoder=adpcm_aica \
---disable-decoder=adpcm_ct \
---disable-decoder=adpcm_dtk \
---disable-decoder=adpcm_ea \
---disable-decoder=adpcm_ea_maxis_xa \
---disable-decoder=adpcm_ea_r1 \
---disable-decoder=adpcm_ea_r2 \
---disable-decoder=adpcm_ea_r3 \
---disable-decoder=adpcm_ea_xas \
---disable-decoder=adpcm_g722 \
---disable-decoder=adpcm_g726 \
---disable-decoder=adpcm_g726le \
---disable-decoder=adpcm_ima_amv \
---disable-decoder=adpcm_ima_apc \
---disable-decoder=adpcm_ima_dat4 \
---disable-decoder=adpcm_ima_dk3 \
---disable-decoder=adpcm_ima_dk4 \
---disable-decoder=adpcm_ima_ea_eacs \
---disable-decoder=adpcm_ima_ea_sead \
---disable-decoder=adpcm_ima_iss \
---disable-decoder=adpcm_ima_oki \
---disable-decoder=adpcm_ima_qt \
---disable-decoder=adpcm_ima_rad \
---disable-decoder=adpcm_ima_smjpeg \
---disable-decoder=adpcm_ima_wav \
---disable-decoder=adpcm_ima_ws \
---disable-decoder=adpcm_mtaf \
---disable-decoder=adpcm_psx \
---disable-decoder=adpcm_sbpro_2 \
---disable-decoder=adpcm_sbpro_3 \
---disable-decoder=adpcm_sbpro_4 \
---disable-decoder=adpcm_swf \
---disable-decoder=adpcm_thp \
---disable-decoder=adpcm_thp_le \
---disable-decoder=adpcm_vima \
---disable-decoder=adpcm_xa \
---disable-decoder=adpcm_yamaha 
 "
 FF_FEATURE_FILTER="\
 --enable-filter=w3fdif \
@@ -465,7 +330,6 @@ FF_FEATURE_PROTOCOL="\
 "
 FF_FEATURE_MISC="\
 --disable-bsf=dca_core \
---disable-parser=mlp \
 " 
 
 FF_FEATURES=""
@@ -506,7 +370,7 @@ FFCOMPILER="\
 $EXTRA_PARAMETERS \
 "
 
-EXTRA_CFLAGS+=" -I$INC_ICONV -idirafter$INC_ZVBI -I$INC_OPENSSL -I$INC_OPUS -I$INC_SPEEX -I$INC_MODPLUG -I$INC_LIBMXL2 -I$INC_LIBSMB2 -I$INC_LIBDAV1D -I$INC_MXV -DNDEBUG -DMXTECHS -DFF_API_AVPICTURE=1 -ftree-vectorize -ffunction-sections -funwind-tables -fomit-frame-pointer -no-canonical-prefixes -pipe"
+EXTRA_CFLAGS+=" -I$INC_ICONV -idirafter$INC_ZVBI -I$INC_OPENSSL -I$INC_OPUS -I$INC_SPEEX -I$INC_MODPLUG -I$INC_LIBMXL2 -I$INC_LIBSMB2 -I$INC_LIBDAV1D -I$INC_MXV -I$INC_MXD -DNDEBUG -DMXTECHS -DFF_API_AVPICTURE=1 -ftree-vectorize -ffunction-sections -funwind-tables -fomit-frame-pointer -no-canonical-prefixes -pipe"
 EXTRA_LIBS="-L$LIB_MX -lmxutil -lm -lc++_shared"
 
 ./configure ${FFCOMPILER}                    \
@@ -516,7 +380,7 @@ EXTRA_LIBS="-L$LIB_MX -lmxutil -lm -lc++_shared"
             ${FF_OUTDEP}                     \
             --cc="$CC"                       \
             --cxx="$CXX"                     \
-            --extra-cflags="$EXTRA_CFLAGS"   \
+            --extra-cflags="$EXTRA_CFLAGS --sysroot ${SYSROOT}"   \
             --extra-libs="$EXTRA_LIBS"       \
             --extra-ldflags="$EXTRA_LDFLAGS" \
             --optflags="$OPTFLAGS"

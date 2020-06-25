@@ -108,6 +108,7 @@ extern AVInputFormat  ff_concat_demuxer;
 extern AVOutputFormat ff_crc_muxer;
 extern AVInputFormat  ff_dash_demuxer;
 extern AVOutputFormat ff_dash_muxer;
+extern AVInputFormat  ff_mxd_demuxer;
 extern AVInputFormat  ff_data_demuxer;
 extern AVOutputFormat ff_data_muxer;
 extern AVInputFormat  ff_daud_demuxer;
