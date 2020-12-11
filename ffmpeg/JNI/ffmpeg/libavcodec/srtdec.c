@@ -28,8 +28,26 @@
 #include "htmlsubtitles.h"
 
 #ifdef MXTECHS
-#include "mxsubdec.c"
-#else
+#include "libavutil/opt.h"
+#endif
+
+#ifdef MXTECHS
+typedef struct SubRipContext {
+    AVClass        *class;
+    FFASSDecoderContext ass_decoder_context;
+    int subtitle_type;
+} SubRipContext;
+
+static int srt_init(AVCodecContext *avctx)
+{
+    SubRipContext *s = avctx->priv_data;
+    int ret = 0;
+    if (s->subtitle_type == SUBTITLE_ASS) {
+        ret = ff_ass_subtitle_header_default(avctx);
+    }
+    return ret;
+}
+#endif
 static int srt_to_ass(AVCodecContext *avctx, AVBPrint *dst,
                        const char *in, int x1, int y1, int x2, int y2)
 {
@@ -55,15 +73,29 @@ static int srt_to_ass(AVCodecContext *avctx, AVBPrint *dst,
     return ff_htmlmarkup_to_ass(avctx, dst, in);
 }
 
+#ifdef MXTECHS
+#include "mxsubdec.c"
+#endif
+
 static int srt_decode_frame(AVCodecContext *avctx,
                             void *data, int *got_sub_ptr, AVPacket *avpkt)
 {
+#ifdef MXTECHS
+    SubRipContext *s2 = avctx->priv_data;
+    if (s2->subtitle_type == SUBTITLE_TEXT) {
+        return mx_decode_frame(avctx, data, got_sub_ptr, avpkt);
+    }
+#endif
     AVSubtitle *sub = data;
     AVBPrint buffer;
     int x1 = -1, y1 = -1, x2 = -1, y2 = -1;
     int size, ret;
     const uint8_t *p = av_packet_get_side_data(avpkt, AV_PKT_DATA_SUBTITLE_POSITION, &size);
+#ifdef MXTECHS
+    FFASSDecoderContext *s = &s2->ass_decoder_context;
+#else
     FFASSDecoderContext *s = avctx->priv_data;
+#endif
 
     if (p && size == 16) {
         x1 = AV_RL32(p     );
@@ -87,19 +119,18 @@ static int srt_decode_frame(AVCodecContext *avctx,
     *got_sub_ptr = sub->num_rects > 0;
     return avpkt->size;
 }
-#endif
 
+#ifdef MXTECHS
+static void srt_flush(AVCodecContext *avctx)
+{
+    SubRipContext *s = avctx->priv_data;
+    if (s->subtitle_type == SUBTITLE_ASS) {
+        ff_ass_decoder_flush(avctx);
+    }
+}
+#endif
 #if CONFIG_SRT_DECODER
 /* deprecated decoder */
-#ifdef MXTECHS
-AVCodec ff_srt_decoder = {
-    .name         = "srt",
-    .long_name    = NULL_IF_CONFIG_SMALL("SubRip subtitle"),
-    .type         = AVMEDIA_TYPE_SUBTITLE,
-    .id           = AV_CODEC_ID_SUBRIP,
-    .decode       = mx_decode_frame,
-};
-#else
 AVCodec ff_srt_decoder = {
     .name         = "srt",
     .long_name    = NULL_IF_CONFIG_SMALL("SubRip subtitle"),
@@ -111,16 +142,33 @@ AVCodec ff_srt_decoder = {
     .priv_data_size = sizeof(FFASSDecoderContext),
 };
 #endif
-#endif
 
 #if CONFIG_SUBRIP_DECODER
 #ifdef MXTECHS
+#define OFFSET(x) offsetof(SubRipContext, x)
+#define FLAGS AV_OPT_FLAG_SUBTITLE_PARAM | AV_OPT_FLAG_DECODING_PARAM
+static const AVOption options[] = {
+    { "subtitle_type", "Set the output subtitle type", OFFSET(subtitle_type), AV_OPT_TYPE_INT, {.i64 = SUBTITLE_TEXT}, SUBTITLE_TEXT, SUBTITLE_ASS, FLAGS },
+    { NULL },
+};
+
+static const AVClass srt_class = {
+    .class_name = "Subrip Decoder",
+    .item_name  = av_default_item_name,
+    .option     = options,
+    .version    = LIBAVUTIL_VERSION_INT,
+};
+
 AVCodec ff_subrip_decoder = {
-    .name         = "subrip",
-    .long_name    = NULL_IF_CONFIG_SMALL("SubRip subtitle"),
-    .type         = AVMEDIA_TYPE_SUBTITLE,
-    .id           = AV_CODEC_ID_SUBRIP,
-    .decode       = mx_decode_frame,
+    .name           = "subrip",
+    .long_name      = NULL_IF_CONFIG_SMALL("SubRip subtitle"),
+    .type           = AVMEDIA_TYPE_SUBTITLE,
+    .id             = AV_CODEC_ID_SUBRIP,
+    .init           = srt_init,
+    .decode         = srt_decode_frame,
+    .flush          = srt_flush,
+    .priv_data_size = sizeof(SubRipContext),
+    .priv_class     = &srt_class,
 };
 #else
 AVCodec ff_subrip_decoder = {
