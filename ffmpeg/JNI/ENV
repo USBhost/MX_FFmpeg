@@ -1,2 +1,2 @@
 CPU_CORE="$(nproc --all)"
-NDK=/mnt/host/android-ndk-r20b
+NDK=/mnt/host/XDA/android-ndk-r20b
