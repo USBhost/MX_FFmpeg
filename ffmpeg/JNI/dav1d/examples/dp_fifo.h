@@ -24,11 +24,38 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef DAV1D_VERSION_H
-#define DAV1D_VERSION_H
+/*
+ * Dav1dPlay FIFO helper
+ */
 
-#define DAV1D_API_VERSION_MAJOR 3
-#define DAV1D_API_VERSION_MINOR 0
-#define DAV1D_API_VERSION_PATCH 0
+typedef struct dp_fifo Dav1dPlayPtrFifo;
 
-#endif /* DAV1D_VERSION_H */
+/* Create a FIFO
+ *
+ * Creates a FIFO with the given capacity.
+ * If the capacity is reached, new inserts into the FIFO
+ * will block until enough space is available again.
+ */
+Dav1dPlayPtrFifo *dp_fifo_create(size_t capacity);
+
+/* Destroy a FIFO
+ *
+ * The FIFO must be empty before it is destroyed!
+ */
+void dp_fifo_destroy(Dav1dPlayPtrFifo *fifo);
+
+/* Shift FIFO
+ *
+ * Return the first item from the FIFO, thereby removing it from
+ * the FIFO and making room for new entries.
+ */
+void *dp_fifo_shift(Dav1dPlayPtrFifo *fifo);
+
+/* Push to FIFO
+ *
+ * Add an item to the end of the FIFO.
+ * If the FIFO is full, this call will block until there is again enough
+ * space in the FIFO, so calling this from the "consumer" thread if no
+ * other thread will call dp_fifo_shift will lead to a deadlock.
+ */
+void dp_fifo_push(Dav1dPlayPtrFifo *fifo, void *element);

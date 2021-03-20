@@ -1998,7 +1998,6 @@ static int decode_b(Dav1dTileContext *const t,
     return 0;
 }
 
-#if defined(__has_feature)
 #if __has_feature(memory_sanitizer)
 
 #include <sanitizer/msan_interface.h>
@@ -2051,7 +2050,6 @@ static int checked_decode_b(Dav1dTileContext *const t,
 #define decode_b checked_decode_b
 
 #endif /* defined(__has_feature) */
-#endif /* __has_feature(memory_sanitizer) */
 
 static int decode_sb(Dav1dTileContext *const t, const enum BlockLevel bl,
                      const EdgeNode *const node)
@@ -3304,7 +3302,7 @@ int dav1d_submit_frame(Dav1dContext *const c) {
 #define assign_bitdepth_case(bd) \
             dav1d_cdef_dsp_init_##bd##bpc(&dsp->cdef); \
             dav1d_intra_pred_dsp_init_##bd##bpc(&dsp->ipred); \
-            dav1d_itx_dsp_init_##bd##bpc(&dsp->itx); \
+            dav1d_itx_dsp_init_##bd##bpc(&dsp->itx, bpc); \
             dav1d_loop_filter_dsp_init_##bd##bpc(&dsp->lf); \
             dav1d_loop_restoration_dsp_init_##bd##bpc(&dsp->lr, bpc); \
             dav1d_mc_dsp_init_##bd##bpc(&dsp->mc); \
