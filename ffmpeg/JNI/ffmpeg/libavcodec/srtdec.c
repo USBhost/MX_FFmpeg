@@ -48,6 +48,7 @@ static int srt_init(AVCodecContext *avctx)
     return ret;
 }
 #endif
+
 static int srt_to_ass(AVCodecContext *avctx, AVBPrint *dst,
                        const char *in, int x1, int y1, int x2, int y2)
 {
@@ -129,21 +130,7 @@ static void srt_flush(AVCodecContext *avctx)
     }
 }
 #endif
-#if CONFIG_SRT_DECODER
-/* deprecated decoder */
-AVCodec ff_srt_decoder = {
-    .name         = "srt",
-    .long_name    = NULL_IF_CONFIG_SMALL("SubRip subtitle"),
-    .type         = AVMEDIA_TYPE_SUBTITLE,
-    .id           = AV_CODEC_ID_SUBRIP,
-    .init         = ff_ass_subtitle_header_default,
-    .decode       = srt_decode_frame,
-    .flush        = ff_ass_decoder_flush,
-    .priv_data_size = sizeof(FFASSDecoderContext),
-};
-#endif
 
-#if CONFIG_SUBRIP_DECODER
 #ifdef MXTECHS
 #define OFFSET(x) offsetof(SubRipContext, x)
 #define FLAGS AV_OPT_FLAG_SUBTITLE_PARAM | AV_OPT_FLAG_DECODING_PARAM
@@ -159,6 +146,22 @@ static const AVClass srt_class = {
     .version    = LIBAVUTIL_VERSION_INT,
 };
 
+#if CONFIG_SRT_DECODER
+/* deprecated decoder */
+AVCodec ff_srt_decoder = {
+    .name         = "srt",
+    .long_name    = NULL_IF_CONFIG_SMALL("SubRip subtitle"),
+    .type         = AVMEDIA_TYPE_SUBTITLE,
+    .id           = AV_CODEC_ID_SUBRIP,
+    .init         = srt_init,
+    .decode       = srt_decode_frame,
+    .flush        = srt_flush,
+    .priv_data_size = sizeof(SubRipContext),
+    .priv_class     = &srt_class,
+};
+#endif
+
+#if CONFIG_SUBRIP_DECODER
 AVCodec ff_subrip_decoder = {
     .name           = "subrip",
     .long_name      = NULL_IF_CONFIG_SMALL("SubRip subtitle"),
@@ -170,9 +173,14 @@ AVCodec ff_subrip_decoder = {
     .priv_data_size = sizeof(SubRipContext),
     .priv_class     = &srt_class,
 };
-#else
-AVCodec ff_subrip_decoder = {
-    .name         = "subrip",
+#endif
+
+#else // NON-MXTECH
+
+#if CONFIG_SRT_DECODER
+/* deprecated decoder */
+AVCodec ff_srt_decoder = {
+    .name         = "srt",
     .long_name    = NULL_IF_CONFIG_SMALL("SubRip subtitle"),
     .type         = AVMEDIA_TYPE_SUBTITLE,
     .id           = AV_CODEC_ID_SUBRIP,
@@ -182,4 +190,18 @@ AVCodec ff_subrip_decoder = {
     .priv_data_size = sizeof(FFASSDecoderContext),
 };
 #endif
+
+#if CONFIG_SUBRIP_DECODER
+AVCodec ff_subrip_decoder = {
+        .name         = "subrip",
+        .long_name    = NULL_IF_CONFIG_SMALL("SubRip subtitle"),
+        .type         = AVMEDIA_TYPE_SUBTITLE,
+        .id           = AV_CODEC_ID_SUBRIP,
+        .init         = ff_ass_subtitle_header_default,
+        .decode       = srt_decode_frame,
+        .flush        = ff_ass_decoder_flush,
+        .priv_data_size = sizeof(FFASSDecoderContext),
+};
+#endif
+
 #endif
