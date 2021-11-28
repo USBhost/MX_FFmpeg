@@ -71,6 +71,7 @@ extern const URLProtocol ff_libssh_protocol;
 extern const URLProtocol ff_libsmbclient_protocol;
 #ifdef MXTECHS
 extern const URLProtocol ff_libsmb2_protocol;
+extern const URLProtocol ff_usb_protocol;
 #endif
 extern const URLProtocol ff_libzmq_protocol;
 

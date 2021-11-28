@@ -1,6 +1,8 @@
 #pragma once
 
+#ifndef __MACH__
 #include <features.h>
+#endif
 #define __need_size_t
 #include <stddef.h>
 

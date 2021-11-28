@@ -425,7 +425,7 @@
 @c @set config-chromaprint no
 @c @set config-gcrypt no
 @c @set config-gnutls no
-@c @set config-jni no
+@set config-jni yes
 @c @set config-ladspa no
 @c @set config-libaom no
 @c @set config-libass no
@@ -450,7 +450,7 @@
 @c @set config-libklvanc no
 @c @set config-libkvazaar no
 @set config-libmodplug yes
-@c @set config-libmp3lame no
+@set config-libmp3lame yes
 @c @set config-libmysofa no
 @c @set config-libopencv no
 @c @set config-libopenh264 no
@@ -465,6 +465,7 @@
 @c @set config-libshine no
 @c @set config-libsmbclient no
 @set config-libsmb2 yes
+@set config-usb yes
 @c @set config-libsnappy no
 @c @set config-libsoxr no
 @set config-libspeex yes
@@ -580,14 +581,14 @@
 @c @set config-xmm-clobber-test no
 @set config-bsfs yes
 @set config-decoders yes
-@c @set config-encoders no
+@set config-encoders yes
 @c @set config-hwaccels no
 @set config-parsers yes
 @c @set config-indevs no
 @c @set config-outdevs no
 @set config-filters yes
 @set config-demuxers yes
-@c @set config-muxers no
+@set config-muxers yes
 @set config-protocols yes
 @set config-aandcttables yes
 @set config-ac3dsp yes
@@ -613,7 +614,7 @@
 @set config-fdctdsp yes
 @set config-flacdsp yes
 @set config-fmtconvert yes
-@c @set config-frame-thread-encoder no
+@set config-frame-thread-encoder yes
 @set config-g722dsp yes
 @set config-golomb yes
 @c @set config-gplv3 no
@@ -629,7 +630,7 @@
 @set config-huffyuvdsp yes
 @c @set config-huffyuvencdsp no
 @set config-idctdsp yes
-@c @set config-iirfilter no
+@set config-iirfilter yes
 @set config-mdct15 yes
 @set config-intrax8 yes
 @set config-iso-media yes
@@ -640,7 +641,7 @@
 @set config-llauddsp yes
 @set config-llviddsp yes
 @c @set config-llvidencdsp no
-@c @set config-lpc no
+@set config-lpc yes
 @set config-lzf yes
 @set config-me-cmp yes
 @set config-mpeg-er yes
@@ -658,9 +659,9 @@
 @c @set config-qsvvpp no
 @set config-rangecoder yes
 @set config-riffdec yes
-@c @set config-riffenc no
+@set config-riffenc yes
 @set config-rtpdec yes
-@c @set config-rtpenc-chain no
+@set config-rtpenc-chain yes
 @set config-rv34dsp yes
 @c @set config-scene-sad no
 @set config-sinewin yes
@@ -1324,7 +1325,7 @@
 @c @set config-yuv4-encoder no
 @c @set config-zlib-encoder no
 @c @set config-zmbv-encoder no
-@c @set config-aac-encoder no
+@set config-aac-encoder yes
 @c @set config-ac3-encoder no
 @c @set config-ac3-fixed-encoder no
 @c @set config-alac-encoder no
@@ -1394,10 +1395,10 @@
 @c @set config-dvbsub-encoder no
 @c @set config-dvdsub-encoder no
 @c @set config-movtext-encoder no
-@c @set config-srt-encoder no
+@set config-srt-encoder yes
 @c @set config-subrip-encoder no
 @c @set config-text-encoder no
-@c @set config-webvtt-encoder no
+@set config-webvtt-encoder yes
 @c @set config-xsub-encoder no
 @c @set config-aac-at-encoder no
 @c @set config-alac-at-encoder no
@@ -1410,7 +1411,7 @@
 @c @set config-libgsm-encoder no
 @c @set config-libgsm-ms-encoder no
 @c @set config-libilbc-encoder no
-@c @set config-libmp3lame-encoder no
+@set config-libmp3lame-encoder yes
 @c @set config-libopencore-amrnb-encoder no
 @c @set config-libopenjpeg-encoder no
 @c @set config-libopus-encoder no
@@ -1819,7 +1820,7 @@
 @c @set config-graphmonitor-filter no
 @c @set config-greyedge-filter no
 @c @set config-haldclut-filter no
-@c @set config-hflip-filter no
+@set config-hflip-filter yes
 @c @set config-histeq-filter no
 @c @set config-histogram-filter no
 @c @set config-hqdn3d-filter no
@@ -1913,9 +1914,9 @@
 @c @set config-rgbashift-filter no
 @c @set config-roberts-filter no
 @c @set config-roberts-opencl-filter no
-@c @set config-rotate-filter no
+@set config-rotate-filter yes
 @c @set config-sab-filter no
-@c @set config-scale-filter no
+@set config-scale-filter yes
 @c @set config-scale-cuda-filter no
 @c @set config-scale-npp-filter no
 @c @set config-scale-qsv-filter no
@@ -1969,7 +1970,7 @@
 @c @set config-tonemap-opencl-filter no
 @c @set config-tonemap-vaapi-filter no
 @c @set config-tpad-filter no
-@c @set config-transpose-filter no
+@set config-transpose-filter yes
 @c @set config-transpose-npp-filter no
 @c @set config-transpose-opencl-filter no
 @c @set config-transpose-vaapi-filter no
@@ -1981,7 +1982,7 @@
 @c @set config-v360-filter no
 @c @set config-vaguedenoiser-filter no
 @c @set config-vectorscope-filter no
-@c @set config-vflip-filter no
+@set config-vflip-filter yes
 @c @set config-vfrdet-filter no
 @c @set config-vibrance-filter no
 @c @set config-vidstabdetect-filter no
@@ -2380,7 +2381,7 @@
 @c @set config-codec2-muxer no
 @c @set config-codec2raw-muxer no
 @c @set config-crc-muxer no
-@c @set config-dash-muxer no
+@set config-dash-muxer yes
 @c @set config-data-muxer no
 @c @set config-daud-muxer no
 @c @set config-dirac-muxer no
@@ -2434,10 +2435,10 @@
 @c @set config-mjpeg-muxer no
 @c @set config-mlp-muxer no
 @c @set config-mmf-muxer no
-@c @set config-mov-muxer no
+@set config-mov-muxer yes
 @c @set config-mp2-muxer no
-@c @set config-mp3-muxer no
-@c @set config-mp4-muxer no
+@set config-mp3-muxer yes
+@set config-mp4-muxer yes
 @c @set config-mpeg1system-muxer no
 @c @set config-mpeg1vcd-muxer no
 @c @set config-mpeg1video-muxer no
@@ -2498,7 +2499,7 @@
 @c @set config-sox-muxer no
 @c @set config-spx-muxer no
 @c @set config-spdif-muxer no
-@c @set config-srt-muxer no
+@set config-srt-muxer yes
 @c @set config-streamhash-muxer no
 @c @set config-sup-muxer no
 @c @set config-swf-muxer no
@@ -2518,7 +2519,7 @@
 @c @set config-webm-dash-manifest-muxer no
 @c @set config-webm-chunk-muxer no
 @c @set config-webp-muxer no
-@c @set config-webvtt-muxer no
+@set config-webvtt-muxer yes
 @c @set config-wtv-muxer no
 @c @set config-wv-muxer no
 @c @set config-yuv4mpegpipe-muxer no
@@ -2570,4 +2571,5 @@
 @c @set config-libssh-protocol no
 @c @set config-libsmbclient-protocol no
 @set config-libsmb2-protocol yes
+@set config-usb-protocol yes
 @c @set config-libzmq-protocol no
