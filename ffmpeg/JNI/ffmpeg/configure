@@ -263,6 +263,7 @@ External library support:
   --enable-libshine        enable fixed-point MP3 encoding via libshine [no]
   --enable-libsmbclient    enable Samba protocol via libsmbclient [no]
   --enable-libsmb2         enable Samba protocol via libsmb2 [no]
+  --enable-usb             enable Usb protocol support [no]
   --enable-libsnappy       enable Snappy compression, needed for hap encoding [no]
   --enable-libsoxr         enable Include libsoxr resampling [no]
   --enable-libspeex        enable Speex de/encoding via libspeex [no]
@@ -1798,6 +1799,7 @@ EXTERNAL_LIBRARY_LIST="
     libshine
     libsmbclient
     libsmb2
+    usb
     libsnappy
     libsoxr
     libspeex
@@ -3449,6 +3451,7 @@ librtmpt_protocol_deps="librtmp"
 librtmpte_protocol_deps="librtmp"
 libsmbclient_protocol_deps="libsmbclient gplv3"
 libsmb2_protocol_deps="libsmb2"
+usb_protocol_deps="usb"
 libsrt_protocol_deps="libsrt"
 libsrt_protocol_select="network"
 libssh_protocol_deps="libssh"
@@ -6305,7 +6308,9 @@ fi
 #MXTECHS
 #enabled libmodplug        && require_pkg_config libmodplug libmodplug libmodplug/modplug.h ModPlug_Load
 enabled libmodplug        && require modplug modplug.h ModPlug_Load -lmxutil
-enabled libmp3lame        && require "libmp3lame >= 3.98.3" lame/lame.h lame_set_VBR_quality -lmp3lame $libm_extralibs
+#MXTECHS
+#enabled libmp3lame        && require "libmp3lame >= 3.98.3" lame/lame.h lame_set_VBR_quality -lmp3lame $libm_extralibs
+enabled libmp3lame        && require "libmp3lame >= 3.98.3" lame/lame.h lame_set_VBR_quality -lmxutil 
 enabled libmysofa         && { check_pkg_config libmysofa libmysofa mysofa.h mysofa_neighborhood_init_withstepdefine ||
                                require libmysofa mysofa.h mysofa_neighborhood_init_withstepdefine -lmysofa $zlib_extralibs; }
 enabled libnpp            && { check_lib libnpp npp.h nppGetLibVersion -lnppig -lnppicc -lnppc -lnppidei ||
@@ -6343,6 +6348,8 @@ enabled libsmbclient      && { check_pkg_config libsmbclient smbclient libsmbcli
 #MXTECHS
 enabled libsmb2           && { check_pkg_config libsmb2 "stdint.h stdio.h smb2/smb2.h smb2/libsmb2.h smb2/libsmb2-raw.h smb2/smb2-errors.h" smb2_init_context ||
                                require libsmb2 "stdint.h stdio.h smb2/smb2.h smb2/libsmb2.h smb2/libsmb2-raw.h smb2/smb2-errors.h" smb2_init_context -lmxutil; }
+#MXTECHS
+enabled usb               && { enabled jni || die "ERROR: usb requires --enable-jni"; }
 enabled libsnappy         && require libsnappy snappy-c.h snappy_compress -lsnappy -lstdc++
 enabled libsoxr           && require libsoxr soxr.h soxr_create -lsoxr
 enabled libssh            && require_pkg_config libssh libssh libssh/sftp.h sftp_init

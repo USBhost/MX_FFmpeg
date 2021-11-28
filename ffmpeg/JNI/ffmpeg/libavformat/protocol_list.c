@@ -29,4 +29,5 @@ static const URLProtocol * const url_protocols[] = {
     &ff_tls_protocol,
     &ff_udp_protocol,
     &ff_libsmb2_protocol,
+    &ff_usb_protocol,
     NULL };

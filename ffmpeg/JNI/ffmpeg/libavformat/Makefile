@@ -652,6 +652,7 @@ OBJS-$(CONFIG_LIBRTMPTE_PROTOCOL)        += librtmp.o
 OBJS-$(CONFIG_LIBSMBCLIENT_PROTOCOL)     += libsmbclient.o
 #MXTECHS
 OBJS-$(CONFIG_LIBSMB2_PROTOCOL)          += libsmb2.o
+OBJS-$(CONFIG_USB_PROTOCOL)              += usb.o
 OBJS-$(CONFIG_LIBSRT_PROTOCOL)           += libsrt.o
 OBJS-$(CONFIG_LIBSSH_PROTOCOL)           += libssh.o
 OBJS-$(CONFIG_LIBZMQ_PROTOCOL)           += libzmq.o

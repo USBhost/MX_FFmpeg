@@ -77,6 +77,9 @@ typedef struct FileContext {
 #if HAVE_DIRENT_H
     DIR *dir;
 #endif
+#ifdef MXTECHS
+    int is_connected;
+#endif
 } FileContext;
 
 static const AVOption file_options[] = {
@@ -232,6 +235,9 @@ static int file_open(URLContext *h, const char *filename, int flags)
     if (fd == -1)
         return AVERROR(errno);
     c->fd = fd;
+#ifdef MXTECHS
+    c->is_connected = 1;
+#endif
 
     h->is_streamed = !fstat(fd, &st) && S_ISFIFO(st.st_mode);
 
@@ -268,7 +274,14 @@ static int64_t file_seek(URLContext *h, int64_t pos, int whence)
 static int file_close(URLContext *h)
 {
     FileContext *c = h->priv_data;
+#ifdef MXTECHS
+    if (c->is_connected) {
+        return close(c->fd);
+    }
+    return 0;
+#else
     return close(c->fd);
+#endif
 }
 
 static int file_open_dir(URLContext *h)

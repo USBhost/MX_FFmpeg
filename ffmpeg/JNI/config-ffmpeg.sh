@@ -159,11 +159,13 @@ INC_SPEEX=../speex-1.2rc1/include
 INC_ZVBI=../zvbi-0.2.35/src
 INC_ICONV=../modified_src/iconv
 INC_MXD=../modified_src/mxd
+INC_USB=../modified_src/usb
 INC_MODPLUG=../libmodplug/src
 INC_LIBMXL2=../libxml2/include
 INC_LIBSMB2=../libsmb2/include
 INC_MXV=../modified_src/mxv
 INC_LIBDAV1D=../dav1d/include
+INC_LIBMP3LAME=../lame-3.100
 
 TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/$HOST_PLATFORM
 if [ $ARCH == 'arm64' ] 
@@ -296,6 +298,13 @@ FF_FEATURE_DEMUXER="\
 --disable-demuxer=vplayer \
 --disable-demuxer=webvtt \
 "
+FF_FEATURE_MUXER="\
+--disable-muxers \
+--enable-muxer=webvtt \
+--enable-muxer=srt \
+--enable-muxer=mp3 \
+--enable-muxer=dash \
+"
 FF_FEATURE_DECODER="\
 --disable-decoder=jacosub \
 --disable-decoder=microdvd \
@@ -309,9 +318,22 @@ FF_FEATURE_DECODER="\
 --disable-decoder=subviewer1 \
 --disable-decoder=vplayer \
 "
+FF_FEATURE_ENCODER="\
+--disable-encoders \
+--enable-encoder=webvtt \
+--enable-encoder=srt \
+--enable-libmp3lame \
+--enable-encoder=libmp3lame \
+--enable-encoder=aac \
+"
 FF_FEATURE_FILTER="\
 --enable-filter=w3fdif \
 --enable-filter=yadif \
+--enable-filter=transpose \
+--enable-filter=vflip \
+--enable-filter=hflip \
+--enable-filter=scale \
+--enable-filter=rotate
 "
 FF_FEATURE_PROTOCOL="\
 --disable-protocol=bluray \
@@ -337,6 +359,8 @@ fi
 
 FF_FEATURES+=$FF_FEATURE_PROTOCOL
 FF_FEATURES+=$FF_FEATURE_FILTER
+FF_FEATURES+=$FF_FEATURE_MUXER
+FF_FEATURES+=$FF_FEATURE_ENCODER
 
 FF_OUTDEP="\
 --enable-libmodplug \
@@ -347,6 +371,8 @@ FF_OUTDEP="\
 --enable-zlib \
 --enable-libxml2 \
 --enable-libsmb2 \
+--enable-jni \
+--enable-usb \
 --enable-libdav1d\
 "
 #configure compiler,ld and relevant parameters
@@ -364,8 +390,8 @@ FFCOMPILER="\
 $EXTRA_PARAMETERS \
 "
 
-EXTRA_CFLAGS+=" -I$INC_ICONV -idirafter$INC_ZVBI -I$INC_OPENSSL -I$INC_OPUS -I$INC_SPEEX -I$INC_MODPLUG -I$INC_LIBMXL2 -I$INC_LIBSMB2 -I$INC_LIBDAV1D -I$INC_MXV -I$INC_MXD -DNDEBUG -DMXTECHS -DFF_API_AVPICTURE=1 -ftree-vectorize -ffunction-sections -funwind-tables -fomit-frame-pointer -no-canonical-prefixes -pipe"
-EXTRA_LIBS="-L$LIB_MX -lmxutil -lm -lc++_shared"
+EXTRA_CFLAGS+=" -I$INC_LIBMP3LAME -I$INC_ICONV -I$INC_MXV -I$INC_MXD -I$INC_USB -idirafter$INC_ZVBI -I$INC_OPENSSL -I$INC_OPUS -I$INC_SPEEX -I$INC_MODPLUG -I$INC_LIBMXL2 -I$INC_LIBSMB2 -I$INC_LIBDAV1D -DNDEBUG -DMXTECHS -DFF_API_AVPICTURE=1 -DCONFIG_MXV_FROM_MXVP=1 -DMXD_BUILTIN -ftree-vectorize -ffunction-sections -funwind-tables -fomit-frame-pointer -no-canonical-prefixes -pipe"
+EXTRA_LIBS=" -L$LIB_MX -lmxutil -lm -lc++_shared"
 
 # Don't ask me why i need bash here when its already #!/bin/bash. This fixes ffmpeg ./configure: 1283: shift: can't shift that many
 bash ./configure ${FFCOMPILER}               \

@@ -88,7 +88,7 @@ static int wait_for_reply(LIBSMB2Context *libsmb2)
 
 static void generic_callback(struct smb2_context *smb2, int status, void *command_data, void *private_data)
 {
-    LIBSMB2Context* libsmb2 = private_data;
+    LIBSMB2Context *libsmb2 = private_data;
     if (libsmb2) {
         if (status < 0) {
             libsmb2->status = status;
@@ -100,7 +100,7 @@ static void generic_callback(struct smb2_context *smb2, int status, void *comman
 
 static void open_callback(struct smb2_context *smb2, int status, void *command_data, void *private_data)
 {
-    LIBSMB2Context* libsmb2 = private_data;
+    LIBSMB2Context *libsmb2 = private_data;
     if (libsmb2) {
         if (status < 0) {
             libsmb2->status = status;
@@ -113,7 +113,7 @@ static void open_callback(struct smb2_context *smb2, int status, void *command_d
 
 static void read_callback(struct smb2_context *smb2, int status, void *command_data, void *private_data)
 {
-    LIBSMB2Context* libsmb2 = private_data;
+    LIBSMB2Context *libsmb2 = private_data;
     if (libsmb2) {
         if (status < 0) {
             libsmb2->status = status;
@@ -126,7 +126,7 @@ static void read_callback(struct smb2_context *smb2, int status, void *command_d
 
 static void write_callback(struct smb2_context *smb2, int status, void *command_data, void *private_data)
 {
-    LIBSMB2Context* libsmb2 = private_data;
+    LIBSMB2Context *libsmb2 = private_data;
     if (libsmb2) {
         if (status < 0) {
             libsmb2->status = status;
@@ -139,7 +139,7 @@ static void write_callback(struct smb2_context *smb2, int status, void *command_
 
 static void opendir_callback(struct smb2_context *smb2, int status, void *command_data, void *private_data)
 {
-    LIBSMB2Context* libsmb2 = private_data;
+    LIBSMB2Context *libsmb2 = private_data;
     if (libsmb2) {
         if (status < 0) {
             libsmb2->status = status;
@@ -409,7 +409,7 @@ static int libsmb2_read_dir(URLContext *h, AVIODirEntry **next)
             entry->type = AVIO_ENTRY_UNKNOWN;
             break;
         }
-    } while (strcmp(ent->name, ".") ||
+    } while (!strcmp(ent->name, ".") ||
              !strcmp(ent->name, ".."));
 
     entry->name = av_strdup(ent->name);
@@ -418,11 +418,11 @@ static int libsmb2_read_dir(URLContext *h, AVIODirEntry **next)
         return AVERROR(ENOMEM);
     }
 
-    url = av_append_path_component(h->filename, ent->name);
+    url = av_append_path_component(libsmb2->url->path, ent->name);
     if (url) {
         struct smb2_stat_64 st;
         int ret = smb2_stat_async(libsmb2->smb2, url, &st, generic_callback, libsmb2);
-        if (0 == ret ) {
+        if (0 == ret) {
             ret = wait_for_reply(libsmb2);
             if (0 == ret) {
                 entry->size = st.smb2_size;
@@ -430,10 +430,10 @@ static int libsmb2_read_dir(URLContext *h, AVIODirEntry **next)
                 entry->access_timestamp =  INT64_C(1000000) * st.smb2_atime;
                 entry->status_change_timestamp = INT64_C(1000000) * st.smb2_ctime;
             } else {
-                av_log(h, AV_LOG_ERROR, "wait_for_reply(%s) failed. %s\n", url, smb2_get_error(libsmb2->smb2)); 
+                av_log(h, AV_LOG_ERROR, "wait_for_reply(%s) failed. %s\n", ent->name, smb2_get_error(libsmb2->smb2));
             }
         } else {
-            av_log(h, AV_LOG_ERROR, "smb2_fstat_async(%s) failed. %s\n", url, smb2_get_error(libsmb2->smb2)); 
+            av_log(h, AV_LOG_ERROR, "smb2_fstat_async(%s) failed. %s\n", ent->name, smb2_get_error(libsmb2->smb2));
         }
         av_free(url);
     }

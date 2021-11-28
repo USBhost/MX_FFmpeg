@@ -828,9 +828,24 @@ static int ebml_read_num(MatroskaDemuxContext *matroska, AVIOContext *pb,
     int64_t pos;
 
     /* The first byte tells us the length in bytes - except when it is zero. */
+    /*
+     * Skip leading zeros of ebml ids. In some contents, the ids are preceded with
+     * redundant zeros which would break the coding of ebml id.Thus, try to skip all
+     * the redundant zeros.
+     * Please check the following clip:
+     * "Peru 8K HDR 60FPS (FUHD).webm"
+     */
+#ifdef MXTECHS
+    do {
+        total = avio_r8(pb);
+        if (pb->eof_reached)
+            goto err;
+    } while (!total);
+#else
     total = avio_r8(pb);
     if (pb->eof_reached)
         goto err;
+#endif
 
     /* get the length of the EBML number */
     read = 8 - ff_log2_tab[total];

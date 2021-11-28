@@ -58,6 +58,7 @@ CONV_FUNC(AV_SAMPLE_FMT_S64, int64_t, AV_SAMPLE_FMT_U8 , (uint64_t)((*(const uin
 CONV_FUNC(AV_SAMPLE_FMT_FLT, float  , AV_SAMPLE_FMT_U8 , (*(const uint8_t*)pi - 0x80)*(1.0f/ (1<<7)))
 CONV_FUNC(AV_SAMPLE_FMT_DBL, double , AV_SAMPLE_FMT_U8 , (*(const uint8_t*)pi - 0x80)*(1.0 / (1<<7)))
 CONV_FUNC(AV_SAMPLE_FMT_U8 , uint8_t, AV_SAMPLE_FMT_S16, (*(const int16_t*)pi>>8) + 0x80)
+//crash
 CONV_FUNC(AV_SAMPLE_FMT_S16, int16_t, AV_SAMPLE_FMT_S16,  *(const int16_t*)pi)
 CONV_FUNC(AV_SAMPLE_FMT_S32, int32_t, AV_SAMPLE_FMT_S16,  *(const int16_t*)pi<<16)
 CONV_FUNC(AV_SAMPLE_FMT_S64, int64_t, AV_SAMPLE_FMT_S16, (uint64_t)(*(const int16_t*)pi)<<48)
@@ -237,10 +238,10 @@ int swri_audio_convert(AudioConvert *ctx, AudioData *out, AudioData *in, int len
         const int ich= ctx->ch_map ? ctx->ch_map[ch] : ch;
         const int is= ich < 0 ? 0 : (in->planar ? 1 : in->ch_count) * in->bps;
         const uint8_t *pi= ich < 0 ? ctx->silence : in->ch[ich];
-        uint8_t       *po= out->ch[ch];
-        uint8_t *end= po + os*len;
+        uint8_t *end, *po = out->ch[ch];
         if(!po)
             continue;
+        end = po + os * len;
         ctx->conv_f(po+off*os, pi+off*is, is, os, end);
     }
     return 0;
