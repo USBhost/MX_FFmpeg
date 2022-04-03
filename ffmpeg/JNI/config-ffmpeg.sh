@@ -159,14 +159,15 @@ INC_OPUS=../opus-1.1/include
 INC_SPEEX=../speex-1.2rc1/include
 INC_ZVBI=../zvbi-0.2.35/src
 INC_ICONV=../modified_src/iconv
+INC_MXV=../modified_src/mxv
 INC_MXD=../modified_src/mxd
 INC_USB=../modified_src/usb
 INC_MODPLUG=../libmodplug/src
 INC_LIBMXL2=../libxml2/include
 INC_LIBSMB2=../libsmb2/include
-INC_MXV=../modified_src/mxv
 INC_LIBDAV1D=../dav1d/include
 INC_LIBMP3LAME=../lame-3.100
+
 
 TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/$HOST_PLATFORM
 if [ $ARCH == 'arm64' ] 
@@ -216,6 +217,7 @@ then
 		EXTRA_CFLAGS+=" -fstack-protector-strong "
 	fi
 
+    OPTFLAGS="-O2 -fPIC"
 	LINK_AGAINST=21-x86_64
 elif [ $ARCH == 'x86' ] 
 then
@@ -284,6 +286,7 @@ FF_FEATURE_CLASS="\
 --disable-postproc \
 --disable-swscale-alpha \
 --enable-avfilter \
+--enable-libmp3lame \
 "
 FF_FEATURE_DEMUXER="\
 --disable-demuxer=ac3 \
@@ -310,7 +313,9 @@ FF_FEATURE_MUXER="\
 --enable-muxer=srt \
 --enable-muxer=mp3 \
 --enable-muxer=dash \
+--enable-muxer=mxv \
 "
+
 FF_FEATURE_DECODER="\
 --disable-decoder=jacosub \
 --disable-decoder=microdvd \
@@ -324,6 +329,7 @@ FF_FEATURE_DECODER="\
 --disable-decoder=subviewer1 \
 --disable-decoder=vplayer \
 "
+
 FF_FEATURE_ENCODER="\
 --disable-encoders \
 --enable-encoder=webvtt \
@@ -332,14 +338,15 @@ FF_FEATURE_ENCODER="\
 --enable-encoder=libmp3lame \
 --enable-encoder=aac \
 "
+
 FF_FEATURE_FILTER="\
---enable-filter=w3fdif \
---enable-filter=yadif \
 --enable-filter=transpose \
 --enable-filter=vflip \
 --enable-filter=hflip \
 --enable-filter=scale \
---enable-filter=rotate
+--enable-filter=rotate \
+--enable-filter=w3fdif \
+--enable-filter=yadif \
 "
 FF_FEATURE_PROTOCOL="\
 --disable-protocol=bluray \

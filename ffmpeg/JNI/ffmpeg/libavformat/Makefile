@@ -309,7 +309,10 @@ OBJS-$(CONFIG_MXV_DEMUXER)               += mxvdecoder.o \
 											rmsipr.o flac_picture.o \
 											oggparsevorbis.o vorbiscomment.o \
 											flac_picture.o replaygain.o
-
+OBJS-$(CONFIG_MXV_MUXER)                 += mxvencoder.o \
+                                            av1.o avc.o hevc.o \
+                                            flacenc_header.o avlanguage.o vorbiscomment.o wv.o \
+                                            webmdashenc.o webm_chunk.o
 OBJS-$(CONFIG_MD5_MUXER)                 += hashenc.o
 OBJS-$(CONFIG_MGSTS_DEMUXER)             += mgsts.o
 OBJS-$(CONFIG_MICRODVD_DEMUXER)          += microdvddec.o subtitles.o
