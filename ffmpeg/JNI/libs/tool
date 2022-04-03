@@ -1,5 +1,5 @@
 #!/bin/bash
-v="1.41.2";
+v="1.44.0";
 
 mv ./armeabi-v7a/neon/libffmpeg.mx.so libffmpeg.mx.so.neon.$v;
 mv ./arm64-v8a/libffmpeg.mx.so libffmpeg.mx.so.neon64.$v;
