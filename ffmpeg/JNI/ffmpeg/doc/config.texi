@@ -2429,7 +2429,7 @@
 @c @set config-md5-muxer no
 @c @set config-matroska-muxer no
 @c @set config-matroska-audio-muxer no
-@c @set config-mxv-muxer no
+@set config-mxv-muxer yes
 @c @set config-mxv-audio-muxer no
 @c @set config-microdvd-muxer no
 @c @set config-mjpeg-muxer no
