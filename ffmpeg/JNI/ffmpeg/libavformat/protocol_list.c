@@ -28,6 +28,12 @@ static const URLProtocol * const url_protocols[] = {
     &ff_tcp_protocol,
     &ff_tls_protocol,
     &ff_udp_protocol,
+    &ff_ijkhttphook_protocol,
+    &ff_ijklongurl_protocol,
+    &ff_ijkmediadatasource_protocol,
+    &ff_ijksegment_protocol,
+    &ff_ijktcphook_protocol,
+    &ff_ijkio_protocol,
     &ff_libsmb2_protocol,
     &ff_usb_protocol,
     NULL };

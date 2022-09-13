@@ -2570,6 +2570,12 @@
 @c @set config-libsrt-protocol no
 @c @set config-libssh-protocol no
 @c @set config-libsmbclient-protocol no
+@set config-ijkhttphook-protocol yes
+@set config-ijklongurl-protocol yes
+@set config-ijkmediadatasource-protocol yes
+@set config-ijksegment-protocol yes
+@set config-ijktcphook-protocol yes
+@set config-ijkio-protocol yes
 @set config-libsmb2-protocol yes
 @set config-usb-protocol yes
 @c @set config-libzmq-protocol no

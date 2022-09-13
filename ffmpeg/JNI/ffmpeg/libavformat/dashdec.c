@@ -167,6 +167,9 @@ typedef struct DASHContext {
     int is_init_section_common_video;
     int is_init_section_common_audio;
 
+    char *io_manager_ctx;
+    char *app_ctx;
+
 } DASHContext;
 
 static int ishttp(char *url)
@@ -439,6 +442,8 @@ static int open_url(AVFormatContext *s, AVIOContext **pb, const char *url,
         }
     } else if (av_strstart(proto_name, "http", NULL)) {
         ;
+    } else if (av_strstart(proto_name, "ijkio", NULL)) {
+        ;
     } else
         return AVERROR_INVALIDDATA;
 
@@ -448,6 +453,10 @@ static int open_url(AVFormatContext *s, AVIOContext **pb, const char *url,
         ;
     else if (strcmp(proto_name, "file") || !strncmp(url, "file,", 5))
         return AVERROR_INVALIDDATA;
+
+    av_dict_set( &tmp, "ijkiomanager", c->io_manager_ctx, 0);
+    av_dict_set( &tmp, "ijkapplication", c->app_ctx, 0);
+    av_dict_set_int( &tmp, "medialive", (int64_t)c->is_live, 0);
 
     av_freep(pb);
     ret = avio_open2(pb, url, AVIO_FLAG_READ, c->interrupt_callback, &tmp);
@@ -1235,6 +1244,10 @@ static int parse_manifest(AVFormatContext *s, const char *url, AVIOContext *in)
         close_in = 1;
 
         av_dict_copy(&opts, c->avio_opts, 0);
+
+        av_dict_set( &opts, "ijkiomanager", c->io_manager_ctx, 0);
+        av_dict_set( &opts, "ijkapplication", c->app_ctx, 0);
+
         ret = avio_open2(&in, url, AVIO_FLAG_READ, c->interrupt_callback, &opts);
         av_dict_free(&opts);
         if (ret < 0)
@@ -2379,6 +2392,10 @@ static const AVOption dash_options[] = {
         OFFSET(allowed_extensions), AV_OPT_TYPE_STRING,
         {.str = "aac,m4a,m4s,m4v,mov,mp4,webm,ts"},
         INT_MIN, INT_MAX, FLAGS},
+    { "dashiomanager", "DASHIOManagerContext",
+            OFFSET(io_manager_ctx), AV_OPT_TYPE_STRING, { .str = 0 }, 0, 0, FLAGS },
+    { "dashapplication", "AVApplicationContext",
+            OFFSET(app_ctx), AV_OPT_TYPE_STRING, { .str = 0 }, 0, 0, FLAGS },
     {NULL}
 };
 

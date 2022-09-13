@@ -216,6 +216,8 @@ typedef struct HLSContext {
 #ifdef MXTECHS
     int8_t local_file_only;
 #endif
+    char *io_manager_ctx;
+    char *app_ctx;
 } HLSContext;
 
 static void free_segment_dynarray(struct segment **segments, int n_segments)
@@ -658,7 +660,9 @@ static int open_url(AVFormatContext *s, AVIOContext **pb, const char *url,
         is_http = 1;
     } else if (av_strstart(proto_name, "data", NULL)) {
         ;
-    } else
+    } else if (av_strstart(proto_name, "ijkio", NULL)) {
+
+    }  else
         return AVERROR_INVALIDDATA;
 
     if (!strncmp(proto_name, url, strlen(proto_name)) && url[strlen(proto_name)] == ':')
@@ -797,6 +801,9 @@ static int parse_playlist(HLSContext *c, const char *url,
 
         if (c->http_persistent)
             av_dict_set(&opts, "multiple_requests", "1", 0);
+
+        av_dict_set( &opts, "ijkiomanager", c->io_manager_ctx, 0);
+        av_dict_set( &opts, "ijkapplication", c->app_ctx, 0);
 
         ret = c->ctx->io_open(c->ctx, &in, url, AVIO_FLAG_READ, &opts);
         av_dict_free(&opts);
@@ -1290,6 +1297,10 @@ static int open_input(HLSContext *c, struct playlist *pls, struct segment *seg, 
 
     if (c->http_persistent)
         av_dict_set(&opts, "multiple_requests", "1", 0);
+
+    av_dict_set( &opts, "ijkiomanager", c->io_manager_ctx, 0);
+    av_dict_set( &opts, "ijkapplication", c->app_ctx, 0);
+    av_dict_set_int( &opts, "medialive", (int64_t)!pls->finished, 0);
 
     if (seg->size >= 0) {
         /* try to restrict the HTTP request to the part we want
@@ -2065,7 +2076,12 @@ static int hls_read_header(AVFormatContext *s)
         if ((ret = ff_copy_whiteblacklists(pls->ctx, s)) < 0)
             goto fail;
 
-        ret = avformat_open_input(&pls->ctx, pls->segments[0]->url, in_fmt, NULL);
+        AVDictionary *opts = NULL;
+        av_dict_set( &opts, "ijkiomanager", c->io_manager_ctx, 0);
+        av_dict_set( &opts, "ijkapplication", c->app_ctx, 0);
+        av_dict_set_int( &opts, "medialive", (int64_t)!pls->finished, 0);
+
+        ret = avformat_open_input(&pls->ctx, pls->segments[0]->url, in_fmt, &opts);
         if (ret < 0)
             goto fail;
 
@@ -2457,6 +2473,10 @@ static const AVOption hls_options[] = {
 #ifdef MXTECHS
     {"local-file-only", "Reject.", OFFSET(local_file_only), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, AV_OPT_FLAG_DECODING_PARAM},
 #endif
+    { "hlsiomanager", "HlsIOManagerContext",
+      OFFSET(io_manager_ctx), AV_OPT_TYPE_STRING, { .str = 0 }, 0, 0, FLAGS },
+    { "hlsapplication", "AVApplicationContext",
+      OFFSET(app_ctx), AV_OPT_TYPE_STRING, { .str = 0 }, 0, 0, FLAGS },
     {NULL}
 };
 
