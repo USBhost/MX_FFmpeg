@@ -157,7 +157,7 @@ esac
 INC_OPENSSL=../openssl-1.0.2s/include
 INC_OPUS=../opus-1.1/include
 INC_SPEEX=../speex-1.2rc1/include
-INC_ZVBI=../zvbi-0.2.35/src
+#INC_ZVBI=../zvbi-0.2.35/src
 INC_ICONV=../modified_src/iconv
 INC_MXV=../modified_src/mxv
 INC_MXD=../modified_src/mxd
@@ -189,15 +189,15 @@ then
 elif [ $ARCH == 'arm' ] 
 then
 	CROSS_PREFIX=$TOOLCHAIN/bin/arm-linux-androideabi-
-    AS=$TOOLCHAIN/bin/armv7a-linux-androideabi17-clang
-    LD=$TOOLCHAIN/bin/armv7a-linux-androideabi17-clang
+    AS=$TOOLCHAIN/bin/armv7a-linux-androideabi21-clang
+    LD=$TOOLCHAIN/bin/armv7a-linux-androideabi21-clang
 
 	EXTRA_CFLAGS+=" -fstack-protector -fstrict-aliasing"
 	EXTRA_LDFLAGS+=" -march=$CPU"
 
 	if [ -n "${CLANG_VER}" ]
 	then
-		CLANG_TARGET=armv7-none-linux-androideabi17
+		CLANG_TARGET=armv7a-none-linux-androideabi21
 	fi
 
 	OPTFLAGS="-O2"
@@ -223,14 +223,14 @@ elif [ $ARCH == 'x86' ]
 then
     FFMPEG_CONFIGURATION="--disable-mmx --disable-mmxext --disable-inline-asm"
 	CROSS_PREFIX=$TOOLCHAIN/bin/i686-linux-android-
-    AS=$TOOLCHAIN/bin/i686-linux-android17-clang
-    LD=$TOOLCHAIN/bin/i686-linux-android17-clang
+    AS=$TOOLCHAIN/bin/i686-linux-android21-clang
+    LD=$TOOLCHAIN/bin/i686-linux-android21-clang
 
 	EXTRA_CFLAGS+=" -fstrict-aliasing"
 
 	if [ -n "${CLANG_VER}" ]
 	then
-		CLANG_TARGET=i686-none-linux-android17
+		CLANG_TARGET=i686-none-linux-android21
 		EXTRA_CFLAGS+=" -fstack-protector-strong "
 	fi
 
@@ -246,6 +246,9 @@ then
 #	LINK_AGAINST=15-mips
 fi
 
+if [ ! -e ${CROSS_PREFIX}ar ]; then
+  CROSS_PREFIX=${TOOLCHAIN}/bin/llvm-
+  fi
 
 if [ -n "${CLANG_VER}" ]
 then
@@ -379,7 +382,6 @@ FF_OUTDEP="\
 --enable-libmodplug \
 --enable-libopus \
 --enable-libspeex \
---enable-libzvbi \
 --enable-openssl \
 --enable-zlib \
 --enable-libxml2 \
@@ -403,7 +405,7 @@ FFCOMPILER="\
 $EXTRA_PARAMETERS \
 "
 
-EXTRA_CFLAGS+=" -I$INC_LIBMP3LAME -I$INC_ICONV -I$INC_MXV -I$INC_MXD -I$INC_USB -idirafter$INC_ZVBI -I$INC_OPENSSL -I$INC_OPUS -I$INC_SPEEX -I$INC_MODPLUG -I$INC_LIBMXL2 -I$INC_LIBSMB2 -I$INC_LIBDAV1D -DNDEBUG -DMXTECHS -DFF_API_AVPICTURE=1 -DCONFIG_MXV_FROM_MXVP=1 -DMXD_BUILTIN -ftree-vectorize -ffunction-sections -funwind-tables -fomit-frame-pointer -no-canonical-prefixes -pipe"
+EXTRA_CFLAGS+=" -I$INC_LIBMP3LAME -I$INC_ICONV -I$INC_MXV -I$INC_MXD -I$INC_USB -I$INC_OPENSSL -I$INC_OPUS -I$INC_SPEEX -I$INC_MODPLUG -I$INC_LIBMXL2 -I$INC_LIBSMB2 -I$INC_LIBDAV1D -DNDEBUG -DMXTECHS -DFF_API_AVPICTURE=1 -DCONFIG_MXV_FROM_MXVP=1 -DMXD_BUILTIN -ftree-vectorize -ffunction-sections -funwind-tables -fomit-frame-pointer -no-canonical-prefixes -pipe"
 EXTRA_LIBS=" -L$LIB_MX -lmxutil -lm -lc++_shared"
 
 ./configure ${FFCOMPILER}                    \

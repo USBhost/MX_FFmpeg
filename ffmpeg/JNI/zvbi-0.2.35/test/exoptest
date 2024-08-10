@@ -1,4 +1,0 @@
-#!/bin/sh
-# Check export options
-./explist --check >/dev/null
-
