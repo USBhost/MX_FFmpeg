@@ -1255,9 +1255,13 @@ BOOL CSoundFile::ReadMID(const BYTE *lpStream, DWORD dwMemLength)
 			return FALSE;
 		}
 		miditracklen = mid_read_long(h);
+		uint32_t originalmiditracklen = miditracklen;
 		runningstatus = 0;
 		if( t && h->midiformat == 1 ) mid_rewind_tracks(h); // tracks sound simultaneously
-		while( miditracklen > 0 ) {
+		/*
+		 * compare with the original midi track length and prevent from overflow
+		 */
+		while( miditracklen > 0 && miditracklen <= originalmiditracklen) {
 			miditracklen -= mid_read_delta(h);
 			midibyte[0] = mid_read_byte(h);
 			miditracklen--;
