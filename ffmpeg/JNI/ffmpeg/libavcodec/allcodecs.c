@@ -668,6 +668,7 @@ extern AVCodec ff_text_decoder;
 extern AVCodec ff_vplayer_decoder;
 extern AVCodec ff_webvtt_encoder;
 extern AVCodec ff_webvtt_decoder;
+extern AVCodec ff_webvtt_secondary_decoder;
 extern AVCodec ff_xsub_encoder;
 extern AVCodec ff_xsub_decoder;
 

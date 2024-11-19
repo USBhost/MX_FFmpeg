@@ -27,6 +27,10 @@
 
 #ifdef MXTECHS
 #include "mxsubdec.c"
+#include "avcodec.h"
+#include "ass.h"
+#include "libavutil/bprint.h"
+
 #if CONFIG_WEBVTT_DECODER
 AVCodec ff_webvtt_decoder = {
     .name           = "webvtt",
@@ -35,6 +39,93 @@ AVCodec ff_webvtt_decoder = {
     .id             = AV_CODEC_ID_WEBVTT,
     .decode         = mx_decode_frame,
 };
+
+
+static const struct {
+    const char *from;
+    const char *to;
+} webvtt_tag_replace[] = {
+    {"<i>", "{\\i1}"}, {"</i>", "{\\i0}"},
+    {"<b>", "{\\b1}"}, {"</b>", "{\\b0}"},
+    {"<u>", "{\\u1}"}, {"</u>", "{\\u0}"},
+    {"{", "\\{"}, {"}", "\\}"}, // escape to avoid ASS markup conflicts
+    {"&gt;", ">"}, {"&lt;", "<"},
+    {"&lrm;", ""}, {"&rlm;", ""}, // FIXME: properly honor bidi marks
+    {"&amp;", "&"}, {"&nbsp;", "\\h"},
+};
+
+static int webvtt_event_to_ass(AVBPrint *buf, const char *p)
+{
+    int i, again = 0, skip = 0;
+
+    while (*p) {
+
+        for (i = 0; i < FF_ARRAY_ELEMS(webvtt_tag_replace); i++) {
+            const char *from = webvtt_tag_replace[i].from;
+            const size_t len = strlen(from);
+            if (!strncmp(p, from, len)) {
+                av_bprintf(buf, "%s", webvtt_tag_replace[i].to);
+                p += len;
+                again = 1;
+                break;
+            }
+        }
+        if (!*p)
+            break;
+
+        if (again) {
+            again = 0;
+            skip = 0;
+            continue;
+        }
+        if (*p == '<')
+            skip = 1;
+        else if (*p == '>')
+            skip = 0;
+        else if (p[0] == '\n' && p[1])
+            av_bprintf(buf, "\\N");
+        else if (!skip && *p != '\r')
+            av_bprint_chars(buf, *p, 1);
+        p++;
+    }
+    return 0;
+}
+
+static int webvtt_decode_frame(AVCodecContext *avctx,
+                               void *data, int *got_sub_ptr, AVPacket *avpkt)
+{
+    int ret = 0;
+    AVSubtitle *sub = data;
+    const char *ptr = avpkt->data;
+    FFASSDecoderContext *s = avctx->priv_data;
+    AVBPrint buf;
+
+    av_bprint_init(&buf, 0, AV_BPRINT_SIZE_UNLIMITED);
+    if (ptr && avpkt->size > 0 && !webvtt_event_to_ass(&buf, ptr))
+        ret = ff_ass_add_rect(sub, buf.str, s->readorder++, 0, NULL, NULL);
+    av_bprint_finalize(&buf, NULL);
+    if (ret < 0)
+        return ret;
+    *got_sub_ptr = sub->num_rects > 0;
+    return avpkt->size;
+}
+
+/*
+ * since we have updated subtitle decoding logic to mx_decode_frame,
+ * but there still some requirement need standard decoding in ffmpeg,
+ * so we keep it and rename it, then we can opt it manually.
+ */
+AVCodec ff_webvtt_secondary_decoder = {
+    .name           = "secondary_webvtt",
+    .long_name      = NULL_IF_CONFIG_SMALL("secndary WebVTT subtitle"),
+    .type           = AVMEDIA_TYPE_SUBTITLE,
+    .id             = AV_CODEC_ID_WEBVTT,
+    .decode         = webvtt_decode_frame,
+    .init           = ff_ass_subtitle_header_default,
+    .flush          = ff_ass_decoder_flush,
+    .priv_data_size = sizeof(FFASSDecoderContext),
+};
+
 #endif
 #else
 #include "avcodec.h"
