@@ -161,6 +161,7 @@ INC_ICONV=../modified_src/iconv
 INC_MXV=../modified_src/mxv
 INC_MXD=../modified_src/mxd
 INC_USB=../modified_src/usb
+INC_DOWNLOAD=../modified_src/download
 INC_MODPLUG=../libmodplug/src
 INC_LIBMXL2=../libxml2/include
 INC_LIBSMB2=../libsmb2/include
@@ -302,7 +303,7 @@ FF_FEATURE_DEMUXER="\
 --disable-demuxer=subviewer \
 --disable-demuxer=subviewer1 \
 --disable-demuxer=vplayer \
---disable-demuxer=webvtt \
+--enable-demuxer=webvtt \
 "
 FF_FEATURE_MUXER="\
 --disable-muxers \
@@ -334,6 +335,7 @@ FF_FEATURE_ENCODER="\
 --enable-libmp3lame \
 --enable-encoder=libmp3lame \
 --enable-encoder=aac \
+--enable-encoder=text \
 "
 
 FF_FEATURE_FILTER="\
@@ -399,7 +401,7 @@ FFCOMPILER="\
 $EXTRA_PARAMETERS \
 "
 
-EXTRA_CFLAGS+=" -I$INC_LIBMP3LAME -I$INC_ICONV -I$INC_MXV -I$INC_MXD -I$INC_USB -I$INC_OPENSSL -I$INC_OPUS -I$INC_SPEEX -I$INC_MODPLUG -I$INC_LIBMXL2 -I$INC_LIBSMB2 -I$INC_LIBDAV1D -DNDEBUG -DMXTECHS -DFF_API_AVPICTURE=1 -DCONFIG_MXV_FROM_MXVP=1 -DMXD_BUILTIN -ftree-vectorize -ffunction-sections -funwind-tables -fomit-frame-pointer -no-canonical-prefixes -pipe"
+EXTRA_CFLAGS+=" -I$INC_LIBMP3LAME -I$INC_ICONV -I$INC_MXV -I$INC_MXD -I$INC_USB -I$INC_DOWNLOAD -I$INC_OPENSSL -I$INC_OPUS -I$INC_SPEEX -I$INC_MODPLUG -I$INC_LIBMXL2 -I$INC_LIBSMB2 -I$INC_LIBDAV1D -DNDEBUG -DMXTECHS -DFF_API_AVPICTURE=1 -DCONFIG_MXV_FROM_MXVP=1 -DMXD_BUILTIN -ftree-vectorize -ffunction-sections -funwind-tables -fomit-frame-pointer -no-canonical-prefixes -pipe"
 EXTRA_LIBS=" -L$LIB_MX -lmxutil -lm -lc++_shared"
 
 # Don't ask me why i need bash here when its already #!/bin/bash. This fixes ffmpeg ./configure: 1283: shift: can't shift that many

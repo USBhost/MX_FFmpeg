@@ -78,6 +78,8 @@ extern const URLProtocol ff_ijkio_protocol;
 #ifdef MXTECHS
 extern const URLProtocol ff_libsmb2_protocol;
 extern const URLProtocol ff_usb_protocol;
+extern const URLProtocol ff_download_http_protocol;
+extern const URLProtocol ff_download_https_protocol;
 #endif
 extern const URLProtocol ff_libzmq_protocol;
 
