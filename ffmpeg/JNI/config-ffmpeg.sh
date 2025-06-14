@@ -16,6 +16,16 @@ function probe_host_platform(){
     echo $host_platform;
 }
 
+debug=false
+for p in $*
+do
+  case "$p" in
+    --debug )
+      debug=true
+      ;;
+  esac
+  done
+
 HOST_PLATFORM=$(probe_host_platform)
 
 # gcc 4.9로는 일부 4.2, 4.3대 x86 장비에서 crash되는 것으로 추측되어 4.8로 내린다.
@@ -156,7 +166,7 @@ esac
 INC_OPENSSL=../openssl-1.0.2s/include
 INC_OPUS=../opus-1.1/include
 INC_SPEEX=../speex-1.2rc1/include
-#INC_ZVBI=../zvbi-0.2.35/src
+INC_ZVBI=../zvbi-0.2.35/src
 INC_ICONV=../modified_src/iconv
 INC_MXV=../modified_src/mxv
 INC_MXD=../modified_src/mxd
@@ -172,6 +182,7 @@ INC_LIBMP3LAME=../lame-3.100
 TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/$HOST_PLATFORM
 if [ $ARCH == 'arm64' ] 
 then
+  INC_LIBDAV1D_BUILD=../dav1d/builddir/arm64-v8a/include/dav1d
 	CROSS_PREFIX=$TOOLCHAIN/bin/aarch64-linux-android-
     AS=$TOOLCHAIN/bin/aarch64-linux-android21-clang
     LD=$TOOLCHAIN/bin/aarch64-linux-android21-clang
@@ -184,10 +195,17 @@ then
         CLANG_TARGET=aarch64-none-linux-android21
 	fi
 
-	OPTFLAGS="-O2"
+  if $debug;then
+    OPTFLAGS="-O0"
+    EXTRA_CFLAGS+=" -g"
+    else
+      OPTFLAGS="-O2"
+  fi
+
 	LINK_AGAINST=22-arm
 elif [ $ARCH == 'arm' ] 
 then
+  INC_LIBDAV1D_BUILD=../dav1d/builddir/armeabi-v7a/include/dav1d
 	CROSS_PREFIX=$TOOLCHAIN/bin/arm-linux-androideabi-
     AS=$TOOLCHAIN/bin/armv7a-linux-androideabi21-clang
     LD=$TOOLCHAIN/bin/armv7a-linux-androideabi21-clang
@@ -204,7 +222,7 @@ then
 	#LINK_AGAINST=16-arm
 elif [ $ARCH == 'x86_64' ] 
 then
-    FFMPEG_CONFIGURATION="--disable-mmx --disable-mmxext --disable-inline-asm"
+  INC_LIBDAV1D_BUILD=../dav1d/builddir/x86_64/include/dav1d
 	CROSS_PREFIX=$TOOLCHAIN/bin/x86_64-linux-android-
     AS=$TOOLCHAIN/bin/x86_64-linux-android21-clang
     LD=$TOOLCHAIN/bin/x86_64-linux-android21-clang
@@ -217,10 +235,11 @@ then
 		EXTRA_CFLAGS+=" -fstack-protector-strong "
 	fi
 
-    OPTFLAGS="-O2 -fPIC"
+	OPTFLAGS="-O2 -fpic"
 	LINK_AGAINST=21-x86_64
 elif [ $ARCH == 'x86' ] 
 then
+  INC_LIBDAV1D_BUILD=../dav1d/builddir/x86/include/dav1d
     FFMPEG_CONFIGURATION="--disable-mmx --disable-mmxext --disable-inline-asm"
 	CROSS_PREFIX=$TOOLCHAIN/bin/i686-linux-android-
     AS=$TOOLCHAIN/bin/i686-linux-android21-clang
@@ -283,7 +302,6 @@ FFCOMMON="\
 FF_FEATURE_CLASS="\
 --disable-avdevice \
 --disable-devices \
---disable-encoders \
 --disable-filters \
 --disable-muxers \
 --disable-postproc \
@@ -298,7 +316,6 @@ FF_FEATURE_DEMUXER="\
 --disable-demuxer=pjs \
 --disable-demuxer=realtext \
 --disable-demuxer=sami \
---disable-demuxer=srt \
 --disable-demuxer=stl \
 --disable-demuxer=subviewer \
 --disable-demuxer=subviewer1 \
@@ -360,19 +377,23 @@ FF_FEATURE_MISC="\
 --disable-bsf=dca_core \
 " 
 
+ENABLE_ALL_DEMUXER_DECODER=false
+
 FF_FEATURES=""
 FF_FEATURES+=$FF_FEATURE_CLASS
-if [ "$DISABLE_ILLEGAL_COMPONENTS" = true ];
-then
-    FF_FEATURES+=$FF_FEATURE_DEMUXER
-    FF_FEATURES+=$FF_FEATURE_DECODER
-    FF_FEATURES+=$FF_FEATURE_MISC
-fi
-
-FF_FEATURES+=$FF_FEATURE_PROTOCOL
-FF_FEATURES+=$FF_FEATURE_FILTER
 FF_FEATURES+=$FF_FEATURE_MUXER
 FF_FEATURES+=$FF_FEATURE_ENCODER
+FF_FEATURES+=$FF_FEATURE_FILTER
+FF_FEATURES+=$FF_FEATURE_PROTOCOL
+
+if [ "$ENABLE_ALL_DEMUXER_DECODER" != true ]; then
+  MX_WHITELIST="-DMX_WHITELIST"
+  FF_FEATURES+=$FF_FEATURE_DEMUXER
+  FF_FEATURES+=$FF_FEATURE_DECODER
+  FF_FEATURES+=$FF_FEATURE_MISC
+  else
+  MX_WHITELIST=""
+fi
 
 FF_OUTDEP="\
 --enable-libmodplug \
@@ -401,8 +422,12 @@ FFCOMPILER="\
 $EXTRA_PARAMETERS \
 "
 
-EXTRA_CFLAGS+=" -I$INC_LIBMP3LAME -I$INC_ICONV -I$INC_MXV -I$INC_MXD -I$INC_USB -I$INC_DOWNLOAD -I$INC_OPENSSL -I$INC_OPUS -I$INC_SPEEX -I$INC_MODPLUG -I$INC_LIBMXL2 -I$INC_LIBSMB2 -I$INC_LIBDAV1D -DNDEBUG -DMXTECHS -DFF_API_AVPICTURE=1 -DCONFIG_MXV_FROM_MXVP=1 -DMXD_BUILTIN -ftree-vectorize -ffunction-sections -funwind-tables -fomit-frame-pointer -no-canonical-prefixes -pipe"
-EXTRA_LIBS=" -L$LIB_MX -lmxutil -lm -lc++_shared"
+EXTRA_CFLAGS+=" -I$INC_LIBMP3LAME -I$INC_ICONV -I$INC_MXV -I$INC_MXD -I$INC_USB -I$INC_DOWNLOAD -idirafter$INC_ZVBI -I$INC_OPENSSL -I$INC_OPUS -I$INC_SPEEX -I$INC_MODPLUG -I$INC_LIBMXL2 -I$INC_LIBSMB2 -I$INC_LIBDAV1D -I$INC_LIBDAV1D_BUILD -DNDEBUG -DMXTECHS $MX_WHITELIST -DFF_API_AVPICTURE=1 -DCONFIG_MXV_FROM_MXVP=1 -DMXD_BUILTIN -ftree-vectorize -ffunction-sections -funwind-tables -fomit-frame-pointer -no-canonical-prefixes -pipe"
+EXTRA_LIBS=" -L$LIB_MX -lsmb2 -lmxutil -lmp3lame -lm -lc++_shared"
+#EXTRA_LIBS="-L$LIB_MX -L$ANDROID_SDKS_LIBRARY_PATH/$LINK_AGAINST -lmxutil -lm"
+
+if true 
+then
 
 # Don't ask me why i need bash here when its already #!/bin/bash. This fixes ffmpeg ./configure: 1283: shift: can't shift that many
 bash ./configure ${FFCOMPILER}               \
@@ -416,3 +441,21 @@ bash ./configure ${FFCOMPILER}               \
             --extra-libs="$EXTRA_LIBS"       \
             --extra-ldflags="$EXTRA_LDFLAGS" \
             --optflags="$OPTFLAGS"
+
+else
+#try another way to configure ff, fails now
+
+FF_SPC="\
+--cc="$CC" \
+--cxx="$CXX" \
+--extra-cflags="$EXTRA_CFLAGS" \
+--extra-libs="$EXTRA_LIBS" \
+--extra-ldflags="$EXTRA_LDFLAGS" \
+--optflags="$OPTFLAGS"
+"
+
+./configure ${FFCOMPILER} ${FFCOMMON} ${FF_FEATURES} \
+${FFMPEG_CONFIGURATION}  ${FF_OUTDEP} \
+${FF_SPC}
+
+fi

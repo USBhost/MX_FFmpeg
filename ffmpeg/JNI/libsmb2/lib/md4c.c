@@ -23,8 +23,16 @@
    These notices must be retained in any copies of any part of this
    documentation and/or software.
  */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
+#ifdef HAVE_STDINT_H
 #include <stdint.h>
+#endif
+
+#include "compat.h"
+
 #include "md4.h"
 
 /* Constants for MD4Transform routine.

@@ -39,6 +39,16 @@
 #include <string.h>
 #endif
 
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+
+#include "compat.h"
+
 #include <smb2.h>
 #include <libsmb2.h>
 #include "libsmb2-private.h"

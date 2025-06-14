@@ -436,8 +436,7 @@ int main(int argc, char *argv[])
         printf("\n");
 
         printf("Alignment Requirement: %d\n", fs->alignment_requirement);
-
-
+        printf("Name: %s\n", fs->name);
 
         smb2_free_data(smb2, fs);
 

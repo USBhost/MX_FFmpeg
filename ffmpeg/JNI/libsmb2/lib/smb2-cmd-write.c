@@ -41,6 +41,8 @@
 
 #include <errno.h>
 
+#include "compat.h"
+
 #include "smb2.h"
 #include "libsmb2.h"
 #include "libsmb2-private.h"
@@ -102,7 +104,7 @@ smb2_cmd_write_async(struct smb2_context *smb2,
                 return NULL;
         }
 
-        smb2_add_iovector(smb2, &pdu->out, req->buf,
+        smb2_add_iovector(smb2, &pdu->out, (uint8_t*)req->buf,
                           req->length, NULL);
         
         if (smb2_pad_to_64bit(smb2, &pdu->out) != 0) {

@@ -52,7 +52,7 @@ LOCAL_LDFLAGS += -march=$(ARCH)
 TARGET_ARCH_ABI := arm64-v8a
 LOCAL_CFLAGS += -D__TARGET_ARCH_ARM=8 -D__AARCH64__
 #LOCAL_LDFLAGS += -Wl,--fix-cortex-a53
-LOCAL_CFLAGS += -mfpu=$(VFP) -mfloat-abi=softfp
+#LOCAL_CFLAGS += -mfpu=$(VFP) -mfloat-abi=softfp
 
 ifeq ($(VFP),neon)
 	LOCAL_ARM_NEON := true

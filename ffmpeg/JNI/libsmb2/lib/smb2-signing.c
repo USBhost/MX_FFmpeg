@@ -51,6 +51,8 @@
 #include <unistd.h>
 #endif
 
+#include "compat.h"
+
 #include "smb2-signing.h"
 
 #define EBC 1
@@ -158,6 +160,53 @@ void smb3_aes_cmac_128(uint8_t key[AES128_KEY_LEN],
 }
 
 int
+smb2_calc_signature(struct smb2_context *smb2, uint8_t *signature,
+                    struct smb2_iovec *iov, int niov)
+
+{
+        /* Clear the smb2 header signature field field */
+        memset(iov[0].buf + 48, 0, 16);
+
+        if (smb2->dialect > SMB2_VERSION_0210) {
+                int i = 0, offset = 0, len = 0;
+                uint8_t aes_mac[AES_BLOCK_SIZE];
+                /* combine the buffers into one */
+                uint8_t *msg = NULL;
+
+                for (i=0; i < niov; i++) {
+                        len += iov[i].len;
+                }
+                msg = (uint8_t *) malloc(len);
+                if (msg == NULL) {
+                        smb2_set_error(smb2, "Failed to allocate buffer for "
+                                       "signature calculation");
+                        return -1;
+                }
+
+                for (i=0; i < niov; i++) {
+                        memcpy(msg + offset, iov[i].buf, iov[i].len);
+                        offset += iov[i].len;
+                }
+                smb3_aes_cmac_128(smb2->signing_key, msg, offset, aes_mac);
+                free(msg);
+                memcpy(&signature[0], aes_mac, SMB2_SIGNATURE_SIZE);
+        } else {
+                HMACContext ctx;
+                uint8_t digest[USHAMaxHashSize];
+                int i;
+
+                hmacReset(&ctx, SHA256, &smb2->signing_key[0], SMB2_KEY_SIZE);
+                for (i=0; i < niov; i++) {
+                        hmacInput(&ctx, iov[i].buf, iov[i].len);
+                }
+                hmacResult(&ctx, digest);
+                memcpy(&signature[0], digest, SMB2_SIGNATURE_SIZE);
+        }
+
+        return 0;
+}
+
+int
 smb2_pdu_add_signature(struct smb2_context *smb2,
                        struct smb2_pdu *pdu
                        )
@@ -165,6 +214,7 @@ smb2_pdu_add_signature(struct smb2_context *smb2,
         struct smb2_header *hdr = NULL;
         uint8_t signature[16] = {0};
         struct smb2_iovec *iov = NULL;
+        int niov;
 
         if (pdu->header.command == SMB2_SESSION_SETUP) {
                 return 0;
@@ -189,49 +239,15 @@ smb2_pdu_add_signature(struct smb2_context *smb2,
 
         /* Set the flag before calculating signature */
         iov = &pdu->out.iov[0];
+        niov = pdu->out.niov;
         hdr->flags |= SMB2_FLAGS_SIGNED;
         smb2_set_uint32(iov, 16, hdr->flags);
 
         /* sign the pdu and store the signature in pdu->header.signature
          * if pdu is signed then add SMB2_FLAGS_SIGNED to pdu->header.flags
          */
-
-        if (smb2->dialect > SMB2_VERSION_0210) {
-                int i = 0, offset = 0;
-                uint8_t aes_mac[AES_BLOCK_SIZE];
-                /* combine the buffers into one */
-                uint8_t *msg = NULL;
-                msg = (uint8_t *) malloc(4);
-                if (msg == NULL) {
-                        smb2_set_error(smb2, "Failed to allocate buffer");
-                        return -1;
-                }
-
-                for (i=0; i < pdu->out.niov; i++) {
-                        msg = (uint8_t *)realloc(msg, offset + pdu->out.iov[i].len);
-                        if (msg == NULL) {
-                                smb2_set_error(smb2, "Failed to allocate buffer");
-                                return -1;
-                        }
-                        memcpy(msg+offset, pdu->out.iov[i].buf, pdu->out.iov[i].len);
-                        offset += pdu->out.iov[i].len;
-                }
-                smb3_aes_cmac_128(smb2->signing_key, msg, offset, aes_mac);
-                free(msg);
-                memcpy(&signature[0], aes_mac, SMB2_SIGNATURE_SIZE);
-        } else {
-                HMACContext ctx;
-                uint8_t digest[USHAMaxHashSize];
-                int i;
-
-                hmacReset(&ctx, SHA256, &smb2->signing_key[0], SMB2_KEY_SIZE);
-                for (i=0; i < pdu->out.niov; i++) {
-                        hmacInput(&ctx,
-                                  pdu->out.iov[i].buf,
-                                  pdu->out.iov[i].len);
-                }
-                hmacResult(&ctx, digest);
-                memcpy(&signature[0], digest, SMB2_SIGNATURE_SIZE);
+        if (smb2_calc_signature(smb2, signature, iov, niov) < 0) {
+                return -1;
         }
 
         memcpy(&(hdr->signature[0]), signature, SMB2_SIGNATURE_SIZE);

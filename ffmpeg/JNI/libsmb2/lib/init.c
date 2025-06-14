@@ -43,8 +43,16 @@
 
 #include <stdarg.h>
 #include <stdio.h>
-#include <sys/socket.h>
+
+#if !defined(PS2_IOP_PLATFORM)
 #include <time.h>
+#endif
+
+#if !defined(PS2_EE_PLATFORM) && !defined(PS2_IOP_PLATFORM)
+#include <sys/socket.h>
+#endif
+
+#include "compat.h"
 
 #include "smb2.h"
 #include "libsmb2.h"
@@ -55,7 +63,7 @@
 #else
 #define MAX_URL_SIZE 256
 #endif
-
+#include "compat.h"
 #ifdef _MSC_VER
 #include <errno.h>
 #define getlogin_r(a,b) ENXIO
@@ -68,6 +76,7 @@
 #include <errno.h>
 #include <esp_system.h>
 #define random esp_random
+#define srandom(seed)
 #define getlogin_r(a,b) ENXIO
 #endif
 
@@ -97,6 +106,18 @@ smb2_parse_args(struct smb2_context *smb2, const char *args)
 
                 if (!strcmp(args, "seal")) {
                         smb2->seal = 1;
+                } else if (!strcmp(args, "sign")) {
+                        smb2->sign = 1;
+                } else if (!strcmp(args, "ndr3264")) {
+                        smb2->ndr = 0;
+                } else if (!strcmp(args, "ndr32")) {
+                        smb2->ndr = 1;
+                } else if (!strcmp(args, "ndr64")) {
+                        smb2->ndr = 2;
+                } else if (!strcmp(args, "le")) {
+                        smb2->endianess = 0;
+                } else if (!strcmp(args, "be")) {
+                        smb2->endianess = 1;
                 } else if (!strcmp(args, "sec")) {
                         if(!strcmp(value, "krb5")) {
                                 smb2->sec = SMB2_SEC_KRB5;
@@ -124,11 +145,15 @@ smb2_parse_args(struct smb2_context *smb2, const char *args)
                                 smb2->version = SMB2_VERSION_0300;
                         } else if(!strcmp(value, "3.02")) {
                                 smb2->version = SMB2_VERSION_0302;
+                        } else if(!strcmp(value, "3.1.1")) {
+                                smb2->version = SMB2_VERSION_0311;
                         } else {
                                 smb2_set_error(smb2, "Unknown vers= argument: "
                                                "%s", value);
                                 return -1;
                         }
+                } else if (!strcmp(args, "timeout")) {
+                        smb2->timeout = strtol(value, NULL, 10);
                 } else {
                         smb2_set_error(smb2, "Unknown argument: %s", args);
                         return -1;
@@ -144,6 +169,7 @@ smb2_parse_args(struct smb2_context *smb2, const char *args)
                 case SMB2_VERSION_ANY3:
                 case SMB2_VERSION_0300:
                 case SMB2_VERSION_0302:
+                case SMB2_VERSION_0311:
                         break;
                 default:
                         smb2_set_error(smb2, "Can only use seal with SMB3");
@@ -186,8 +212,15 @@ struct smb2_url *smb2_parse_url(struct smb2_context *smb2, const char *url)
 
         ptr = str;
 
+        char *shared_folder = strchr(ptr, '/');
+        if (!shared_folder) {
+                smb2_set_error(smb2, "Wrong URL format");
+                return NULL;
+        }
+        int len_shared_folder = strlen(shared_folder);
+
         /* domain */
-        if ((tmp = strchr(ptr, ';')) != NULL) {
+        if ((tmp = strchr(ptr, ';')) != NULL && strlen(tmp) > len_shared_folder) {
                 *(tmp++) = '\0';
                 u->domain = strdup(ptr);
                 ptr = tmp;
@@ -215,7 +248,7 @@ struct smb2_url *smb2_parse_url(struct smb2_context *smb2, const char *url)
         }
 #else
         /* user */
-        if ((tmp = strchr(ptr, '@')) != NULL) {
+        if ((tmp = strchr(ptr, '@')) != NULL && strlen(tmp) > len_shared_folder) {
                 *(tmp++) = '\0';
                 u->user = strdup(ptr);
                 ptr = tmp;
@@ -267,7 +300,7 @@ struct smb2_context *smb2_init_context(void)
         int i, ret;
         static int ctr;
 
-        srandom(time(NULL) | getpid() | ctr++);
+        srandom(time(NULL) ^ getpid() ^ ctr++);
 
         smb2 = calloc(1, sizeof(struct smb2_context));
         if (smb2 == NULL) {
@@ -277,14 +310,22 @@ struct smb2_context *smb2_init_context(void)
         ret = getlogin_r(buf, sizeof(buf));
         smb2_set_user(smb2, ret == 0 ? buf : "Guest");
         smb2->fd = -1;
+        smb2->connecting_fds = NULL;
+        smb2->connecting_fds_count = 0;
+        smb2->addrinfos = NULL;
+        smb2->next_addrinfo = NULL;
         smb2->sec = SMB2_SEC_UNDEFINED;
         smb2->version = SMB2_VERSION_ANY;
+        smb2->ndr = 1;
 
         for (i = 0; i < 8; i++) {
-                smb2->client_challenge[i] = random()&0xff;
+                smb2->client_challenge[i] = random() & 0xff;
+        }
+        for (i = 0; i < SMB2_SALT_SIZE; i++) {
+                smb2->salt[i] = random() & 0xff;
         }
 
-        snprintf(smb2->client_guid, 16, "libsmb2-%d", getpid());
+        snprintf(smb2->client_guid, 16, "libsmb2-%d", (int)random());
 
         smb2->session_key = NULL;
 
@@ -298,8 +339,14 @@ void smb2_destroy_context(struct smb2_context *smb2)
         }
 
         if (smb2->fd != -1) {
+                if (smb2->change_fd) {
+                        smb2->change_fd(smb2, smb2->fd, SMB2_DEL_FD);
+                }
                 close(smb2->fd);
                 smb2->fd = -1;
+        }
+        else {
+                smb2_close_connecting_fds(smb2);
         }
 
         while (smb2->outqueue) {
@@ -376,6 +423,7 @@ struct smb2_iovec *smb2_add_iovector(struct smb2_context *smb2,
 
 void smb2_set_error(struct smb2_context *smb2, const char *error_string, ...)
 {
+#ifndef PS2_IOP_PLATFORM
         va_list ap;
         char errstr[MAX_ERROR_SIZE] = {0};
 
@@ -388,6 +436,9 @@ void smb2_set_error(struct smb2_context *smb2, const char *error_string, ...)
         if (smb2 != NULL) {
                 strncpy(smb2->error_string, errstr, MAX_ERROR_SIZE);
         }
+#else /* PS2_IOP_PLATFORM */
+        /* Dont have vs[n]printf on PS2 IOP. */
+#endif /* PS2_IOP_PLATFORM */
 }
 
 const char *smb2_get_error(struct smb2_context *smb2)
@@ -405,6 +456,7 @@ void smb2_set_security_mode(struct smb2_context *smb2, uint16_t security_mode)
         smb2->security_mode = security_mode;
 }
 
+#if !defined(PS2_IOP_PLATFORM)
 static void smb2_set_password_from_file(struct smb2_context *smb2)
 {
         char *name = NULL;
@@ -480,6 +532,12 @@ static void smb2_set_password_from_file(struct smb2_context *smb2)
         }
         fclose(fh);
 }
+#else /* !PS2_IOP_PLATFORM */
+static void smb2_set_password_from_file(struct smb2_context *smb2)
+{
+        return;
+}
+#endif /* !PS2_IOP_PLATFORM */
 
 void smb2_set_user(struct smb2_context *smb2, const char *user)
 {
@@ -522,12 +580,39 @@ void smb2_set_workstation(struct smb2_context *smb2, const char *workstation)
         smb2->workstation = strdup(workstation);
 }
 
+void smb2_set_opaque(struct smb2_context *smb2, void *opaque)
+{
+        smb2->opaque = opaque;
+}
+
+void *smb2_get_opaque(struct smb2_context *smb2)
+{
+        return smb2->opaque;
+}
+
 void smb2_set_seal(struct smb2_context *smb2, int val)
 {
         smb2->seal = val;
+}
+
+void smb2_set_sign(struct smb2_context *smb2, int val)
+{
+        smb2->sign = val;
 }
 
 void smb2_set_authentication(struct smb2_context *smb2, int val)
 {
         smb2->sec = val;
 }
+
+void smb2_set_timeout(struct smb2_context *smb2, int seconds)
+{
+        smb2->timeout = seconds;
+}
+
+void smb2_set_version(struct smb2_context *smb2,
+                      enum smb2_negotiate_version version)
+{
+        smb2->version = version;
+}
+

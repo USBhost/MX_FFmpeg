@@ -39,6 +39,8 @@
 #include <stddef.h>
 #endif
 
+#include "compat.h"
+
 #include "smb2.h"
 #include "libsmb2.h"
 #include "libsmb2-private.h"
@@ -126,6 +128,8 @@ smb2_decode_file_all_info(struct smb2_context *smb2,
                           struct smb2_iovec *vec)
 {
         struct smb2_iovec v;
+        uint16_t name_len;
+        const char *name;
 
         if (vec->len < 40) {
                 return -1;
@@ -149,8 +153,15 @@ smb2_decode_file_all_info(struct smb2_context *smb2,
         smb2_get_uint64(vec, 80, &fs->current_byte_offset);
         smb2_get_uint32(vec, 88, &fs->mode);
         smb2_get_uint32(vec, 92, &fs->alignment_requirement);
+        smb2_get_uint16(vec, 96, &name_len);
 
-        //fs->name = ucs2_to_utf8((uint16_t *)&vec->buf[80], name_len / 2);
-
+        name = utf16_to_utf8((uint16_t *)&vec->buf[100], name_len / 2);
+        fs->name = smb2_alloc_data(smb2, memctx, strlen(name) + 1);
+        if (fs->name == NULL) {
+                free(discard_const(name));
+                return -1;
+        }
+        strcat(discard_const(fs->name), name);
+        free(discard_const(name));
         return 0;
 }

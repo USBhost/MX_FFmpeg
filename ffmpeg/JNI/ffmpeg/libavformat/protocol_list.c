@@ -36,4 +36,6 @@ static const URLProtocol * const url_protocols[] = {
     &ff_ijkio_protocol,
     &ff_libsmb2_protocol,
     &ff_usb_protocol,
+    &ff_download_http_protocol,
+    &ff_download_https_protocol,
     NULL };

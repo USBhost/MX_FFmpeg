@@ -26,7 +26,7 @@ if [ ${FLAVOR} == 'neon' ] || [ ${FLAVOR} == 'tegra2' ] || [ ${FLAVOR} == 'tegra
 then
     CROSS_PREFIX=${TOOLCHAIN}/bin/arm-linux-androideabi-
     TARGET=android-armv7
-    CLANG_TARGET="armv7-none-linux-androideabi17"
+    CLANG_TARGET="armv7a-none-linux-androideabi21"
 
 elif [ ${FLAVOR} == 'arm64' ] 
 then
@@ -39,7 +39,7 @@ elif [ ${FLAVOR} == 'x86' ]
 then
     CROSS_PREFIX=${TOOLCHAIN}/bin/i686-linux-android-
     TARGET=android-x86
-    CLANG_TARGET="i686-none-linux-android17"
+    CLANG_TARGET="i686-none-linux-android21"
 
 elif [ ${FLAVOR} == 'x86_64' ] 
 then
@@ -49,6 +49,10 @@ then
 else
     die "Unsupported architecture."
 fi
+
+if [ ! -e ${CROSS_PREFIX}ar ]; then
+  CROSS_PREFIX=${TOOLCHAIN}/bin/llvm-
+  fi
 
 export ANDROID_SYSROOT=$NDK/toolchains/llvm/prebuilt/$HOST_PLATFORM/sysroot
 export CC="$NDK/toolchains/llvm/prebuilt/$HOST_PLATFORM/bin/clang -target $CLANG_TARGET"
@@ -66,7 +70,7 @@ make clean; make build_libs -j 4
 if test "$?" != 0; then
     die "ERROR: failed to build openssl.${FLAVOR}"
 fi
-<<!
+#<<!
 DST_DIR=$(get_dst_dir ${FLAVOR})
 echo "COPYING openssl.${FLAVOR} to ${DST_DIR}"
 if ! test -d  ${DST_DIR}
@@ -75,4 +79,4 @@ then
 fi
 cp libssl.a ${ROOT}/${DST_DIR}
 cp libcrypto.a ${ROOT}/${DST_DIR}
-!
+#!

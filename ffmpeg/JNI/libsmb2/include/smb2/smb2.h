@@ -75,16 +75,6 @@ enum smb2_command {
 #define SMB2_NEGOTIATE_SIGNING_ENABLED  0x0001
 #define SMB2_NEGOTIATE_SIGNING_REQUIRED 0x0002
 
-enum smb2_negotiate_version {
-        SMB2_VERSION_ANY  = 0,
-        SMB2_VERSION_ANY2 = 2,
-        SMB2_VERSION_ANY3 = 3,
-        SMB2_VERSION_0202 = 0x0202,
-        SMB2_VERSION_0210 = 0x0210,
-        SMB2_VERSION_0300 = 0x0300,
-        SMB2_VERSION_0302 = 0x0302
-};
-
 #define SMB2_GLOBAL_CAP_DFS                0x00000001
 #define SMB2_GLOBAL_CAP_LEASING            0x00000002
 #define SMB2_GLOBAL_CAP_LARGE_MTU          0x00000004
@@ -92,6 +82,15 @@ enum smb2_negotiate_version {
 #define SMB2_GLOBAL_CAP_PERSISTENT_HANDLES 0x00000010
 #define SMB2_GLOBAL_CAP_DIRECTORY_LEASING  0x00000020
 #define SMB2_GLOBAL_CAP_ENCRYPTION         0x00000040
+
+#define SMB2_PREAUTH_INTEGRITY_CAP         0x0001
+#define SMB2_ENCRYPTION_CAP                0x0002
+
+#define SMB2_HASH_SHA_512                  0x0001
+#define SMB2_PREAUTH_HASH_SIZE             64
+
+#define SMB2_ENCRYPTION_AES_128_CCM        0x0001
+#define SMB2_ENCRYPTION_AES_128_GCM        0x0002
 
 #define SMB2_NEGOTIATE_MAX_DIALECTS 10
 
@@ -105,7 +104,8 @@ struct smb2_negotiate_request {
         uint16_t security_mode;
         uint32_t capabilities;
         smb2_guid client_guid;
-        uint64_t client_start_time;
+        uint32_t negotiate_context_offset;
+        uint16_t negotiate_context_count;
         uint16_t dialects[SMB2_NEGOTIATE_MAX_DIALECTS];
 };
 
@@ -114,6 +114,7 @@ struct smb2_negotiate_request {
 struct smb2_negotiate_reply {
         uint16_t security_mode;
         uint16_t dialect_revision;
+        uint16_t cypher;
         smb2_guid server_guid;
         uint32_t capabilities;
         uint32_t max_transact_size;
@@ -121,6 +122,8 @@ struct smb2_negotiate_reply {
         uint32_t max_write_size;
         uint64_t system_time;
         uint64_t server_start_time;
+        uint32_t negotiate_context_offset;
+        uint16_t negotiate_context_count;
         uint16_t security_buffer_length;
         uint16_t security_buffer_offset;
         uint8_t *security_buffer;
@@ -412,6 +415,12 @@ struct smb2_fileidfulldirectoryinformation {
         const char *name;
 };
 
+struct smb2_iovec;
+int smb2_decode_fileidfulldirectoryinformation(
+        struct smb2_context *smb2,
+        struct smb2_fileidfulldirectoryinformation *fs,
+        struct smb2_iovec *vec);
+        
 struct smb2_query_directory_request {
         uint8_t file_information_class;
         uint8_t flags;
@@ -474,6 +483,7 @@ struct smb2_read_reply {
 #define SMB2_FILE_END_OF_FILE_INFORMATION       0x14
 
 /* Filesystem information class : for SMB2_0_INFO_FILESYSTEM */
+#define SMB2_FILE_FS_VOLUME_INFORMATION            1
 #define SMB2_FILE_FS_SIZE_INFORMATION              3
 #define SMB2_FILE_FS_DEVICE_INFORMATION            4
 #define SMB2_FILE_FS_CONTROL_INFORMATION           6
@@ -530,7 +540,7 @@ struct smb2_file_all_info {
         uint64_t current_byte_offset;
         uint32_t mode;
         uint32_t alignment_requirement;
-        uint8_t *name_information;
+        const uint8_t *name;
 };
 
 struct smb2_query_info_request {
@@ -556,7 +566,7 @@ struct smb2_file_end_of_file_info {
  */
 struct smb2_file_rename_info {
         uint8_t replace_if_exist;
-        uint8_t *file_name;
+        const uint8_t* file_name;
 };
 
 #define SMB2_SET_INFO_REQUEST_SIZE 33
@@ -684,6 +694,15 @@ struct smb2_security_descriptor {
         struct smb2_sid *owner;
         struct smb2_sid *group;
         struct smb2_acl *dacl;
+};
+
+struct smb2_file_fs_volume_info {
+        struct smb2_timeval creation_time;
+        uint32_t volume_serial_number;
+        uint32_t volume_label_length;
+        uint8_t supports_objects;
+        uint8_t reserved;
+        const uint8_t *volume_label;
 };
 
 struct smb2_file_fs_size_info {
@@ -837,7 +856,7 @@ struct smb2_ioctl_reply {
 struct smb2_write_request {
         uint32_t length;
         uint64_t offset;
-        uint8_t *buf;
+        const uint8_t* buf;
         smb2_file_id file_id;
         uint32_t channel;
         uint32_t remaining_bytes;

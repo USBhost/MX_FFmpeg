@@ -21,7 +21,9 @@
 
 #ifndef AVFORMAT_MATROSKA_H
 #define AVFORMAT_MATROSKA_H
-
+#ifdef MX_DEBUG
+#include <stdio.h>
+#endif
 #include "libavcodec/avcodec.h"
 #include "metadata.h"
 #include "internal.h"
@@ -380,5 +382,8 @@ extern const char * const ff_matroska_video_stereo_plane[MATROSKA_VIDEO_STEREO_P
 #define CODEC_PRIVATE_SIZE "webm_dash_manifest_codec_priv_size"
 
 int ff_mkv_stereo3d_conv(AVStream *st, MatroskaVideoStereoModeType stereo_mode);
+#ifdef MX_DEBUG
+const char* ff_mkv_get_id_string(uint32_t id);
+#endif
 
 #endif /* AVFORMAT_MATROSKA_H */

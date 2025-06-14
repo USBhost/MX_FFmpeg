@@ -1,0 +1,14 @@
+# libsmb2 pkg-config file
+
+prefix=/usr/local
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: libsmb2
+Description: libsmb2 is a client library for accessing SMB shares over a network.
+Version: 4.0.0
+Requires:
+Conflicts:
+Libs: -L${libdir} -lsmb2
+Cflags: -I${includedir}

@@ -21,8 +21,6 @@
  * Still in the public domain.
  */
 
-#ifndef ESP_PLATFORM
-
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -30,6 +28,8 @@
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif
+
+#include "compat.h"
 
 #include "md5.h"
 
@@ -245,6 +245,3 @@ MD5Transform(UWORD32 buf[4], UWORD32 const in[16])
 }
 
 #endif
-
-#endif
-

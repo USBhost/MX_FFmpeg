@@ -41,6 +41,8 @@
 #include <stddef.h>
 #endif
 
+#include "compat.h"
+
 #include "slist.h"
 #include "smb2.h"
 #include "libsmb2.h"
@@ -235,7 +237,6 @@ decode_acl(struct smb2_context *smb2, void *memctx, struct smb2_iovec *vec)
                                "revision %d", revision);
                 return NULL;
         }
-        smb2_get_uint16(&v, 2, &acl_size);
         if (v.len > acl_size) {
                 v.len = acl_size;
         }
@@ -336,7 +337,7 @@ smb2_decode_security_descriptor(struct smb2_context *smb2,
         }
 
         /* DACL */
-        if (offset_dacl > 0 && offset_dacl + 8 < vec->len) {
+        if (offset_dacl > 0 && offset_dacl + 8 <= vec->len) {
                 v.buf = &vec->buf[offset_dacl];
                 v.len = vec->len - offset_dacl;
 

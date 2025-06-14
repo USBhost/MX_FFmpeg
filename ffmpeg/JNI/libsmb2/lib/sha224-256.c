@@ -36,6 +36,8 @@
  *   final few bits of the input.
  */
 
+#include "compat.h"
+
 #include "sha.h"
 #include "sha-private.h"
 /* Define the SHA shift, rotate left and rotate right macro */
@@ -336,7 +338,7 @@ SHA256FinalBits (SHA256Context * context,
  *   sha Error Code.
  */
 int
-SHA256Result (SHA256Context * context, uint8_t Message_Digest[])
+SHA256Result (SHA256Context * context, uint8_t Message_Digest[SHA256HashSize])
 {
   return SHA224_256ResultN (context, Message_Digest, SHA256HashSize);
 }

@@ -871,6 +871,359 @@ void avcodec_register_all(void)
 FF_ENABLE_DEPRECATION_WARNINGS
 #endif
 
+#ifdef MXTECHS
+enum MXCodecID
+{
+    /* video codecs */
+    rv10,
+    rv20,
+    rv30,
+    rv40,
+    wmv1,
+    wmv2,
+    wmv3image,
+    msmpeg4v1,
+    msmpeg4v2,
+    msmpeg4v3,
+    msrle,
+    mss1,
+    mss2,
+    msa1,
+    mszh,
+
+    msvideo1,
+    vc1,
+    vc1image,
+    dvvideo,
+    indeo2,
+    indeo3,
+    indeo4,
+    indeo5,
+    mpeg2video,
+    mpegvideo,
+    qtrle,
+    tscc,
+    tscc2,
+    cinepak,
+    bink,
+    prores,
+    prores_lgpl,
+    svq1,
+    svq3,
+    hq_hqa,
+    fraps,
+    smacker,
+    roq,
+    bmv_video,
+
+    /* audio codecs */
+    dts,
+    ac3,
+    eac3,
+    mlp,
+    truehd,
+    cook,
+    ra_144,
+    ra_288,
+    wmav1,
+    wmav2,
+    wmavoice,
+    ws_snd1,
+    wmalossless,
+    wmapro,
+    gsm_ms,
+    adpcm_ms,
+    binkaudio_dct,
+    binkaudio_rdft,
+    nellymoser,
+    qcelp,
+    evrc,
+    atrac1,
+    atrac3,
+    atrac3p,
+    truespeech,
+    metasound,
+    gsm,
+    wavpack,
+    mace3,
+    mace6,
+    smackaud,
+    ffwavesynth,
+    dss_sp,
+    tak,
+    dst,
+    imc,
+    roq_dpcm,
+    ralf,
+    g723_1,
+    bmv_audio,
+    sipr,
+    dsd_lsbf,
+    dsd_lsbf_planar,
+    dsd_msbf,
+    dsd_msbf_planar,
+    adpcm_4xm,
+    adpcm_adx,
+    adpcm_afc,
+    adpcm_aica,
+    adpcm_ct,
+    adpcm_dtk,
+    adpcm_ea,
+    adpcm_ea_maxis_xa,
+    adpcm_ea_r1,
+    adpcm_ea_r2,
+    adpcm_ea_r3,
+    adpcm_ea_xas,
+    adpcm_g722,
+    adpcm_g726,
+    adpcm_g726le,
+    adpcm_ima_amv,
+    adpcm_ima_apc,
+    adpcm_ima_dat4,
+    adpcm_ima_dk3,
+    adpcm_ima_dk4,
+    adpcm_ima_ea_eacs,
+    adpcm_ima_ea_sead,
+    adpcm_ima_iss,
+    adpcm_ima_oki,
+    adpcm_ima_qt,
+    adpcm_ima_rad,
+    adpcm_ima_smjpeg,
+    adpcm_ima_wav,
+    adpcm_ima_ws,
+    adpcm_mtaf,
+    adpcm_psx,
+    adpcm_sbpro_2,
+    adpcm_sbpro_3,
+    adpcm_sbpro_4,
+    adpcm_swf,
+    adpcm_thp,
+    adpcm_thp_le,
+    adpcm_vima,
+    adpcm_xa,
+    adpcm_yamaha,
+
+    /* subtitle codecs */
+    /*
+    jacosub,
+    microdvd,
+    mpl2,
+    pjs,
+    realtext,
+    sami,
+    srt,
+    stl,
+    subrip,
+    subviewer,
+    subviewer1,
+    text,
+    vplayer,
+    webvtt,
+    */
+    CODEC_COUNT,
+};
+
+typedef struct CodecEntry
+{
+    enum MXCodecID codecId;
+    enum AVCodecID id;
+} CodecEntry;
+
+static const struct CodecEntry CODEC_ENTRIES[] =
+{
+    /* video codecs */
+    { rv10,              AV_CODEC_ID_RV10              },
+    { rv20,              AV_CODEC_ID_RV20              },
+    { rv30,              AV_CODEC_ID_RV30              },
+    { rv40,              AV_CODEC_ID_RV40              },
+    { wmv1,              AV_CODEC_ID_WMV1              },
+    { wmv2,              AV_CODEC_ID_WMV2              },
+    { wmv3image,         AV_CODEC_ID_WMV3IMAGE         },
+    { msmpeg4v1,         AV_CODEC_ID_MSMPEG4V1         },
+    { msmpeg4v2,         AV_CODEC_ID_MSMPEG4V2         },
+    { msmpeg4v3,         AV_CODEC_ID_MSMPEG4V3         },
+    { msrle,             AV_CODEC_ID_MSRLE             },
+    { mss1,              AV_CODEC_ID_MSS1              },
+    { mss2,              AV_CODEC_ID_MSS2              },
+    { msa1,              AV_CODEC_ID_MSA1              },
+    { mszh,              AV_CODEC_ID_MSZH              },
+    { msvideo1,          AV_CODEC_ID_MSVIDEO1          },
+    { vc1,               AV_CODEC_ID_VC1               },
+    { vc1image,          AV_CODEC_ID_VC1IMAGE          },
+    { dvvideo,           AV_CODEC_ID_DVVIDEO           },
+    { indeo2,            AV_CODEC_ID_INDEO2            },
+    { indeo3,            AV_CODEC_ID_INDEO3            },
+    { indeo4,            AV_CODEC_ID_INDEO4            },
+    { indeo5,            AV_CODEC_ID_INDEO5            },
+    { mpeg2video,        AV_CODEC_ID_MPEG2VIDEO        },
+    { mpegvideo,         AV_CODEC_ID_MPEG1VIDEO        },
+    { qtrle,             AV_CODEC_ID_QTRLE             },
+    { tscc,              AV_CODEC_ID_TSCC              },
+    { tscc2,             AV_CODEC_ID_TSCC2             },
+    { cinepak,           AV_CODEC_ID_CINEPAK           },
+    { bink,              AV_CODEC_ID_BINKVIDEO         },
+    { prores,            AV_CODEC_ID_PRORES            },
+    { prores_lgpl,       AV_CODEC_ID_PRORES            },
+    { svq1,              AV_CODEC_ID_SVQ1              },
+    { svq3,              AV_CODEC_ID_SVQ3              },
+    { hq_hqa,            AV_CODEC_ID_HQ_HQA            },
+    { fraps,             AV_CODEC_ID_FRAPS             },
+    { smacker,           AV_CODEC_ID_SMACKVIDEO        },
+    { roq,               AV_CODEC_ID_ROQ               },
+    { bmv_video,         AV_CODEC_ID_BMV_VIDEO         },
+
+    /* audio codecs */
+    { dts,               AV_CODEC_ID_DTS               },
+    { ac3,               AV_CODEC_ID_AC3               },
+    { eac3,              AV_CODEC_ID_EAC3              },
+    { mlp,               AV_CODEC_ID_MLP               },
+    { truehd,            AV_CODEC_ID_TRUEHD            },
+    { cook,              AV_CODEC_ID_COOK              },
+    { ra_144,            AV_CODEC_ID_RA_144            },
+    { ra_288,            AV_CODEC_ID_RA_288            },
+    { wmav1,             AV_CODEC_ID_WMAV1             },
+    { wmav2,             AV_CODEC_ID_WMAV2             },
+    { wmavoice,          AV_CODEC_ID_WMAVOICE          },
+    { ws_snd1,           AV_CODEC_ID_WESTWOOD_SND1     },
+    { wmalossless,       AV_CODEC_ID_WMALOSSLESS       },
+    { wmapro,            AV_CODEC_ID_WMAPRO            },
+    { gsm_ms,            AV_CODEC_ID_GSM_MS            },
+    { adpcm_ms,          AV_CODEC_ID_ADPCM_MS          },
+    { binkaudio_dct,     AV_CODEC_ID_BINKAUDIO_DCT     },
+    { binkaudio_rdft,    AV_CODEC_ID_BINKAUDIO_RDFT    },
+    { nellymoser,        AV_CODEC_ID_NELLYMOSER        },
+    { qcelp,             AV_CODEC_ID_QCELP             },
+    { evrc,              AV_CODEC_ID_EVRC              },
+    { atrac1,            AV_CODEC_ID_ATRAC1            },
+    { atrac3,            AV_CODEC_ID_ATRAC3            },
+    { atrac3p,           AV_CODEC_ID_ATRAC3P           },
+    { truespeech,        AV_CODEC_ID_TRUESPEECH        },
+    { gsm,               AV_CODEC_ID_GSM               },
+    { wavpack,           AV_CODEC_ID_WAVPACK           },
+    { mace3,             AV_CODEC_ID_MACE3             },
+    { mace6,             AV_CODEC_ID_MACE6             },
+    { smackaud,          AV_CODEC_ID_SMACKAUDIO        },
+    { ffwavesynth,       AV_CODEC_ID_FFWAVESYNTH       },
+    { dss_sp,            AV_CODEC_ID_DSS_SP            },
+    { tak,               AV_CODEC_ID_TAK               },
+    { dst,               AV_CODEC_ID_DST               },
+    { imc,               AV_CODEC_ID_IMC               },
+    { roq_dpcm,          AV_CODEC_ID_ROQ_DPCM          },
+    { ralf,              AV_CODEC_ID_RALF              },
+    { g723_1,            AV_CODEC_ID_G723_1            },
+    { bmv_audio,         AV_CODEC_ID_BMV_AUDIO         },
+    { sipr,              AV_CODEC_ID_SIPR              },
+    { dsd_lsbf,          AV_CODEC_ID_DSD_LSBF          },
+    { dsd_lsbf_planar,   AV_CODEC_ID_DSD_LSBF_PLANAR   },
+    { dsd_msbf,          AV_CODEC_ID_DSD_MSBF          },
+    { dsd_msbf_planar,   AV_CODEC_ID_DSD_MSBF_PLANAR   },
+    { adpcm_4xm,         AV_CODEC_ID_ADPCM_4XM         },
+    { adpcm_adx,         AV_CODEC_ID_ADPCM_ADX         },
+    { adpcm_afc,         AV_CODEC_ID_ADPCM_AFC         },
+    { adpcm_aica,        AV_CODEC_ID_ADPCM_AICA        },
+    { adpcm_ct,          AV_CODEC_ID_ADPCM_CT          },
+    { adpcm_dtk,         AV_CODEC_ID_ADPCM_DTK         },
+    { adpcm_ea,          AV_CODEC_ID_ADPCM_EA          },
+    { adpcm_ea_maxis_xa, AV_CODEC_ID_ADPCM_EA_MAXIS_XA },
+    { adpcm_ea_r1,       AV_CODEC_ID_ADPCM_EA_R1       },
+    { adpcm_ea_r2,       AV_CODEC_ID_ADPCM_EA_R2       },
+    { adpcm_ea_r3,       AV_CODEC_ID_ADPCM_EA_R3       },
+    { adpcm_ea_xas,      AV_CODEC_ID_ADPCM_EA_XAS      },
+    { adpcm_g722,        AV_CODEC_ID_ADPCM_G722        },
+    { adpcm_g726,        AV_CODEC_ID_ADPCM_G726        },
+    { adpcm_g726le,      AV_CODEC_ID_ADPCM_G726LE      },
+    { adpcm_ima_amv,     AV_CODEC_ID_ADPCM_IMA_AMV     },
+    { adpcm_ima_apc,     AV_CODEC_ID_ADPCM_IMA_APC     },
+    { adpcm_ima_dat4,    AV_CODEC_ID_ADPCM_IMA_DAT4    },
+    { adpcm_ima_dk3,     AV_CODEC_ID_ADPCM_IMA_DK3     },
+    { adpcm_ima_dk4,     AV_CODEC_ID_ADPCM_IMA_DK4     },
+    { adpcm_ima_ea_eacs, AV_CODEC_ID_ADPCM_IMA_EA_EACS },
+    { adpcm_ima_ea_sead, AV_CODEC_ID_ADPCM_IMA_EA_SEAD },
+    { adpcm_ima_iss,     AV_CODEC_ID_ADPCM_IMA_ISS     },
+    { adpcm_ima_oki,     AV_CODEC_ID_ADPCM_IMA_OKI     },
+    { adpcm_ima_qt,      AV_CODEC_ID_ADPCM_IMA_QT      },
+    { adpcm_ima_rad,     AV_CODEC_ID_ADPCM_IMA_RAD     },
+    { adpcm_ima_smjpeg,  AV_CODEC_ID_ADPCM_IMA_SMJPEG  },
+    { adpcm_ima_wav,     AV_CODEC_ID_ADPCM_IMA_WAV     },
+    { adpcm_ima_ws,      AV_CODEC_ID_ADPCM_IMA_WS      },
+    { adpcm_mtaf,        AV_CODEC_ID_ADPCM_MTAF        },
+    { adpcm_psx,         AV_CODEC_ID_ADPCM_PSX         },
+    { adpcm_sbpro_2,     AV_CODEC_ID_ADPCM_SBPRO_2     },
+    { adpcm_sbpro_3,     AV_CODEC_ID_ADPCM_SBPRO_3     },
+    { adpcm_sbpro_4,     AV_CODEC_ID_ADPCM_SBPRO_4     },
+    { adpcm_swf,         AV_CODEC_ID_ADPCM_SWF         },
+    { adpcm_thp,         AV_CODEC_ID_ADPCM_THP         },
+    { adpcm_thp_le,      AV_CODEC_ID_ADPCM_THP_LE      },
+    { adpcm_vima,        AV_CODEC_ID_ADPCM_VIMA        },
+    { adpcm_xa,          AV_CODEC_ID_ADPCM_XA          },
+    { adpcm_yamaha,      AV_CODEC_ID_ADPCM_YAMAHA      },
+
+    /* subtitle codecs */
+    /*
+    { jacosub,           AV_CODEC_ID_JACOSUB           },
+    { microdvd,          AV_CODEC_ID_MICRODVD          },
+    { mpl2,              AV_CODEC_ID_MPL2              },
+    { pjs,               AV_CODEC_ID_PJS               },
+    { realtext,          AV_CODEC_ID_REALTEXT          },
+    { sami,              AV_CODEC_ID_SAMI              },
+    { srt,               AV_CODEC_ID_SRT               },
+    { stl,               AV_CODEC_ID_STL               },
+    { subrip,            AV_CODEC_ID_SUBRIP            },
+    { subviewer,         AV_CODEC_ID_SUBVIEWER         },
+    { subviewer1,        AV_CODEC_ID_SUBVIEWER1        },
+    { text,              AV_CODEC_ID_TEXT              },
+    { vplayer,           AV_CODEC_ID_VPLAYER           },
+    { webvtt,            AV_CODEC_ID_WEBVTT            },
+    */
+};
+
+static enum AVCodecID toAVCodecId( enum MXCodecID id )
+{
+    int size = FF_ARRAY_ELEMS(CODEC_ENTRIES);
+    for (int index = 0; index < size; ++index) {
+        if (CODEC_ENTRIES[index].codecId == id) {
+            return CODEC_ENTRIES[index].id;
+        }
+    }
+    return AV_CODEC_ID_NONE;
+}
+
+static int *CODEC_BLACKLIST = NULL;
+static int CODEC_BLACKLIST_SIZE = 0;
+
+void avcodec_whitelist(const int *ids, int size)
+{
+#ifdef MX_WHITELIST
+    if (ids && size > 0) {
+        if (CODEC_BLACKLIST != NULL) {
+            av_freep(&CODEC_BLACKLIST);
+            CODEC_BLACKLIST_SIZE = 0;
+        }
+        CODEC_BLACKLIST_SIZE = FFMAX(CODEC_COUNT - size, 0);
+        if (CODEC_BLACKLIST_SIZE > 0) {
+            int blacklist_index = 0;
+            CODEC_BLACKLIST = (int*)av_malloc(CODEC_BLACKLIST_SIZE * sizeof(int));
+            if (CODEC_BLACKLIST) {
+                for (int codec = 0; codec < CODEC_COUNT; ++codec) {
+                    int found = 0;
+                    for (int index = 0; index < size; ++index) {
+                        if (ids[index] == codec) {
+                            found = 1;
+                            break;
+                        }
+                    }
+
+                    if (!found) {
+                        CODEC_BLACKLIST[blacklist_index++] = toAVCodecId(codec);
+                    }
+                }
+            }
+        }
+    }
+#endif
+}
+#endif
+
 static enum AVCodecID remap_deprecated_codec_id(enum AVCodecID id)
 {
     switch(id){
@@ -906,9 +1259,32 @@ AVCodec *avcodec_find_encoder(enum AVCodecID id)
     return find_codec(id, av_codec_is_encoder);
 }
 
+#ifdef MXTECHS
+static AVCodec *check_codec(AVCodec* codec)
+{
+    AVCodec *ret = codec;
+    if (codec != NULL) {
+        if (CODEC_BLACKLIST && CODEC_BLACKLIST_SIZE > 0) {
+            for( int index = 0; index < CODEC_BLACKLIST_SIZE; ++index) {
+                if (CODEC_BLACKLIST[index] == codec->id) {
+                    ret = NULL;
+                    break;
+                }
+            }
+        }
+    }
+    return ret;
+}
+#endif
+
 AVCodec *avcodec_find_decoder(enum AVCodecID id)
 {
+#ifdef MXTECHS
+    AVCodec *decoder = find_codec(id, av_codec_is_decoder);
+    return check_codec(decoder);
+#else
     return find_codec(id, av_codec_is_decoder);
+#endif
 }
 
 static AVCodec *find_codec_by_name(const char *name, int (*x)(const AVCodec *))
@@ -936,5 +1312,10 @@ AVCodec *avcodec_find_encoder_by_name(const char *name)
 
 AVCodec *avcodec_find_decoder_by_name(const char *name)
 {
+#ifdef MXTECHS
+    AVCodec *decoder = find_codec_by_name(name, av_codec_is_decoder);
+    return check_codec(decoder);
+#else
     return find_codec_by_name(name, av_codec_is_decoder);
+#endif
 }
