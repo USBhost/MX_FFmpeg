@@ -5,8 +5,13 @@
 #ifndef _AES_H_
 #define _AES_H_
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+ 
+#ifdef HAVE_STDINT_H
 #include <stdint.h>
-
+#endif
 
 // #define the macros below to 1/0 to enable/disable the mode of operation.
 //
@@ -34,8 +39,8 @@ void AES128_ECB_decrypt(uint8_t* input, const uint8_t* key, uint8_t *output);
 
 #if defined(CBC) && CBC
 
-void AES128_CBC_encrypt_buffer(uint8_t* output, uint8_t* input, uint32_t length, const uint8_t* key, const uint8_t* iv);
-void AES128_CBC_decrypt_buffer(uint8_t* output, uint8_t* input, uint32_t length, const uint8_t* key, const uint8_t* iv);
+void AES128_CBC_encrypt_buffer(uint8_t* output, uint8_t* input, uint32_t length, const uint8_t* key, uint8_t* iv);
+void AES128_CBC_decrypt_buffer(uint8_t* output, uint8_t* input, uint32_t length, const uint8_t* key, uint8_t* iv);
 
 #endif // #if defined(CBC) && CBC
 

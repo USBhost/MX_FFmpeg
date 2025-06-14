@@ -113,6 +113,7 @@ stat_cb_2(struct smb2_context *smb2, int status,
         struct smb2_file_fs_device_info *fs_dev;
         struct smb2_file_fs_control_info *fs_ct;
         struct smb2_file_fs_full_size_info *fs_full_size;
+	struct smb2_file_fs_volume_info *fs_vol;
 
         if (stat_data->status == SMB2_STATUS_SUCCESS) {
                 stat_data->status = status;
@@ -121,6 +122,13 @@ stat_cb_2(struct smb2_context *smb2, int status,
                 return;
         }
         switch (info_level) {
+	case SMB2_FILE_FS_VOLUME_INFORMATION:
+		fs_vol = rep->output_buffer;
+		printf("VolumeSerialNumber: 0x%0x\n",
+		       fs_vol->volume_serial_number);
+		printf("VolumeLabel: %s\n",
+		       fs_vol->volume_label);
+		break;
         case SMB2_FILE_FS_SIZE_INFORMATION:
                 fs_size = rep->output_buffer;
                 printf("TotalAllocationUnits: %" PRIu64 "\n",
@@ -273,6 +281,9 @@ int main(int argc, char *argv[])
                 info_level = strtol(argv[2], NULL, 10);
         }
         switch (info_level) {
+	case SMB2_FILE_FS_VOLUME_INFORMATION:
+		printf("InfoLevel:%d FileFsVolmeInformation\n", info_level);
+		break;
         case SMB2_FILE_FS_SIZE_INFORMATION:
                 printf("InfoLevel:%d FileFsSizeInformation\n", info_level);
                 break;

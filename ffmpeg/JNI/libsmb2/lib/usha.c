@@ -5,6 +5,8 @@
  *     This file implements a unified interface to the SHA algorithms.
  */
 
+#include "compat.h"
+
 #include "sha.h"
 
 /*

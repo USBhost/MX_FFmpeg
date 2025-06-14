@@ -39,6 +39,8 @@
 #include <stddef.h>
 #endif
 
+#include "compat.h"
+
 #include "portable-endian.h"
 
 #include <smb2.h>

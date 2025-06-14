@@ -39,9 +39,39 @@
 #include <stddef.h>
 #endif
 
+#include "compat.h"
+
 #include "smb2.h"
 #include "libsmb2.h"
 #include "libsmb2-private.h"
+
+int
+smb2_decode_file_fs_volume_info(struct smb2_context *smb2,
+                                void *memctx,
+                                struct smb2_file_fs_volume_info *fs,
+                                struct smb2_iovec *vec)
+{
+        uint64_t t;
+        const char *name;
+
+        smb2_get_uint64(vec,  0, &t);
+        win_to_timeval(t, &fs->creation_time);
+	smb2_get_uint32(vec,  8, &fs->volume_serial_number);
+	smb2_get_uint32(vec, 12, &fs->volume_label_length);
+	smb2_get_uint8(vec,  16, &fs->supports_objects);
+	smb2_get_uint8(vec,  17, &fs->reserved);
+        name = utf16_to_utf8((uint16_t *)&vec->buf[18],
+                            fs->volume_label_length / 2);
+        fs->volume_label = smb2_alloc_data(smb2, memctx, strlen(name) + 1);
+        if (fs->volume_label == NULL) {
+                free(discard_const(name));
+                return -1;
+        }
+        strcat(discard_const(fs->volume_label), name);
+        free(discard_const(name));
+
+	return 0;
+}
 
 int
 smb2_decode_file_fs_size_info(struct smb2_context *smb2,

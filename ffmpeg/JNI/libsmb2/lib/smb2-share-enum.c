@@ -54,6 +54,8 @@
 #include <errno.h>
 #include <stdio.h>
 
+#include "compat.h"
+
 #include "smb2.h"
 #include "libsmb2.h"
 #include "libsmb2-dcerpc.h"
@@ -62,24 +64,26 @@
 #include "libsmb2-private.h"
 
 struct smb2nse {
-        struct srvsvc_netshareenumall_req ea_req;
-
         smb2_command_cb cb;
         void *cb_data;
+        union {
+                struct srvsvc_netshareenumall_req se_req;
+        };
 };
 
 static void
 nse_free(struct smb2nse *nse)
 {
+        free(discard_const(nse->se_req.server));
         free(nse);
 }
 
 static void
-share_enum_ioctl_cb(struct dcerpc_context *dce, int status,
-                    void *command_data, void *cb_data)
+srvsvc_ioctl_cb(struct dcerpc_context *dce, int status,
+                void *command_data, void *cb_data)
 {
         struct smb2nse *nse = cb_data;
-        struct srvsvc_netshareenumall_rep *rep = command_data;
+        struct srvsvc_rep *rep = command_data;
         struct smb2_context *smb2 = dcerpc_get_smb2_context(dce);
 
         if (status != SMB2_STATUS_SUCCESS) {
@@ -88,7 +92,7 @@ share_enum_ioctl_cb(struct dcerpc_context *dce, int status,
                 dcerpc_destroy_context(dce);
                 return;
         }
-
+        
         nse->cb(smb2, rep->status, rep, nse->cb_data);
         nse_free(nse);
         dcerpc_destroy_context(dce);
@@ -109,34 +113,11 @@ share_enum_bind_cb(struct dcerpc_context *dce, int status,
         }
 
         status = dcerpc_call_async(dce,
-                                   SRVSVC_NETSHAREENUMALL,
-                                   srvsvc_netshareenumall_encoder, &nse->ea_req,
-                                   srvsvc_netshareenumall_decoder,
+                                   SRVSVC_NETRSHAREENUM,
+                                   srvsvc_NetrShareEnum_req_coder, &nse->se_req,
+                                   srvsvc_NetrShareEnum_rep_coder,
                                    sizeof(struct srvsvc_netshareenumall_rep),
-                                   share_enum_ioctl_cb, nse);
-        if (status) {
-                nse->cb(smb2, status, NULL, nse->cb_data);
-                nse_free(nse);
-                dcerpc_destroy_context(dce);
-                return;
-        }
-}
-
-static void
-share_enum_connect_cb(struct dcerpc_context *dce, int status,
-                      void *command_data, void *cb_data)
-{
-        struct smb2nse *nse = cb_data;
-        struct smb2_context *smb2 = dcerpc_get_smb2_context(dce);
-
-        if (status != SMB2_STATUS_SUCCESS) {
-                nse->cb(smb2, status, NULL, nse->cb_data);
-                nse_free(nse);
-                dcerpc_destroy_context(dce);
-                return;
-        }
-
-        status = dcerpc_bind_async(dce, share_enum_bind_cb, nse);
+                                   srvsvc_ioctl_cb, nse);
         if (status) {
                 nse->cb(smb2, status, NULL, nse->cb_data);
                 nse_free(nse);
@@ -152,8 +133,9 @@ smb2_share_enum_async(struct smb2_context *smb2,
         struct dcerpc_context *dce;
         struct smb2nse *nse;
         int rc;
+        char *server;
 
-        dce = dcerpc_create_context(smb2, "srvsvc", &srvsvc_interface);
+        dce = dcerpc_create_context(smb2);
         if (dce == NULL) {
                 return -ENOMEM;
         }
@@ -167,15 +149,26 @@ smb2_share_enum_async(struct smb2_context *smb2,
         nse->cb = cb;
         nse->cb_data = cb_data;
 
-        nse->ea_req.server = smb2->server;
-        nse->ea_req.level = 1;
-        nse->ea_req.ctr = NULL;
-        nse->ea_req.max_buffer = 0xffffffff;
-        nse->ea_req.resume_handle = 0;
-
-        rc = dcerpc_open_async(dce, share_enum_connect_cb, nse);
-        if (rc) {
+        server = malloc(strlen(smb2->server) + 3);
+        if (server == NULL) {
                 free(nse);
+                smb2_set_error(smb2, "Failed to allocate server");
+                dcerpc_destroy_context(dce);
+                return -ENOMEM;
+        }
+        
+        sprintf(server, "\\\\%s", smb2->server);
+        nse->se_req.server = server;
+
+        nse->se_req.level = 1;
+        nse->se_req.ctr = NULL;
+        nse->se_req.max_buffer = 0xffffffff;
+        nse->se_req.resume_handle = 0;
+
+        rc = dcerpc_connect_context_async(dce, "srvsvc", &srvsvc_interface,
+                                          share_enum_bind_cb, nse);
+        if (rc) {
+                nse_free(nse);
                 dcerpc_destroy_context(dce);
                 return rc;
         }

@@ -69,6 +69,12 @@ extern const URLProtocol ff_librtmpte_protocol;
 extern const URLProtocol ff_libsrt_protocol;
 extern const URLProtocol ff_libssh_protocol;
 extern const URLProtocol ff_libsmbclient_protocol;
+extern const URLProtocol ff_ijkhttphook_protocol;
+extern const URLProtocol ff_ijklongurl_protocol;
+extern const URLProtocol ff_ijkmediadatasource_protocol;
+extern const URLProtocol ff_ijksegment_protocol;
+extern const URLProtocol ff_ijktcphook_protocol;
+extern const URLProtocol ff_ijkio_protocol;
 #ifdef MXTECHS
 extern const URLProtocol ff_libsmb2_protocol;
 extern const URLProtocol ff_usb_protocol;

@@ -1,11 +1,11 @@
 [binaries]
-c = '/Users/zlin/workspace/android-ndk-r20/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android21-clang'
-ar = '/Users/zlin/workspace/android-ndk-r20/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android-ar'
-objcopy = '/Users/zlin/workspace/android-ndk-r20/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android-objcopy'
-strip = '/Users/zlin/workspace/android-ndk-r20/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android-strip'
+c = '/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android21-clang'
+ar = '/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar'
+objcopy = '/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-objcopy'
+strip = '/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-strip'
 
 [properties]
-sys_root = '/Users/zlin/workspace/android-ndk-r20/toolchains/llvm/prebuilt/darwin-x86_64/sysroot'
+sys_root = '/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/sysroot'
 c_args = ['-fstack-protector','-fstrict-aliasing','-Wno-deprecated-declarations','-Wno-unused-variable','-Wno-unused-function']
 c_link_args =['-O2','-march=armv8-a']
 

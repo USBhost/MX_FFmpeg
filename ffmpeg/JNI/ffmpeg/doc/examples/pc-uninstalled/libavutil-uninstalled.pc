@@ -1,0 +1,12 @@
+prefix=
+exec_prefix=
+libdir=${pcfiledir}/../../../libavutil
+includedir=.
+
+Name: libavutil
+Description: FFmpeg utility library
+Version: 56.42.101
+Requires: 
+Conflicts:
+Libs: -L${libdir} -Wl,-rpath,${libdir} -lavutil -pthread -lm
+Cflags: -I${includedir}

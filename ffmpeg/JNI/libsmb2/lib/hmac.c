@@ -7,6 +7,8 @@
  *      various SHA algorithms.
  */
 
+#include "compat.h"
+
 #include "sha.h"
 
 /*

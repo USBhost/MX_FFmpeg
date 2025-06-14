@@ -95,6 +95,25 @@ void cf_cb(struct smb2_context *smb2, int status,
         }
 }
 
+static int cfd = -1;
+
+void fd_cb(struct smb2_context *smb2, int fd, int cmd)
+{
+        if (cmd == SMB2_ADD_FD) {
+                cfd = fd;
+        }
+        if (cmd == SMB2_DEL_FD) {
+                cfd = -1;
+        }
+}
+
+static int cevents = 0;
+
+void events_cb(struct smb2_context *smb2, int fd, int events)
+{
+        cevents = events;
+}
+
 int main(int argc, char *argv[])
 {
         struct smb2_context *smb2;
@@ -110,6 +129,7 @@ int main(int argc, char *argv[])
                 fprintf(stderr, "Failed to init context\n");
                 exit(0);
         }
+        smb2_fd_event_callbacks(smb2, fd_cb, events_cb);
 
         url = smb2_parse_url(smb2, argv[1]);
         if (url == NULL) {
@@ -127,8 +147,8 @@ int main(int argc, char *argv[])
 	}
 
         while (!is_finished) {
-		pfd.fd = smb2_get_fd(smb2);
-		pfd.events = smb2_which_events(smb2);
+		pfd.fd = cfd;
+		pfd.events = cevents;
 
 		if (poll(&pfd, 1, 1000) < 0) {
 			printf("Poll failed");

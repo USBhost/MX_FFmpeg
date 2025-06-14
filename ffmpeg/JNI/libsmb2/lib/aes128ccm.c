@@ -15,13 +15,22 @@
    You should have received a copy of the GNU Lesser General Public License
    along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef _MSC_VER
-#include <arpa/inet.h>
-#endif // !_MSC_VER
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
+#ifdef HAVE_STDINT_H
 #include <stdint.h>
+#endif
+
+#if !defined(_MSC_VER) && !defined(PS2_EE_PLATFORM) && !defined(PS2_IOP_PLATFORM)
+#include <arpa/inet.h>
+#endif /* !_MSC_VER && !PS2_EE_PLATFORM !PS2_IOP_PLATFORM */
+
 #include <stdio.h>
 #include <string.h>
+
+#include "compat.h"
 
 #include "portable-endian.h"
 #include "aes.h"

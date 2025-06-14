@@ -28,6 +28,7 @@
 #include "avformat.h"
 #include "id3v2.h"
 #include "internal.h"
+#include "url.h"
 
 
 /**
@@ -158,6 +159,12 @@ ff_const59 AVInputFormat *av_probe_input_format3(ff_const59 AVProbeData *pd, int
     }
 
     while ((fmt1 = av_demuxer_iterate(&i))) {
+#ifdef MXTECHS
+        if (ff_check_interrupt(&lpd.interrupt_callback)) {
+            av_log(NULL, AV_LOG_DEBUG, "interrupted\n");
+            break;
+        }
+#endif
         if (!is_opened == !(fmt1->flags & AVFMT_NOFILE) && strcmp(fmt1->name, "image2"))
             continue;
         score = 0;
@@ -179,7 +186,7 @@ ff_const59 AVInputFormat *av_probe_input_format3(ff_const59 AVProbeData *pd, int
                     break;
                 }
             } else if (fmt1->extensions && strcmp(fmt1->extensions, "mxv") == 0 && score == AVPROBE_SCORE_MAX) {
-                fmt        = (AVInputFormat*)fmt1;
+                fmt = (AVInputFormat *) fmt1;
                 score_max = score;
                 break;
             }
@@ -223,11 +230,25 @@ ff_const59 AVInputFormat *av_probe_input_format(ff_const59 AVProbeData *pd, int 
     return av_probe_input_format2(pd, is_opened, &score);
 }
 
+#ifdef MXTECHS
+int av_probe_input_buffer2(AVIOContext *pb, ff_const59 AVInputFormat **fmt,
+                          const char *filename, AVFormatContext *logctx,
+                          unsigned int offset, unsigned int max_probe_size)
+#else
 int av_probe_input_buffer2(AVIOContext *pb, ff_const59 AVInputFormat **fmt,
                           const char *filename, void *logctx,
                           unsigned int offset, unsigned int max_probe_size)
+#endif
 {
+#ifdef MXTECHS
+    AVIOInterruptCB int_cb = { NULL, NULL };
+    if (logctx) {
+        int_cb = logctx->interrupt_callback;
+    }
+    AVProbeData pd = { filename ? filename : "", NULL, 0, NULL, int_cb };
+#else
     AVProbeData pd = { filename ? filename : "" };
+#endif
     uint8_t *buf = NULL;
     int ret = 0, probe_size, buf_offset = 0;
     int score = 0;
@@ -273,10 +294,18 @@ int av_probe_input_buffer2(AVIOContext *pb, ff_const59 AVInputFormat **fmt,
                     if ((ret = avio_read(pb, buf, probe_size))>= 0) {
                         pd.buf_size = ret;
                         pd.buf = buf;
-                        *fmt = av_probe_input_format2(&pd, 1, &score);
-                        if (*fmt) {
+                        /*
+                         * It is more efficient to check mxd only.
+                         */
+                        AVInputFormat *fmt1 = av_find_input_format("mxd");
+                        if (fmt1 && fmt1->read_probe) {
+                            score = fmt1->read_probe(&pd);
                             if (score == AVPROBE_SCORE_MAX) {
+                                *fmt = fmt1;
                                 av_log(logctx, AV_LOG_DEBUG, "Format %s probed with size=%d and score=%d\n", (*fmt)->name, probe_size, score);
+                                av_freep(&buf);
+                                avio_seek(pb, pos, SEEK_SET);
+                                goto end;
                             } else {
                                 *fmt = NULL;
                             }
@@ -342,14 +371,21 @@ fail:
     ret2 = ffio_rewind_with_probe_data(pb, &buf, buf_offset);
     if (ret >= 0)
         ret = ret2;
-
+#ifdef MXTECHS
+end:
+#endif
     av_freep(&pd.mime_type);
     return ret < 0 ? ret : score;
 }
-
+#ifdef MXTECHS
+int av_probe_input_buffer(AVIOContext *pb, ff_const59 AVInputFormat **fmt,
+                          const char *filename, AVFormatContext *logctx,
+                          unsigned int offset, unsigned int max_probe_size)
+#else
 int av_probe_input_buffer(AVIOContext *pb, ff_const59 AVInputFormat **fmt,
                           const char *filename, void *logctx,
                           unsigned int offset, unsigned int max_probe_size)
+#endif
 {
     int ret = av_probe_input_buffer2(pb, fmt, filename, logctx, offset, max_probe_size);
     return ret < 0 ? ret : 0;

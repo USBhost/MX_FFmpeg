@@ -59,21 +59,21 @@ OPENSSLDIR=/usr/local/ssl
 # equal 4.
 # PKCS1_CHECK - pkcs1 tests.
 
-CC= /Users/zlin/Downloads/android-ndk-r13b/toolchains/aarch64-linux-android-4.9/prebuilt/darwin-x86_64/bin/aarch64-linux-android-gcc
-CFLAG= -DOPENSSL_THREADS -D_REENTRANT -DDSO_DLFCN -DHAVE_DLFCN_H -mandroid -fPIC -I$(ANDROID_DEV)/include -B$(ANDROID_DEV)/lib -O3 -Wall -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM
+CC= /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang -target aarch64-none-linux-android21
+CFLAG= -DOPENSSL_THREADS -D_REENTRANT -DDSO_DLFCN -DHAVE_DLFCN_H --sysroot=$(ANDROID_SYSROOT) -fPIC -O3 -Wall -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM
 DEPFLAG= -DOPENSSL_NO_EC_NISTP_64_GCC_128 -DOPENSSL_NO_GMP -DOPENSSL_NO_JPAKE -DOPENSSL_NO_LIBUNBOUND -DOPENSSL_NO_MD2 -DOPENSSL_NO_RC5 -DOPENSSL_NO_RFC3779 -DOPENSSL_NO_SCTP -DOPENSSL_NO_SSL_TRACE -DOPENSSL_NO_SSL2 -DOPENSSL_NO_STORE -DOPENSSL_NO_UNIT_TEST -DOPENSSL_NO_WEAK_SSL_CIPHERS
 PEX_LIBS= -pie
 EX_LIBS= -ldl
 EXE_EXT= 
 ARFLAGS= 
-AR= /Users/zlin/Downloads/android-ndk-r13b/toolchains/aarch64-linux-android-4.9/prebuilt/darwin-x86_64/bin/aarch64-linux-android-ar $(ARFLAGS) r
-RANLIB= /Users/zlin/Downloads/android-ndk-r13b/toolchains/aarch64-linux-android-4.9/prebuilt/darwin-x86_64/bin/aarch64-linux-android-ranlib
+AR= /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar $(ARFLAGS) r
+RANLIB= /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ranlib
 RC= windres
 NM= nm
 PERL= /usr/bin/perl
 TAR= tar
 TARFLAGS= --no-recursion
-MAKEDEPPROG= /Users/zlin/Downloads/android-ndk-r13b/toolchains/aarch64-linux-android-4.9/prebuilt/darwin-x86_64/bin/aarch64-linux-android-gcc
+MAKEDEPPROG= /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang -target aarch64-none-linux-android21
 LIBDIR=lib
 
 # We let the C compiler driver to take care of .s files. This is done in

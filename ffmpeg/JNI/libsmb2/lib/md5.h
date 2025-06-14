@@ -23,20 +23,28 @@
 #ifndef MD5_H
 #define MD5_H
 
-#if defined(_WIN32)
-#else
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#if !defined(_WIN32) && !defined(PS2_EE_PLATFORM) && !defined(PS2_IOP_PLATFORM)
 #include <netinet/in.h>
 #endif
 
 #include <string.h>
 #include <sys/types.h>
+
+#ifdef HAVE_STDINT_H
 #include <stdint.h>
+#endif
+
 #if !defined(_WIN32) && (__BYTE_ORDER == __BIG_ENDIAN)
 #  define WORDS_BIGENDIAN 1
 #endif
 
+#if !defined(PS2_IOP_PLATFORM)
 typedef uint32_t UWORD32;
-
+#endif
 
 #ifdef __cplusplus
 extern "C" {

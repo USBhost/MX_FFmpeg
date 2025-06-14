@@ -4246,6 +4246,16 @@ attribute_deprecated
 void avcodec_register_all(void);
 #endif
 
+#ifdef MXTECHS
+/**
+ * whitelist the codecs specified by codec ids.
+ *
+ * @param codecIds the array of codec id which would be whitelisted.
+ * @param size size of array
+ */
+void avcodec_whitelist(const int* codecIds, int size);
+#endif
+
 /**
  * Allocate an AVCodecContext and set its fields to default values. The
  * resulting struct should be freed with avcodec_free_context().

@@ -40,7 +40,7 @@ smb://[<domain>;][<user>@]<server>[:<port>]/<share>[/path][?arg=val[&arg=val]*]
 
 <server> is either a hostname, an IPv4 or an IPv6 address.
 
-Aruments supported by libsmb2 are :
+Arguments supported by libsmb2 are :
  sec=<mech>    : Mechanism to use to authenticate to the server. Default
 	         is any available mech, but can be overridden by :
 		 krb5: Use Kerberos using credentials from kinit.
@@ -50,9 +50,12 @@ Aruments supported by libsmb2 are :
  vers=<version> : Which SMB version to negotiate:
                   2: Negotiate any version of SMB2
                   3: Negotiate any version of SMB3
-		  2.02, 2.10, 3.00, 3.02 : negotiate a specific version.
+		  2.02, 2.10, 3.00, 3.02, 3.1.1 : negotiate a specific version.
 		  Default is to negotiate any SMB2 or SMB3 version.
   seal          : Enable SMB3 encryption.
+  sign          : Require SMB2/3 signing.
+  timeout       : Timeout in seconds when to cancel a command.
+                  Default it 0: No timeout.
 
 NOTE:-
 	When using krb5cc mode use smb2_set_domain() and smb2_set_password() in the examples and applications
@@ -188,7 +191,54 @@ If you want build libraries with Kerberos support, execute this script instead:
 
 ESP32
 -----
+libsmb2 is pre-configured for the ESP32 micro-controller using the esp-idf
+toolchain (Arduino is not supported). Simply clone this project in the
+'components' directory of the ESP32 project and it will automatically be
+included in the build process.
 
-libsmb2 is pre-configured for the ESP32 micro-controller. Simply
-clone this project in the 'components' directory of the ESP32 project
-and it will automatically be included in the build process.
+Playstation2
+------------
+EE, Emotion-Engine, is the main CPU for the PS2.
+To compile libsmb2 for the PS2 EE, first install the PS2 toolchain and
+PS2 SDK and set it up.
+
+To build libsmb2.a, a version of libsmb2 for the EE tcpip stack:
+  $ cd lib
+  $ make -f Makefile.PS2_EE clean
+  $ make -f Makefile.PS2_EE install
+
+IOP, IO-Processor is the secondary CPU for the PS2.
+To compile libsmb2 for the PS2 IOP, first install the PS2 toolchain and
+PS2 SDK and set it up.
+
+Then to build libsmb2, run
+  $ cd lib
+  $ make -f Makefile.PS2_IOP clean
+  $ make -f Makefile.PS2_IOP install
+
+
+PlayStation 3
+-------------
+PPU, PowerPC, is the main CPU for the PS3.
+To compile libsmb2 for the PS3 PPU, first install the PS3 toolchain and
+PSL1GHT SDK and set it up.
+
+Then to build libsmb2, run
+  $ cd lib
+  $ make -f Makefile.PS3_PPU install
+
+The process will copy the resulting libsmb2.a and the include/smb2 headers to your
+PSL1GHT SDK portlibs folder.
+
+PlayStation 4
+-------------
+x86_64 is the main CPU for the PS4.
+To compile libsmb2 for the PS4 PPU, first install the PS4 toolchain and
+OpenOrbis SDK and set it up.
+
+Then to build libsmb2, run
+  $ cd lib
+  $ make -f Makefile.PS4 install
+
+The process will copy the resulting libsmb2.a and the include/smb2 headers to your
+OpenOrbis SDK include folder.

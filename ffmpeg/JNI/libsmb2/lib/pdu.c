@@ -35,6 +35,12 @@
 #include <string.h>
 #endif
 
+#ifndef PS2_IOP_PLATFORM
+#include <time.h>
+#endif
+
+#include "compat.h"
+
 #include "portable-endian.h"
 
 #include "slist.h"
@@ -141,6 +147,10 @@ smb2_allocate_pdu(struct smb2_context *smb2, enum smb2_command command,
                 if (smb2->seal) {
                         pdu->seal = 1;
                 }
+        }
+
+        if (smb2->timeout) {
+                pdu->timeout = time(NULL) + smb2->timeout;
         }
 
         return pdu;
@@ -347,6 +357,7 @@ static void
 smb2_add_to_outqueue(struct smb2_context *smb2, struct smb2_pdu *pdu)
 {
         SMB2_LIST_ADD_END(&smb2->outqueue, pdu);
+        smb2_change_events(smb2, smb2->fd, smb2_which_events(smb2));
 }
 
 void
@@ -357,7 +368,8 @@ smb2_queue_pdu(struct smb2_context *smb2, struct smb2_pdu *pdu)
         /* Update all the PDU headers in this chain */
         for (p = pdu; p; p = p->next_compound) {
                 smb2_encode_header(smb2, &p->out.iov[0], &p->header);
-                if (smb2->sign) {
+                if (smb2->sign ||
+                    (p->header.command == SMB2_TREE_CONNECT && smb2->dialect == SMB2_VERSION_0311 && !smb2->seal)) {
                         if (smb2_pdu_add_signature(smb2, p) < 0) {
                                 smb2_set_error(smb2, "Failure to add "
                                                "signature. %s",
@@ -394,6 +406,14 @@ smb2_is_error_response(struct smb2_context *smb2,
                         return 0;
                 default:
                         return 1;
+                }
+        } else if ((smb2->hdr.status & SMB2_STATUS_SEVERITY_MASK) ==
+                 SMB2_STATUS_SEVERITY_WARNING) {
+                switch(smb2->hdr.status) {
+                case SMB2_STATUS_STOPPED_ON_SYMLINK:
+                        return 1;
+                default:
+                        return 0;
                 }
         }
         return 0;
@@ -523,5 +543,35 @@ smb2_process_payload_variable(struct smb2_context *smb2, struct smb2_pdu *pdu)
                 return smb2_process_ioctl_variable(smb2, pdu); 
         }
         return 0;
+}
+
+void smb2_timeout_pdus(struct smb2_context *smb2)
+{
+        struct smb2_pdu *pdu, *next;
+        time_t t = time(NULL);
+
+        pdu = smb2->outqueue;
+        while (pdu) {
+                next = pdu->next;
+                if (pdu->timeout && pdu->timeout < t) {
+                        SMB2_LIST_REMOVE(&smb2->outqueue, pdu);
+                        pdu->cb(smb2, SMB2_STATUS_IO_TIMEOUT, NULL,
+                                pdu->cb_data);
+                        smb2_free_pdu(smb2, pdu);
+                }
+                pdu = next;
+        }
+
+        pdu = smb2->waitqueue;
+        while (pdu) {
+                next = pdu->next;
+                if (pdu->timeout && pdu->timeout < t) {
+                        SMB2_LIST_REMOVE(&smb2->waitqueue, pdu);
+                        pdu->cb(smb2, SMB2_STATUS_IO_TIMEOUT, NULL,
+                                pdu->cb_data);
+                        smb2_free_pdu(smb2, pdu);
+                }
+                pdu = next;
+        }
 }
 

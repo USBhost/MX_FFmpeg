@@ -448,6 +448,9 @@ typedef struct AVProbeData {
     unsigned char *buf; /**< Buffer must have AVPROBE_PADDING_SIZE of extra allocated bytes filled with zero. */
     int buf_size;       /**< Size of buf except extra allocated bytes */
     const char *mime_type; /**< mime_type, when known. */
+#ifdef MXTECHS
+    AVIOInterruptCB interrupt_callback;
+#endif
 } AVProbeData;
 
 #define AVPROBE_SCORE_RETRY (AVPROBE_SCORE_MAX/4)
@@ -2285,6 +2288,18 @@ ff_const59 AVInputFormat *av_probe_input_format3(ff_const59 AVProbeData *pd, int
  *         the maximal score is AVPROBE_SCORE_MAX
  * AVERROR code otherwise
  */
+#ifdef MXTECHS
+int av_probe_input_buffer2(AVIOContext *pb, ff_const59 AVInputFormat **fmt,
+                           const char *url, AVFormatContext *logctx,
+                           unsigned int offset, unsigned int max_probe_size);
+
+/**
+ * Like av_probe_input_buffer2() but returns 0 on success
+ */
+int av_probe_input_buffer(AVIOContext *pb, ff_const59 AVInputFormat **fmt,
+                          const char *url, AVFormatContext *logctx,
+                          unsigned int offset, unsigned int max_probe_size);
+#else
 int av_probe_input_buffer2(AVIOContext *pb, ff_const59 AVInputFormat **fmt,
                            const char *url, void *logctx,
                            unsigned int offset, unsigned int max_probe_size);
@@ -2295,6 +2310,7 @@ int av_probe_input_buffer2(AVIOContext *pb, ff_const59 AVInputFormat **fmt,
 int av_probe_input_buffer(AVIOContext *pb, ff_const59 AVInputFormat **fmt,
                           const char *url, void *logctx,
                           unsigned int offset, unsigned int max_probe_size);
+#endif
 
 /**
  * Open an input stream and read the header. The codecs are not opened.

@@ -4,15 +4,24 @@
 #ifndef HMAC_MD5_H
 #define HMAC_MD5_H
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <string.h>
 #include <sys/types.h>
+
+#ifdef HAVE_STDINT_H
 #include <stdint.h>
+#endif
+
 #if (__BYTE_ORDER == __BIG_ENDIAN)
 #  define WORDS_BIGENDIAN 1
 #endif
 
+#if !defined(PS2_EE_PLATFORM) && !defined(PS2_IOP_PLATFORM)
 typedef uint32_t UWORD32;
-
+#endif
 
 #ifdef __cplusplus
 extern "C" {

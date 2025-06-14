@@ -2,6 +2,7 @@ set(SOURCES aes.c
             aes128ccm.c
             alloc.c
             dcerpc.c
+            dcerpc-lsa.c
             dcerpc-srvsvc.c
             errors.c
             init.c

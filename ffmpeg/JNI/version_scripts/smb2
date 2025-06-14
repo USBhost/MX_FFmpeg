@@ -1,0 +1,38 @@
+VERS_1
+{
+# visible functions
+global:
+    smb2_init_context;
+    smb2_destroy_context;
+    smb2_parse_url;
+    smb2_destroy_url;
+    smb2_set_user;
+    smb2_set_password;
+    smb2_set_domain;
+    smb2_set_security_mode;
+    smb2_connect_share_async;
+    smb2_disconnect_share_async;
+    smb2_get_error;
+    smb2_open_async;
+    smb2_fstat_async;
+    smb2_stat_async;
+    smb2_get_max_read_size;
+    smb2_lseek;
+    smb2_read_async;
+    smb2_write_async;
+    smb2_close_async;
+    smb2_opendir_async;
+    smb2_readdir;
+    smb2_rmdir_async;
+    smb2_closedir;
+    smb2_unlink_async;
+    smb2_rename_async;
+    smb2_get_fd;
+    smb2_which_events;
+    smb2_service;
+    smb2_share_enum_async;
+    smb2_free_data;
+
+# hide everything else
+local: *;         
+};

@@ -39,6 +39,8 @@
  *
  */
 
+#include "compat.h"
+
 #include "sha.h"
 #include "sha-private.h"
 

@@ -3274,7 +3274,7 @@ caf_demuxer_select="iso_media riffdec"
 caf_muxer_select="iso_media"
 dash_muxer_select="mp4_muxer"
 dash_demuxer_deps="libxml2"
-mxd_demuxer_select="iso_media"
+mxd_demuxer_select="iso_media "
 dirac_demuxer_select="dirac_parser"
 dts_demuxer_select="dca_parser"
 dtshd_demuxer_select="dca_parser"
@@ -3836,12 +3836,15 @@ else
         die "Out of tree builds are impossible with config.h in source dir."
 fi
 
+#MXTECHS
+<<!
 for v in "$@"; do
     r=${v#*=}
     l=${v%"$r"}
     r=$(sh_quote "$r")
     FFMPEG_CONFIGURATION="${FFMPEG_CONFIGURATION# } ${l}${r}"
 done
+!
 
 find_things_extern(){
     thing=$1
@@ -6310,7 +6313,7 @@ fi
 enabled libmodplug        && require modplug modplug.h ModPlug_Load -lmxutil
 #MXTECHS
 #enabled libmp3lame        && require "libmp3lame >= 3.98.3" lame/lame.h lame_set_VBR_quality -lmp3lame $libm_extralibs
-enabled libmp3lame        && require "libmp3lame >= 3.98.3" lame/lame.h lame_set_VBR_quality -lmxutil 
+enabled libmp3lame        && require "libmp3lame >= 3.98.3" lame/lame.h lame_set_VBR_quality -lmxutil
 enabled libmysofa         && { check_pkg_config libmysofa libmysofa mysofa.h mysofa_neighborhood_init_withstepdefine ||
                                require libmysofa mysofa.h mysofa_neighborhood_init_withstepdefine -lmysofa $zlib_extralibs; }
 enabled libnpp            && { check_lib libnpp npp.h nppGetLibVersion -lnppig -lnppicc -lnppc -lnppidei ||

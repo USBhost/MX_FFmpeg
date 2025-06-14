@@ -12,9 +12,9 @@ SHLIB_VERSION_HISTORY=
 SHLIB_MAJOR=1
 SHLIB_MINOR=0.0
 SHLIB_EXT=.so.$(SHLIB_MAJOR).$(SHLIB_MINOR)
-PLATFORM=android-armv7
+PLATFORM=android64-aarch64
 OPTIONS= no-ec_nistp_64_gcc_128 no-gmp no-jpake no-krb5 no-libunbound no-md2 no-rc5 no-rfc3779 no-sctp no-shared no-ssl-trace no-ssl2 no-store no-unit-test no-weak-ssl-ciphers no-zlib no-zlib-dynamic static-engine
-CONFIGURE_ARGS=android-armv7
+CONFIGURE_ARGS=android64-aarch64
 SHLIB_TARGET=linux-shared
 
 # HERE indicates where this Makefile lives.  This can be used to indicate
@@ -59,21 +59,21 @@ OPENSSLDIR=/usr/local/ssl
 # equal 4.
 # PKCS1_CHECK - pkcs1 tests.
 
-CC= /Users/zlin/Downloads/android-ndk-r13b/toolchains/arm-linux-androideabi-4.9/prebuilt/darwin-x86_64/bin/arm-linux-androideabi-gcc
-CFLAG= -DOPENSSL_THREADS -D_REENTRANT -DDSO_DLFCN -DHAVE_DLFCN_H -march=armv7-a -mandroid -I$(ANDROID_DEV)/include -B$(ANDROID_DEV)/lib -O3 -fomit-frame-pointer -Wall -DOPENSSL_BN_ASM_MONT -DOPENSSL_BN_ASM_GF2m -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DAES_ASM -DBSAES_ASM -DGHASH_ASM
+CC= /Users/zlin/Downloads/android-ndk-r13b/toolchains/aarch64-linux-android-4.9/prebuilt/darwin-x86_64/bin/aarch64-linux-android-gcc
+CFLAG= -DOPENSSL_THREADS -D_REENTRANT -DDSO_DLFCN -DHAVE_DLFCN_H -mandroid -fPIC -I$(ANDROID_DEV)/include -B$(ANDROID_DEV)/lib -O3 -Wall -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM
 DEPFLAG= -DOPENSSL_NO_EC_NISTP_64_GCC_128 -DOPENSSL_NO_GMP -DOPENSSL_NO_JPAKE -DOPENSSL_NO_LIBUNBOUND -DOPENSSL_NO_MD2 -DOPENSSL_NO_RC5 -DOPENSSL_NO_RFC3779 -DOPENSSL_NO_SCTP -DOPENSSL_NO_SSL_TRACE -DOPENSSL_NO_SSL2 -DOPENSSL_NO_STORE -DOPENSSL_NO_UNIT_TEST -DOPENSSL_NO_WEAK_SSL_CIPHERS
-PEX_LIBS= 
+PEX_LIBS= -pie
 EX_LIBS= -ldl
 EXE_EXT= 
 ARFLAGS= 
-AR= /Users/zlin/Downloads/android-ndk-r13b/toolchains/arm-linux-androideabi-4.9/prebuilt/darwin-x86_64/bin/arm-linux-androideabi-ar $(ARFLAGS) r
-RANLIB= /Users/zlin/Downloads/android-ndk-r13b/toolchains/arm-linux-androideabi-4.9/prebuilt/darwin-x86_64/bin/arm-linux-androideabi-ranlib
+AR= /Users/zlin/Downloads/android-ndk-r13b/toolchains/aarch64-linux-android-4.9/prebuilt/darwin-x86_64/bin/aarch64-linux-android-ar $(ARFLAGS) r
+RANLIB= /Users/zlin/Downloads/android-ndk-r13b/toolchains/aarch64-linux-android-4.9/prebuilt/darwin-x86_64/bin/aarch64-linux-android-ranlib
 RC= windres
 NM= nm
 PERL= /usr/bin/perl
 TAR= tar
 TARFLAGS= --no-recursion
-MAKEDEPPROG= /Users/zlin/Downloads/android-ndk-r13b/toolchains/arm-linux-androideabi-4.9/prebuilt/darwin-x86_64/bin/arm-linux-androideabi-gcc
+MAKEDEPPROG= /Users/zlin/Downloads/android-ndk-r13b/toolchains/aarch64-linux-android-4.9/prebuilt/darwin-x86_64/bin/aarch64-linux-android-gcc
 LIBDIR=lib
 
 # We let the C compiler driver to take care of .s files. This is done in
@@ -89,23 +89,23 @@ ASFLAG=$(CFLAG)
 PROCESSOR= 
 
 # CPUID module collects small commonly used assembler snippets
-CPUID_OBJ= armcap.o armv4cpuid.o
-BN_ASM= bn_asm.o armv4-mont.o armv4-gf2m.o
+CPUID_OBJ= armcap.o arm64cpuid.o mem_clr.o
+BN_ASM= bn_asm.o
 EC_ASM= 
 DES_ENC= des_enc.o fcrypt_b.o
-AES_ENC= aes_cbc.o aes-armv4.o bsaes-armv7.o aesv8-armx.o
+AES_ENC= aes_core.o aes_cbc.o aesv8-armx.o
 BF_ENC= bf_enc.o
 CAST_ENC= c_enc.o
 RC4_ENC= rc4_enc.o rc4_skey.o
 RC5_ENC= rc5_enc.o
 MD5_ASM_OBJ= 
-SHA1_ASM_OBJ= sha1-armv4-large.o sha256-armv4.o sha512-armv4.o
+SHA1_ASM_OBJ= sha1-armv8.o sha256-armv8.o sha512-armv8.o
 RMD160_ASM_OBJ= 
 WP_ASM_OBJ= wp_block.o
 CMLL_ENC= camellia.o cmll_misc.o cmll_cbc.o
-MODES_ASM_OBJ= ghash-armv4.o ghashv8-armx.o
+MODES_ASM_OBJ= ghashv8-armx.o
 ENGINES_ASM_OBJ= 
-PERLASM_SCHEME= void
+PERLASM_SCHEME= linux64
 
 # KRB5 stuff
 KRB5_INCLUDES=

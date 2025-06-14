@@ -35,6 +35,8 @@
  *      uses SHA1FinalBits() to hash the final few bits of the input.
  */
 
+#include "compat.h"
+
 #include "sha.h"
 #include "sha-private.h"
 

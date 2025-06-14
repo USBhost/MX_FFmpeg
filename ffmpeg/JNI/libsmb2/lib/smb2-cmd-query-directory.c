@@ -41,6 +41,8 @@
 
 #include <errno.h>
 
+#include "compat.h"
+
 #include "smb2.h"
 #include "libsmb2.h"
 #include "libsmb2-private.h"
@@ -74,7 +76,7 @@ smb2_decode_fileidfulldirectoryinformation(
         smb2_get_uint32(vec, 64, &fs->ea_size);
         smb2_get_uint64(vec, 72, &fs->file_id);
 
-        fs->name = ucs2_to_utf8((uint16_t *)&vec->buf[80], name_len / 2);
+        fs->name = utf16_to_utf8((uint16_t *)&vec->buf[80], name_len / 2);
 
         smb2_get_uint64(vec, 8, &t);
         win_to_timeval(t, &fs->creation_time);
@@ -98,7 +100,7 @@ smb2_encode_query_directory_request(struct smb2_context *smb2,
 {
         int len;
         uint8_t *buf;
-        struct ucs2 *name = NULL;
+        struct utf16 *name = NULL;
         struct smb2_iovec *iov;
 
         len = SMB2_QUERY_DIRECTORY_REQUEST_SIZE & 0xfffffffe;
@@ -112,9 +114,9 @@ smb2_encode_query_directory_request(struct smb2_context *smb2,
 
         /* Name */
         if (req->name && req->name[0]) {
-                name = utf8_to_ucs2(req->name);
+                name = utf8_to_utf16(req->name);
                 if (name == NULL) {
-                        smb2_set_error(smb2, "Could not convert name into UCS2");
+                        smb2_set_error(smb2, "Could not convert name into UTF-16");
                         return -1;
                 }
                 smb2_set_uint16(iov, 26, 2 * name->len);

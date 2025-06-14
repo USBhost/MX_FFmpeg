@@ -12,7 +12,10 @@ libsmb2_la_SOURCES = \
 	aes128ccm.h \
 	aes128ccm.c \
 	alloc.c \
+	compat.c \
+	compat.h \
 	dcerpc.c \
+	dcerpc-lsa.c \
 	dcerpc-srvsvc.c \
 	errors.c \
 	init.c \
@@ -65,7 +68,7 @@ libsmb2_la_SOURCES = \
 	unicode.c \
 	usha.c
 
-SOCURRENT=3
+SOCURRENT=4
 SOREVISION=0
 SOAGE=0
 libsmb2_la_LDFLAGS = \

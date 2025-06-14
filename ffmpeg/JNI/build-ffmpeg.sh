@@ -1,4 +1,19 @@
 #!/bin/bash
+ROOT=$(cd "$(dirname "$0")"; pwd)
+source ${ROOT}/util.sh
+
+build_type=release
+debug_flag=""
+for p in $*
+do
+  case "$p" in
+    --debug )
+      debug_flag="--debug"
+      build_type=debug
+      ;;
+  esac
+  done
+
 if test -t 1 && which tput >/dev/null 2>&1; then 
     ncolors=$(tput colors)
     if test -n "$ncolors" && test $ncolors -ge 8; then 
@@ -11,11 +26,6 @@ if test -t 1 && which tput >/dev/null 2>&1; then
     ncols=$(tput cols)
 fi
 : ${ncols:=72}
-
-die(){
-    echo "$error_color$bold_color$@$reset_color"
-    exit 1
-}
 
 CPU_CORE=12
 
@@ -32,7 +42,7 @@ rm compat/strtod.d
 rm compat/strtod.o
 
 echo "=====================CONFIGURE FFMPEG FOR $1====================="
-../config-ffmpeg.sh $1
+../config-ffmpeg.sh $1 $debug_flag
 if test "$?" != 0; then 
     die "ERROR: failed to configure ffmpeg for $1"
 fi
@@ -41,7 +51,12 @@ make clean
 make -j$CPU_CORE
 cd ..
 
-./build.sh ffmpeg.mx build $1
+./build.sh ffmpeg.mx $build_type build $1
 if test "$?" != 0; then 
     die "ERROR: failed to build ffmpeg for $1"
+fi
+
+if [[ -z ${SKIP_MXUTIL} ]]
+then
+copy_target $1 ffmpeg.mx
 fi

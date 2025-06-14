@@ -41,6 +41,8 @@
 
 #include <errno.h>
 
+#include "compat.h"
+
 #include "smb2.h"
 #include "libsmb2.h"
 #include "libsmb2-private.h"
@@ -224,6 +226,17 @@ smb2_process_query_info_variable(struct smb2_context *smb2,
                 break;
         case SMB2_0_INFO_FILESYSTEM:
                 switch (pdu->file_info_class) {
+		case SMB2_FILE_FS_VOLUME_INFORMATION:
+			ptr = smb2_alloc_init(smb2,
+				  sizeof(struct smb2_file_fs_volume_info));
+			if (smb2_decode_file_fs_volume_info(smb2, ptr, ptr,
+							    &vec)) {
+				smb2_set_error(smb2, "could not decode file "
+					       "fs volume info. %s",
+					       smb2_get_error(smb2));
+				return -1;
+			}
+			break;
                 case SMB2_FILE_FS_SIZE_INFORMATION:
                         ptr = smb2_alloc_init(smb2,
                                   sizeof(struct smb2_file_fs_size_info));

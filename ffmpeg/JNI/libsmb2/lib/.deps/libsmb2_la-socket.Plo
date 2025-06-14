@@ -1,0 +1,308 @@
+libsmb2_la-socket.lo: socket.c ../config.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/netdb.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/sys/cdefs.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/android/versioning.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/android/api-level.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/get_device_api_level_inlines.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/android/ndk-version.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/sys/types.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/stddef.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/__stddef_ptrdiff_t.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/__stddef_size_t.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/__stddef_wchar_t.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/__stddef_null.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/__stddef_max_align_t.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/__stddef_offsetof.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/stdint.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/stdint.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/wchar_limits.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/types.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/types.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/types.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/int-ll64.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/bitsperlong.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/bitsperlong.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/posix_types.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/stddef.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/compiler_types.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/compiler.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/posix_types.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/posix_types.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/pthread_types.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/sys/socket.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/fcntl.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/fcntl.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/flock64.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/flock.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/socket.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/socket.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/sockios.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/sockios.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/sockios.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/uio.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/sockaddr_storage.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/sa_family_t.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/netinet/tcp.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/tcp.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/tcphdr.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/byteorder.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/byteorder/little_endian.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/swab.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/swab.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/swab.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/socket.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/netinet/in.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/endian.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/sys/endian.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/netinet/in6.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/in6.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/libc-compat.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/in.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/ip_msfilter.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/in_addr.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/ip_mreq_source.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/ipv6.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/poll.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/poll.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/poll.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/poll.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/signal.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/sigcontext.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/sve_context.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/signal_types.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/limits.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/limits.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/float.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/limits.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/posix_limits.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/signal.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/signal.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/signal.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/signal-defs.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/siginfo.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/siginfo.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/timespec.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/sys/ucontext.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/sys/user.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/page_size.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/time.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/sys/time.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/time.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/time_types.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/sys/select.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/xlocale.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/stdlib.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/alloca.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/wait.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/wait.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/malloc.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/stdio.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/stdarg.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/__stdarg___gnuc_va_list.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/__stdarg_va_list.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/__stdarg_va_arg.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/__stdarg___va_copy.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/__stdarg_va_copy.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/seek_constants.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/struct_file.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/android/legacy_stdlib_inlines.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/string.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/strcasecmp.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/strings.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/sys/ioctl.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/ioctl.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/ioctl.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/ioctl.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/termios.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/termios.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/termios.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/termbits.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/termbits.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/termbits-common.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/ioctls.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/ioctls.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/tty.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/ioctl.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/sys/uio.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/unistd.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/fcntl.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/getentropy.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/getopt.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/lockf.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/sysconf.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/android/legacy_unistd_inlines.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/swab.h \
+  /Users/linlizh/Documents/android/amz/MXNative/media_player/jni/libsmb2/include/portable-endian.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/errno.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/errno.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/errno.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/errno.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/errno-base.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/fcntl.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/fadvise.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/falloc.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/fcntl.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/openat2.h \
+  /Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/stat.h \
+  compat.h \
+  /Users/linlizh/Documents/android/amz/MXNative/media_player/jni/libsmb2/include/slist.h \
+  /Users/linlizh/Documents/android/amz/MXNative/media_player/jni/libsmb2/include/smb2/smb2.h \
+  /Users/linlizh/Documents/android/amz/MXNative/media_player/jni/libsmb2/include/smb2/smb2-errors.h \
+  /Users/linlizh/Documents/android/amz/MXNative/media_player/jni/libsmb2/include/smb2/libsmb2.h \
+  /Users/linlizh/Documents/android/amz/MXNative/media_player/jni/libsmb2/include/smb2/libsmb2-dcerpc-srvsvc.h \
+  smb3-seal.h \
+  /Users/linlizh/Documents/android/amz/MXNative/media_player/jni/libsmb2/include/libsmb2-private.h
+../config.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/netdb.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/sys/cdefs.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/android/versioning.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/android/api-level.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/get_device_api_level_inlines.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/android/ndk-version.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/sys/types.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/stddef.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/__stddef_ptrdiff_t.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/__stddef_size_t.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/__stddef_wchar_t.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/__stddef_null.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/__stddef_max_align_t.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/__stddef_offsetof.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/stdint.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/stdint.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/wchar_limits.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/types.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/types.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/types.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/int-ll64.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/bitsperlong.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/bitsperlong.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/posix_types.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/stddef.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/compiler_types.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/compiler.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/posix_types.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/posix_types.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/pthread_types.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/sys/socket.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/fcntl.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/fcntl.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/flock64.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/flock.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/socket.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/socket.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/sockios.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/sockios.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/sockios.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/uio.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/sockaddr_storage.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/sa_family_t.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/netinet/tcp.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/tcp.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/tcphdr.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/byteorder.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/byteorder/little_endian.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/swab.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/swab.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/swab.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/socket.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/netinet/in.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/endian.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/sys/endian.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/netinet/in6.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/in6.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/libc-compat.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/in.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/ip_msfilter.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/in_addr.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/ip_mreq_source.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/ipv6.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/poll.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/poll.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/poll.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/poll.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/signal.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/sigcontext.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/sve_context.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/signal_types.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/limits.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/limits.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/float.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/limits.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/posix_limits.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/signal.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/signal.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/signal.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/signal-defs.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/siginfo.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/siginfo.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/timespec.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/sys/ucontext.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/sys/user.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/page_size.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/time.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/sys/time.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/time.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/time_types.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/sys/select.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/xlocale.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/stdlib.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/alloca.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/wait.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/wait.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/malloc.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/stdio.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/stdarg.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/__stdarg___gnuc_va_list.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/__stdarg_va_list.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/__stdarg_va_arg.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/__stdarg___va_copy.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang/18/include/__stdarg_va_copy.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/seek_constants.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/struct_file.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/android/legacy_stdlib_inlines.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/string.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/strcasecmp.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/strings.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/sys/ioctl.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/ioctl.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/ioctl.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/ioctl.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/termios.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/termios.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/termios.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/termbits.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/termbits.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/termbits-common.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/ioctls.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/ioctls.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/tty.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/ioctl.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/sys/uio.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/unistd.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/fcntl.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/getentropy.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/getopt.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/lockf.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/sysconf.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/android/legacy_unistd_inlines.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/bits/swab.h:
+/Users/linlizh/Documents/android/amz/MXNative/media_player/jni/libsmb2/include/portable-endian.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/errno.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/errno.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/aarch64-linux-android/asm/errno.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/errno.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/asm-generic/errno-base.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/fcntl.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/fadvise.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/falloc.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/fcntl.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/openat2.h:
+/Users/linlizh/Library/Android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/darwin-x86_64/bin/../sysroot/usr/include/linux/stat.h:
+compat.h:
+/Users/linlizh/Documents/android/amz/MXNative/media_player/jni/libsmb2/include/slist.h:
+/Users/linlizh/Documents/android/amz/MXNative/media_player/jni/libsmb2/include/smb2/smb2.h:
+/Users/linlizh/Documents/android/amz/MXNative/media_player/jni/libsmb2/include/smb2/smb2-errors.h:
+/Users/linlizh/Documents/android/amz/MXNative/media_player/jni/libsmb2/include/smb2/libsmb2.h:
+/Users/linlizh/Documents/android/amz/MXNative/media_player/jni/libsmb2/include/smb2/libsmb2-dcerpc-srvsvc.h:
+smb3-seal.h:
+/Users/linlizh/Documents/android/amz/MXNative/media_player/jni/libsmb2/include/libsmb2-private.h:
