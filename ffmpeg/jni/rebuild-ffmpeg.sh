@@ -1,6 +1,7 @@
 #!/bin/bash
 ROOT=$(cd "$(dirname "$0")"; pwd)
 source ${ROOT}/util.sh
+source ENV
 
 log_file=rebuild-ffmpeg.log
 
